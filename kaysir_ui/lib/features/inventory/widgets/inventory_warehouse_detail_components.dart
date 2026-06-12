@@ -1,0 +1,5 @@
+export 'inventory_warehouse_detail_category_components.dart';
+export 'inventory_warehouse_detail_movement_components.dart';
+export 'inventory_warehouse_detail_overview_components.dart';
+export 'inventory_warehouse_detail_replenishment_components.dart';
+export 'inventory_warehouse_detail_stock_components.dart';

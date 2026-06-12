@@ -1,0 +1,4 @@
+export 'inventory_product_catalog_bulk_action_bar.dart';
+export 'inventory_product_catalog_bulk_category_dialog.dart';
+export 'inventory_product_catalog_bulk_delete_dialog.dart';
+export 'inventory_product_catalog_bulk_repair_actions.dart';

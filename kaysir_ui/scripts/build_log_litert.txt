@@ -1,0 +1,55 @@
+Building macOS application...                                   
+error: /Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/libtensorflowlite_c-mac.dylib: No such file or directory (in target 'Runner' from project 'Runner')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'GTMAppAuth' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.11, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'PromisesObjC-FBLPromises_Privacy' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.11, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'geolocator_apple-geolocator_apple_privacy' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'GTMSessionFetcher' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.11, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'PromisesObjC' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'AppAuth-AppAuthCore_Privacy' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'AppAuth' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'GTMSessionFetcher-GTMSessionFetcher_Core_Privacy' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'GTMSessionFetcher-GTMSessionFetcher_Full_Privacy' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'GTMAppAuth-GTMAppAuth_Privacy' from project 'Pods')
+** BUILD FAILED **
+
+Build process failed

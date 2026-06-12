@@ -1,0 +1,136 @@
+name: kaysir
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  adaptive_screen: ^0.1.3
+  cached_network_image: ^3.4.1
+
+  crypto: ^3.0.6
+  csv: ^6.0.0
+  cupertino_icons: ^1.0.8
+  dio: ^5.8.0+1
+  encrypt: ^5.0.3
+  file_picker: ^11.0.2
+  fl_chart: ^1.0.0
+  ky_core:
+    path: ../../../../Libraries/Common/ky_core
+  ky_ppt:
+    path: ../../../../Libraries/Productivity/Office/ky_ppt
+  ky_admin:
+    path: ../Library/ky_admin
+  ky_gantt:
+    path: ../../../../Libraries/Project/ky_gantt
+  ky_scrumboard:
+    path: ../../../../Libraries/Project/ky_scrumboard
+  ky_table:
+    path: ../../../../Libraries/Tools/ky_table
+  ky_restaurant:
+    path: ../../../../Libraries/FnB/ky_restaurant
+  ky_builder_shared:
+    path: ../Library/ky_builder_shared
+  ky_website_builder:
+    path: ../../../../Libraries/Productivity/ky_website_builder
+  flutter_colorpicker: ^1.1.0
+  flutter_dotenv: ^5.2.1
+  flutter_local_notifications: ^19.0.0
+  flutter_riverpod: ^3.0.3
+
+# xml dependency removed (handled by pdf)
+
+  image_picker: ^1.1.2
+  intl: any
+  jwt_decoder: ^2.0.1
+  logger: ^2.5.0
+  logging: ^1.3.0
+  mobile_scanner: ^7.0.1
+  package_info_plus: ^8.3.0
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  pdf: ^3.12.0
+  qr_flutter: ^4.1.0
+  sembast: ^3.8.4+1
+  share_plus: ^11.0.0
+  uuid: ^4.5.1
+  xxtea: ^2.1.0
+  google_fonts: ^8.1.0
+  printing: ^5.14.2
+  serial_port_win32: ^2.1.12
+  flutter_rating_bar: ^4.0.1
+  flutter_animate: ^4.5.2
+  sembast_web: ^2.4.1
+  sembast_sqflite: ^2.2.1
+  pointycastle: ^3.9.1
+  http: ^1.3.0
+  flutter_secure_storage: ^10.3.1
+  go_router: ^17.3.0
+  connectivity_plus: ^7.1.1
+
+
+dev_dependencies:
+  # BUILDER
+  flutter_gen_runner:
+  json_serializable: ^6.7.1
+  flutter_launcher_icons: "^0.14.1"
+  mockito: ^5.4.4
+  # TEST
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^6.0.0
+
+# Localization configuration
+flutter_localizations:
+  generate: true
+  arb-dir: lib/translations
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icons/logo-golok.png"
+  min_sdk_android: 21 # android min sdk min:16, default 21
+  web:
+    generate: true
+    image_path: "assets/icons/logo-golok.png"
+    background_color: "#hexcode"
+    theme_color: "#hexcode"
+  windows:
+    generate: true
+    image_path: "assets/icons/logo-golok.png"
+    icon_size: 48 # min:48, max:256, default: 48
+  macos:
+    generate: true
+    image_path: "assets/icons/logo-golok.png"
+
+# The following section is specific to Flutter.
+flutter:
+  uses-material-design: true
+
+  generate: true
+
+  # To add assets to your application, add an assets section, like this
+  assets:
+  - assets/images/
+  - assets/icons/
+  - assets/fonts/
+  - assets/data/
+
+  fonts:
+     - family: RobotoCondensed
+       fonts:
+         - asset: assets/fonts/RobotoCondensed-Regular.ttf

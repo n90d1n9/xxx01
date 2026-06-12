@@ -1,0 +1,51 @@
+import '../models/hr_action_models.dart';
+
+List<HrActionRequest> buildPeopleOpsHrActionRequests(DateTime asOfDate) {
+  return [
+    HrActionRequest(
+      id: 'HR-1001',
+      employeeName: 'Rizky Pratama',
+      department: 'Operations',
+      actionType: HrActionType.transfer,
+      targetRole: 'Warehouse Supervisor - Night Shift',
+      effectiveDate: asOfDate.add(const Duration(days: 5)),
+      managerName: 'David Kim',
+      ownerName: 'People Partner',
+      reason: 'Move supervisor coverage to the night launch schedule.',
+      payrollReviewRequired: true,
+      priority: HrActionPriority.urgent,
+      status: HrActionStatus.submitted,
+      createdAt: asOfDate.subtract(const Duration(days: 1)),
+    ),
+    HrActionRequest(
+      id: 'HR-1002',
+      employeeName: 'Anisa Putri',
+      department: 'Finance',
+      actionType: HrActionType.compensationChange,
+      targetRole: 'Payroll Specialist II',
+      effectiveDate: asOfDate.add(const Duration(days: 10)),
+      managerName: 'Emma Rodriguez',
+      ownerName: 'Compensation Analyst',
+      reason: 'Promotion adjustment needs final compensation band approval.',
+      payrollReviewRequired: true,
+      priority: HrActionPriority.critical,
+      status: HrActionStatus.blocked,
+      createdAt: asOfDate.subtract(const Duration(days: 2)),
+    ),
+    HrActionRequest(
+      id: 'HR-1003',
+      employeeName: 'Nadia Rahman',
+      department: 'Design',
+      actionType: HrActionType.newHire,
+      targetRole: 'Product Designer',
+      effectiveDate: asOfDate.add(const Duration(days: 3)),
+      managerName: 'Sarah Johnson',
+      ownerName: 'Onboarding Specialist',
+      reason: 'Convert accepted offer into active onboarding record.',
+      payrollReviewRequired: false,
+      priority: HrActionPriority.standard,
+      status: HrActionStatus.inReview,
+      createdAt: asOfDate.subtract(const Duration(days: 3)),
+    ),
+  ];
+}

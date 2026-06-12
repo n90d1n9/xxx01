@@ -1,0 +1,28 @@
+name: tenun_showcase
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.5
+  storybook_flutter: ^0.14.1
+  tenun:
+    path: ../tenun
+  tenun_pro:
+    path: ../tenun_pro
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - lib/example/chart_samples_registry.dart

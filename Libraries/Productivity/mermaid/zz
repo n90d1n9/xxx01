@@ -1,0 +1,149 @@
+
+// ==================== MODELS ====================
+
+
+
+// ==================== PARSER ====================
+
+
+// ==================== STATE MANAGEMENT ====================
+
+
+// ==================== UI COMPONENTS ====================
+
+
+// ==================== PAINTERS ====================
+
+
+
+
+// ==================== TEMPLATES ====================
+
+
++?):\s*(\d+):\s*(.+)').firstMatch(line);
+      if (match != null) {
+        tasks.add(JourneyTask(
+          task: match.group(1)!.trim(),
+          score: int.parse(match.group(2)!),
+          actors: match.group(3)!.split(',').map((e) => e.trim()).toList(),
+        ));
+      }
+    }
+
+    return MermaidDiagram(
+      type: DiagramType.journey,
+      journeyTasks: tasks,
+      rawCode: code,
+    );
+  }
+
+  static MermaidDiagram _parseMindmap(List<String> lines, String code) {
+    final nodes = <DiagramNode>[];
+    final edges = <DiagramEdge>[];
+    final nodeMap = <int, String>{};
+    
+    for (var i = 1; i < lines.length; i++) {
+      final line = lines[i];
+      if (line.isEmpty) continue;
+      
+      final indent = line.length - line.trimLeft().length;
+      final label = line.trim();
+      final id = 'node_$i';
+      
+      nodes.add(DiagramNode(
+        id: id,
+        label: label,
+        shape: NodeShape.rounded,
+      ));
+      
+      if (indent > 0 && nodeMap.containsKey(indent - 2)) {
+        edges.add(DiagramEdge(
+          from: nodeMap[indent - 2]!,
+          to: id,
+        ));
+      }
+      
+      nodeMap[indent] = id;
+    }
+
+    _layoutMindmap(nodes, edges);
+    return MermaidDiagram(
+      type: DiagramType.mindmap,
+      nodes: nodes,
+      edges: edges,
+      rawCode: code,
+    );
+  }
+
+  static MermaidDiagram _parseGitGraph(List<String> lines, String code) {
+    final nodes = <DiagramNode>[];
+    final edges = <DiagramEdge>[];
+    var commitCount = 0;
+    String? lastCommit;
+    final branches = <String, String>{'main': 'commit_0'};
+    String currentBranch = 'main';
+
+    for (var i = 1; i < lines.length; i++) {
+      final line = lines[i].trim();
+      if (line.isEmpty || line.startsWith('%%')) continue;
+
+      if (line.startsWith('commit')) {
+        final id = 'commit_$commitCount';
+        final label = line.contains('id:') 
+          ? line.split('id:')[1].trim().replaceAll('"', '')
+          : 'Commit $commitCount';
+        
+        nodes.add(DiagramNode(
+          id: id,
+          label: label,
+          shape: NodeShape.circle,
+        ));
+
+        if (lastCommit != null) {
+          edges.add(DiagramEdge(from: lastCommit, to: id));
+        }
+
+        lastCommit = id;
+        branches[currentBranch] = id;
+        commitCount++;
+      } else if (line.startsWith('branch ')) {
+        final branchName = line.substring(7).trim();
+        branches[branchName] = lastCommit ?? 'commit_0';
+        currentBranch = branchName;
+      } else if (line.startsWith('checkout ')) {
+        final branchName = line.substring(9).trim();
+        if (branches.containsKey(branchName)) {
+          currentBranch = branchName;
+          lastCommit = branches[branchName];
+        }
+      } else if (line.startsWith('merge ')) {
+        final branchName = line.substring(6).trim();
+        if (branches.containsKey(branchName) && lastCommit != null) {
+          edges.add(DiagramEdge(
+            from: branches[branchName]!,
+            to: lastCommit,
+            type: EdgeType.dotted,
+          ));
+        }
+      }
+    }
+
+    _layoutGitGraph(nodes, edges);
+    return MermaidDiagram(
+      type: DiagramType.gitGraph,
+      nodes: nodes,
+      edges: edges,
+      rawCode: code,
+    );
+  }
+
+  static MermaidDiagram _parseQuadrant(List<String> lines, String code) {
+    final nodes = <DiagramNode>[];
+    
+    for (var i = 1; i < lines.length; i++) {
+      final line = lines[i].trim();
+      if (line.isEmpty || line.startsWith('%%') || 
+          line.startsWith('title') || line.startsWith('x-axis') || 
+          line.startsWith('y-axis') || line.startsWith('quadrant')) continue;
+
+      final match = RegExp(r'(.

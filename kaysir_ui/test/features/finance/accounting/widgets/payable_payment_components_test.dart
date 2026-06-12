@@ -1,0 +1,91 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
+import 'package:kaysir/features/finance/accounting/widgets/payable_payment_components.dart';
+import 'package:kaysir/widgets/ui/app_info_row.dart';
+import 'package:kaysir/widgets/ui/app_select_field.dart';
+
+void main() {
+  testWidgets('payable payment balance panel renders bill balance context', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 520,
+            child: PayablePaymentBalancePanel(
+              billReference: 'BILL-001',
+              vendorName: 'Acme Supplies',
+              outstandingAmount: 750,
+              currency: NumberFormat.simpleCurrency(decimalDigits: 2),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('BILL-001'), findsOneWidget);
+    expect(find.text('Acme Supplies'), findsOneWidget);
+    expect(find.text(r'$750.00'), findsOneWidget);
+    expect(find.text('Outstanding'), findsOneWidget);
+  });
+
+  testWidgets('payable payment method field reports selection changes', (
+    tester,
+  ) async {
+    String? selectedMethod;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 420,
+            child: PayablePaymentMethodField(
+              method: 'bank_transfer',
+              enabled: true,
+              onChanged: (value) => selectedMethod = value,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(AppSelectField<String>), findsOneWidget);
+    expect(find.text('Bank Transfer'), findsOneWidget);
+
+    await tester.tap(find.text('Bank Transfer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cash').last);
+    await tester.pumpAndSettle();
+
+    expect(selectedMethod, 'cash');
+  });
+
+  testWidgets('payable payment date field reports taps', (tester) async {
+    var tapped = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 360,
+            child: PayablePaymentDateField(
+              paymentDate: DateTime(2026, 5, 31),
+              onTap: () => tapped = true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(AppInfoRow), findsOneWidget);
+    expect(find.text('Payment Date'), findsOneWidget);
+    expect(find.text('05/31/2026'), findsOneWidget);
+
+    await tester.tap(find.text('05/31/2026'));
+    await tester.pump();
+
+    expect(tapped, isTrue);
+  });
+}

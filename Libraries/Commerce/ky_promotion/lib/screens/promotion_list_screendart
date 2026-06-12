@@ -1,0 +1,153 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/legacy.dart';
+
+class PromotionListScreen extends ConsumerWidget {
+  const PromotionListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final promotionsAsync = ref.watch(promotionsProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Promotions'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: () {
+              _showFilterOptions(context, ref);
+            },
+          ),
+        ],
+      ),
+      body: promotionsAsync.when(
+        data: (promotions) {
+          if (promotions.isEmpty) {
+            return const Center(
+              child: Text('No promotions found. Create one to get started.'),
+            );
+          }
+
+          return ListView.builder(
+            itemCount: promotions.length,
+            itemBuilder: (context, index) {
+              final promotion = promotions[index];
+              return PromotionListTile(promotion: promotion);
+            },
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error:
+            (error, stackTrace) =>
+                Center(child: Text('Error loading promotions: $error')),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const PromotionFormScreen(),
+            ),
+          );
+        },
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  void _showFilterOptions(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Filter Promotions',
+                style: Theme.of(context).textTheme.headline6,
+              ),
+              const SizedBox(height: 16),
+              const Text('Status:'),
+              Consumer(
+                builder: (context, ref, _) {
+                  final filterActive = ref.watch(
+                    filterActivePromotionsProvider,
+                  );
+                  return CheckboxListTile(
+                    title: const Text('Active only'),
+                    value: filterActive,
+                    onChanged: (value) {
+                      ref.read(filterActivePromotionsProvider.notifier).state =
+                          value ?? false;
+                    },
+                  );
+                },
+              ),
+              const Text('Type:'),
+              Consumer(
+                builder: (context, ref, _) {
+                  final selectedTypes = ref.watch(
+                    selectedPromotionTypesProvider,
+                  );
+
+                  return Wrap(
+                    spacing: 8.0,
+                    children:
+                        PromotionType.values.map((type) {
+                          final isSelected = selectedTypes.contains(type);
+
+                          return FilterChip(
+                            label: Text(type.toString().split('.').last),
+                            selected: isSelected,
+                            onSelected: (isSelected) {
+                              ref
+                                  .read(selectedPromotionTypesProvider.notifier)
+                                  .update((state) {
+                                    final newState = Set<PromotionType>.from(
+                                      state,
+                                    );
+                                    if (isSelected) {
+                                      newState.add(type);
+                                    } else {
+                                      newState.remove(type);
+                                    }
+                                    return newState;
+                                  });
+                            },
+                          );
+                        }).toList(),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      ref.read(filterActivePromotionsProvider.notifier).state =
+                          false;
+                      ref.read(selectedPromotionTypesProvider.notifier).state =
+                          {};
+                    },
+                    child: const Text('Clear All'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Apply'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}

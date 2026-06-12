@@ -1,0 +1,48 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:intl/intl.dart';
+import 'models/content_type_schema.dart';
+
+import 'content_entry.dart';
+import 'cmsrepository.dart';
+
+class ContentEntriesNotifier
+    extends StateNotifier<AsyncValue<List<ContentEntry>>> {
+  final CMSRepository _repository;
+  final String contentTypeId;
+  ContentEntriesNotifier(this._repository, this.contentTypeId)
+    : super(const AsyncValue.loading()) {
+    _loadEntries();
+  }
+  Future<void> _loadEntries() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _repository.getEntries(contentTypeId));
+  }
+
+  Future<void> create(ContentEntry entry) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      await _repository.createEntry(entry);
+      return _repository.getEntries(contentTypeId);
+    });
+  }
+
+  Future<void> update(ContentEntry entry) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.updateEntry(entry);
+      return _repository.getEntries(contentTypeId);
+    });
+  }
+
+  Future<void> delete(String entryId) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.deleteEntry(contentTypeId, entryId);
+      return _repository.getEntries(contentTypeId);
+    });
+  }
+
+  void refresh() => _loadEntries();
+}

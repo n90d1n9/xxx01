@@ -1,0 +1,78 @@
+{
+  "token": "demo-access-token-kaysir",
+  "refreshToken": "demo-refresh-token-kaysir",
+  "store": {
+    "id": "outlet-demo-01",
+    "name": "Kaysir Demo Outlet",
+    "code": "KDO-01",
+    "terminal": "POS-01",
+    "currency": "IDR"
+  },
+  "shift": {
+    "id": "shift-demo-0530",
+    "cashierName": "Aisyah Rahman",
+    "openedAt": "2026-05-30T09:00:00+07:00"
+  },
+  "cart": {
+    "subtotal": "Rp 124.000",
+    "tax": "Rp 13.640",
+    "total": "Rp 137.640",
+    "items": [
+      {
+        "name": "Americano",
+        "quantity": 2,
+        "total": "Rp 48.000"
+      },
+      {
+        "name": "Chicken Rice",
+        "quantity": 1,
+        "total": "Rp 76.000"
+      }
+    ]
+  },
+  "products": [
+    {
+      "name": "Americano",
+      "price": "Rp 24.000"
+    },
+    {
+      "name": "Chicken Rice",
+      "price": "Rp 76.000"
+    },
+    {
+      "name": "Mineral Water",
+      "price": "Rp 8.000"
+    }
+  ],
+  "user": {
+    "id": 7100,
+    "login": "demo.admin",
+    "username": "demo.admin",
+    "firstName": "Aisyah",
+    "lastName": "Rahman",
+    "email": "aisyah.rahman@kaysir.demo",
+    "phone": "+62 812-7100-0001",
+    "imageUrl": null,
+    "activated": true,
+    "langKey": "en",
+    "authorities": [
+      "ROLE_ADMIN",
+      "ROLE_MANAGER",
+      "ROLE_CASHIER"
+    ],
+    "role": "admin",
+    "permissions": [
+      "dashboard:read",
+      "pos:read",
+      "pos:write",
+      "layout_builder:read",
+      "layout_builder:write",
+      "inventory:read",
+      "finance:read"
+    ],
+    "createdBy": "demo",
+    "createdDate": "2026-01-01T00:00:00Z",
+    "lastModifiedBy": "demo",
+    "lastModifiedDate": "2026-05-30T00:00:00Z"
+  }
+}

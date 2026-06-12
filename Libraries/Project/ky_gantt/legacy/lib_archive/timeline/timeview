@@ -1,0 +1,87 @@
+// Enhanced Timeline View
+import 'package:flutter/material.dart';
+
+import '../criticalpat_overlay.dart';
+import '../gantt_state.dart';
+import '../models/gantt_task.dart';
+import '../models/task.dart';
+import '../task_timeline_item.dart';
+import '../timeline_toolbar.dart';
+import 'timeline_grid.dart';
+import 'timeline_header.dart';
+
+class TimelineView extends StatelessWidget {
+  final Timeline timeline;
+  final List<GanttTask> tasks;
+  const TimelineView(
+      {super.key,
+      required this.timeline, required this.tasks});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+         TimelineToolbar(startDate: timeline.startDate, endDate: timeline.endDate,),
+        TimelineHeader(
+          date: DateTime.now(),
+          days: 12,
+        ),
+        Expanded(
+          child: Stack(
+            children: [
+              TimelineGrid(
+                startDate: timeline.startDate,
+                endDate: timeline.endDate,
+              ),
+              if (timeline.showCriticalPath)
+                const CriticalPathOverlay(
+                  tasks: [],
+                ),
+              ListView.builder(
+                itemCount: tasks.length,
+                itemBuilder: (context, index) {
+                  return TaskTimelineItem(
+                    task: tasks[index],
+                    title: 'ini judul',
+                    startDate: timeline.startDate,
+                    endDate: timeline.endDate,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+
+
+
+
+/* 
+// Timeline Implementation
+class TimelineView extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final ganttState = context.watch<GanttState>();
+    
+    return Column(
+      children: [
+        // Timeline Header
+        const TimelineHeader(),
+        // Timeline Grid
+        Expanded(
+          child: ListView.builder(
+            itemCount: ganttState.tasks.length,
+            itemBuilder: (context, index) {
+              return TaskTimelineItem(task: ganttState.tasks[index]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+ */

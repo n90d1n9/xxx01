@@ -1,0 +1,54 @@
+[package]
+name = "waraq-core"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance, cross-platform productivity core engine"
+license = "MIT"
+authors = ["Waraq Team"]
+
+[lib]
+name = "waraq_core"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[[bench]]
+name = "editing_bench"
+harness = false
+
+[features]
+default = ["syntax", "lsp-client"]
+syntax = ["tree-sitter"]
+lsp-client = ["tokio", "serde_json"]
+wasm = ["wasm-bindgen", "js-sys"]
+ai = []
+
+[dependencies]
+# Core text buffer
+ropey = "1.6"
+
+# Syntax highlighting
+tree-sitter = { version = "0.22", optional = true }
+
+# Serialization (for FFI data interchange)
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", optional = true }
+
+# Async runtime (for LSP)
+tokio = { version = "1", features = ["full"], optional = true }
+
+# Unicode utilities
+unicode-segmentation = "1.11"
+unicode-width = "0.1"
+
+# WASM support
+wasm-bindgen = { version = "0.2", optional = true }
+js-sys = { version = "0.3", optional = true }
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# FFI utilities
+libc = "0.2"
+
+[dev-dependencies]
+criterion = "0.5"

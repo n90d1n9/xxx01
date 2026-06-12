@@ -1,0 +1,21 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    # Legacy prototype screens depend on older app-only packages and are being
+    # replaced by the modular ky_kitchen public API under lib/src.
+    - lib/branch_dash.dart
+    - lib/branch_manag.dart
+    - lib/customer.dart
+    - lib/kitchen_main.dart
+    - lib/menu.dart
+    - lib/room_layout.dart
+    - lib/room_reserv.dart
+    - lib/staff_assignment.dart
+    - lib/supplier.dart
+    - lib/supplier_claude.dart
+    - lib/screens/**
+    - lib/states/**
+
+# Additional information about this file can be found at
+# https://dart.dev/guides/language/analysis-options

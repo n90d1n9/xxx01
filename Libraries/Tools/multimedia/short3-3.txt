@@ -1,0 +1,613 @@
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+
+import 'video_item.dart';
+
+// Video state model
+class VideoPlayerState {
+  final List<VideoItem> videos;
+  final int currentIndex;
+  final Map<int, YoutubePlayerController> controllers;
+
+  VideoPlayerState({
+    required this.videos,
+    required this.currentIndex,
+    required this.controllers,
+  });
+
+  VideoPlayerState copyWith({
+    List<VideoItem>? videos,
+    int? currentIndex,
+    Map<int, YoutubePlayerController>? controllers,
+  }) {
+    return VideoPlayerState(
+      videos: videos ?? this.videos,
+      currentIndex: currentIndex ?? this.currentIndex,
+      controllers: controllers ?? this.controllers,
+    );
+  }
+}
+
+// Sample data
+final sampleVideos = [
+  VideoItem(
+    id: 'dQw4w9WgXcQ',
+    title: 'Amazing Nature Documentary',
+    channelName: 'Nature Channel',
+    thumbnailUrl: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
+    duration: Duration(minutes: 3, seconds: 32),
+    likes: 12500,
+    views: 1200000,
+  ),
+  VideoItem(
+    id: 'M7lc1UVf-VE',
+    title: 'Cooking Tutorial: Quick Pasta',
+    channelName: 'Chef\'s Kitchen',
+    thumbnailUrl: 'https://img.youtube.com/vi/M7lc1UVf-VE/maxresdefault.jpg',
+    duration: Duration(minutes: 2, seconds: 45),
+    likes: 8900,
+    views: 450000,
+  ),
+  VideoItem(
+    id: 'kJQP7kiw5Fk',
+    title: 'Tech Review: Latest Smartphone',
+    channelName: 'Tech Guru',
+    thumbnailUrl: 'https://img.youtube.com/vi/kJQP7kiw5Fk/maxresdefault.jpg',
+    duration: Duration(minutes: 4, seconds: 12),
+    likes: 15600,
+    views: 890000,
+  ),
+  VideoItem(
+    id: 'L_jWHffIx5E',
+    title: 'Travel Vlog: Amazing Destinations',
+    channelName: 'Travel Explorer',
+    thumbnailUrl: 'https://img.youtube.com/vi/L_jWHffIx5E/maxresdefault.jpg',
+    duration: Duration(minutes: 5, seconds: 20),
+    likes: 20100,
+    views: 750000,
+  ),
+  VideoItem(
+    id: 'hFZFjoX2cGg',
+    title: 'Fitness Workout: 10 Min HIIT',
+    channelName: 'Fitness Pro',
+    thumbnailUrl: 'https://img.youtube.com/vi/hFZFjoX2cGg/maxresdefault.jpg',
+    duration: Duration(minutes: 10, seconds: 15),
+    likes: 18300,
+    views: 920000,
+  ),
+];
+
+// Video player state notifier
+class VideoPlayerNotifier extends StateNotifier<VideoPlayerState> {
+  // Track the last initialized controller to prevent duplicate listeners
+  YoutubePlayerController? _lastInitializedController;
+
+  VideoPlayerNotifier()
+    : super(
+        VideoPlayerState(
+          videos: sampleVideos,
+          currentIndex: 0,
+          controllers: {},
+        ),
+      ) {
+    // Initialize the first video
+    _initializeController(0, autoplay: true);
+  }
+
+  YoutubePlayerController _createControllerForIndex(int index) {
+    return YoutubePlayerController(
+      initialVideoId: state.videos[index].id,
+      flags: const YoutubePlayerFlags(
+        autoPlay: false, // We control this manually
+        mute: false,
+        loop: false,
+        hideControls: true,
+        controlsVisibleAtStart: false,
+        enableCaption: false,
+      ),
+    );
+  }
+
+  void _initializeController(int index, {bool autoplay = false}) {
+    if (!state.controllers.containsKey(index)) {
+      final controller = _createControllerForIndex(index);
+
+      // Remove listener from previous controller
+      if (_lastInitializedController != null) {
+        _lastInitializedController!.removeListener(_videoListener);
+      }
+
+      // Add new listener
+      controller.addListener(_videoListener);
+      _lastInitializedController = controller;
+
+      state = state.copyWith(
+        controllers: {...state.controllers, index: controller},
+      );
+
+      if (autoplay) {
+        _playVideo(index);
+      }
+    }
+  }
+
+  void _videoListener() {
+    final controller = _lastInitializedController;
+    if (controller == null) return;
+
+    final currentIndex = state.currentIndex;
+    final currentController = state.controllers[currentIndex];
+
+    // Handle video end
+    if (controller == currentController &&
+        controller.value.playerState == PlayerState.ended) {
+      if (currentIndex < state.videos.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+      }
+    }
+  }
+
+  Future<void> _playVideo(int index) async {
+    final controller = state.controllers[index];
+    if (controller == null) return;
+
+    if (!controller.value.isReady) {
+      await controller.load(state.videos[index].id);
+    }
+
+    if (index == state.currentIndex) {
+      await controller.play();
+    }
+  }
+
+  Future<void> _pauseVideo(int index) async {
+    final controller = state.controllers[index];
+    if (controller != null && controller.value.isPlaying) {
+      await controller.pause();
+    }
+  }
+
+  Future<void> setCurrentIndex(int index) async {
+    if (index == state.currentIndex ||
+        index < 0 ||
+        index >= state.videos.length)
+      return;
+
+    // Pause current video
+    await _pauseVideo(state.currentIndex);
+
+    // Update state
+    state = state.copyWith(currentIndex: index);
+
+    // Initialize new controller if needed
+    _initializeController(index, autoplay: true);
+
+    // Preload adjacent videos
+    _preloadAdjacentVideos(index);
+  }
+
+  void _preloadAdjacentVideos(int currentIndex) {
+    if (currentIndex + 1 < state.videos.length) {
+      _initializeController(currentIndex + 1);
+    }
+    if (currentIndex - 1 >= 0) {
+      _initializeController(currentIndex - 1);
+    }
+  }
+
+  // Gets controller for specific index
+  YoutubePlayerController? getController(int index) {
+    return state.controllers[index];
+  }
+
+  // Gets current video's controller
+  YoutubePlayerController? get currentController {
+    return state.controllers[state.currentIndex];
+  }
+
+  // Toggles play/pause for current video
+  void togglePlayPause() {
+    final controller = currentController;
+    if (controller != null) {
+      if (controller.value.isPlaying) {
+        controller.pause();
+      } else {
+        controller.play();
+      }
+    }
+  }
+
+  // Toggles mute for current video
+  void toggleMute() {
+    final controller = currentController;
+    if (controller != null) {
+      controller.setVolume(controller.value.volume == 0 ? 100 : 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    // Dispose all controllers
+    for (final controller in state.controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+}
+
+// Provider
+final videoPlayerProvider =
+    StateNotifierProvider<VideoPlayerNotifier, VideoPlayerState>((ref) {
+      return VideoPlayerNotifier();
+    });
+
+// Main screen
+class ContinuousYouTubePlayerScreen extends ConsumerStatefulWidget {
+  const ContinuousYouTubePlayerScreen({super.key});
+
+  @override
+  ConsumerState<ContinuousYouTubePlayerScreen> createState() =>
+      _ContinuousYouTubePlayerScreenState();
+}
+
+class _ContinuousYouTubePlayerScreenState
+    extends ConsumerState<ContinuousYouTubePlayerScreen> {
+  late PageController _pageController;
+  bool _showControls = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _toggleControls() {
+    setState(() {
+      _showControls = !_showControls;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final videoState = ref.watch(videoPlayerProvider);
+    final videoNotifier = ref.read(videoPlayerProvider.notifier);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: PageView.builder(
+          controller: _pageController,
+          scrollDirection: Axis.vertical,
+          itemCount: videoState.videos.length,
+          onPageChanged: (index) async {
+            // This will handle pausing the previous video and playing the new one
+            await Future.delayed(const Duration(milliseconds: 100));
+            videoNotifier.setCurrentIndex(index);
+
+            // Optional: If you want to reset the page position
+            // Optional: If you want to reset the page position
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (_pageController.hasClients) {
+                _pageController.jumpToPage(index);
+              }
+            });
+          },
+          itemBuilder: (context, index) {
+            return Opacity(
+              opacity: index == videoState.currentIndex ? 1.0 : 0.7,
+              child: VideoPlayerWidget(
+                video: videoState.videos[index],
+                controller: videoNotifier.getController(index),
+                isCurrentVideo: index == videoState.currentIndex,
+                showControls: _showControls,
+                onTap: _toggleControls,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// Video player widget
+class VideoPlayerWidget extends ConsumerWidget {
+  final VideoItem video;
+  final YoutubePlayerController? controller;
+  final bool isCurrentVideo;
+  final bool showControls;
+  final VoidCallback onTap;
+
+  const VideoPlayerWidget({
+    super.key,
+    required this.video,
+    required this.controller,
+    required this.isCurrentVideo,
+    required this.showControls,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final videoNotifier = ref.read(videoPlayerProvider.notifier);
+    final videoState = ref.watch(videoPlayerProvider);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: Colors.black,
+        child: Stack(
+          children: [
+            // Video player
+            if (controller != null)
+              Center(
+                child: AspectRatio(
+                  aspectRatio: 9 / 16,
+                  child: YoutubePlayer(
+                    controller: controller!,
+                    showVideoProgressIndicator: true,
+                    progressIndicatorColor: Colors.red,
+                    bottomActions: [],
+                    topActions: [],
+                    onReady: () {
+                      // Auto-play if this is the current video
+                      if (videoState.currentIndex ==
+                          videoState.videos.indexOf(video)) {
+                        controller!.play();
+                      }
+                    },
+                  ),
+                ),
+              )
+            else
+              // Thumbnail for non-current videos
+              Container(
+                width: double.infinity,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: NetworkImage(video.thumbnailUrl),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.play_circle_outline,
+                    color: Colors.white,
+                    size: 80,
+                  ),
+                ),
+              ),
+
+            // Video controls overlay
+            if (showControls && isCurrentVideo && controller != null)
+              VideoControlsOverlay(
+                video: video,
+                controller: controller!,
+                onPlayPause: videoNotifier.togglePlayPause,
+                onMute: videoNotifier.toggleMute,
+              ),
+
+            // Video info overlay
+            VideoInfoOverlay(video: video),
+
+            // Side action buttons
+            SideActionButtons(video: video),
+
+            // Debug info (remove in production)
+            if (isCurrentVideo)
+              Positioned(
+                top: 16,
+                left: 16,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Video ${video.id}',
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Video controls overlay
+class VideoControlsOverlay extends StatelessWidget {
+  final VideoItem video;
+  final YoutubePlayerController controller;
+  final VoidCallback onPlayPause;
+  final VoidCallback onMute;
+
+  const VideoControlsOverlay({
+    super.key,
+    required this.video,
+    required this.controller,
+    required this.onPlayPause,
+    required this.onMute,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black.withOpacity(0.3),
+      child: Center(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconButton(
+              onPressed: onPlayPause,
+              icon: Icon(
+                controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                color: Colors.white,
+                size: 64,
+              ),
+            ),
+            const SizedBox(width: 32),
+            IconButton(
+              onPressed: onMute,
+              icon: Icon(
+                controller.value.volume == 0
+                    ? Icons.volume_off
+                    : Icons.volume_up,
+                color: Colors.white,
+                size: 32,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Video info overlay
+class VideoInfoOverlay extends StatelessWidget {
+  final VideoItem video;
+
+  const VideoInfoOverlay({super.key, required this.video});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: 80,
+      left: 16,
+      right: 80,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            video.title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            video.channelName,
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${_formatNumber(video.views)} views',
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatNumber(int number) {
+    if (number >= 1000000) {
+      return '${(number / 1000000).toStringAsFixed(1)}M';
+    } else if (number >= 1000) {
+      return '${(number / 1000).toStringAsFixed(1)}K';
+    }
+    return number.toString();
+  }
+}
+
+// Side action buttons
+class SideActionButtons extends StatelessWidget {
+  final VideoItem video;
+
+  const SideActionButtons({super.key, required this.video});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      right: 16,
+      bottom: 80,
+      child: Column(
+        children: [
+          _buildActionButton(
+            icon: Icons.thumb_up_outlined,
+            label: _formatNumber(video.likes),
+            onTap: () {},
+          ),
+          const SizedBox(height: 24),
+          _buildActionButton(
+            icon: Icons.comment_outlined,
+            label: 'Comment',
+            onTap: () {},
+          ),
+          const SizedBox(height: 24),
+          _buildActionButton(
+            icon: Icons.share_outlined,
+            label: 'Share',
+            onTap: () {},
+          ),
+          const SizedBox(height: 24),
+          _buildActionButton(
+            icon: Icons.bookmark_outline,
+            label: 'Save',
+            onTap: () {},
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.3),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: 24),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatNumber(int number) {
+    if (number >= 1000000) {
+      return '${(number / 1000000).toStringAsFixed(1)}M';
+    } else if (number >= 1000) {
+      return '${(number / 1000).toStringAsFixed(1)}K';
+    }
+    return number.toString();
+  }
+}
+
+void main(List<String> args) {
+  runApp(
+    ProviderScope(child: MaterialApp(home: ContinuousYouTubePlayerScreen())),
+  );
+}

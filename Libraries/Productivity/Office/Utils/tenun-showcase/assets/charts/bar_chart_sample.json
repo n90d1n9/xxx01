@@ -1,0 +1,89 @@
+{
+  "type": "bar",
+  "title": {
+    "text": "Monthly Sales Report",
+    "subtext": "January - December 2024",
+    "fontSize": 18,
+    "fontWeight": "bold",
+    "color": "#333333",
+    "subtextFontSize": 12,
+    "subtextColor": "#666666"
+  },
+  "tooltip": {
+    "show": true,
+    "textColor": "#FFFFFF",
+    "backgroundColor": "#333333",
+    "formatter": "{c} units"
+  },
+  "legend": {
+    "show": true,
+    "data": ["Revenue", "Profit", "Expenses"],
+    "textColor": "#000000",
+    "fontSize": 12
+  },
+  "toolbox": {
+    "show": false
+  },
+  "grid": {
+    "show": true,
+    "showHorizontalLines": true,
+    "showVerticalLines": false,
+    "horizontalColor": "#E0E0E0",
+    "horizontalWidth": 0.5,
+    "verticalColor": "#E0E0E0",
+    "verticalWidth": 0.5
+  },
+  "xAxis": {
+    "show": true,
+    "data": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    "fontSize": 10,
+    "color": "#666666",
+    "name": "Month",
+    "nameSize": 12,
+    "nameColor": "#333333"
+  },
+  "yAxis": {
+    "show": true,
+    "fontSize": 10,
+    "color": "#666666",
+    "name": "Amount (USD)",
+    "nameSize": 12,
+    "nameColor": "#333333"
+  },
+  "series": [
+    {
+      "name": "Revenue",
+      "type": "bar",
+      "data": [820, 932, 901, 934, 1290, 1330, 1320, 1450, 1520, 1600, 1680, 1750],
+      "color": "#5470C6",
+      "itemStyle": {
+        "color": "#5470C6"
+      }
+    },
+    {
+      "name": "Profit",
+      "type": "bar",
+      "data": [320, 432, 401, 434, 590, 630, 620, 750, 820, 900, 980, 1050],
+      "color": "#91CC75",
+      "itemStyle": {
+        "color": "#91CC75"
+      }
+    },
+    {
+      "name": "Expenses",
+      "type": "bar",
+      "data": [500, 500, 500, 500, 700, 700, 700, 700, 700, 700, 700, 700],
+      "color": "#FAC858",
+      "itemStyle": {
+        "color": "#FAC858"
+      }
+    }
+  ],
+  "maxY": 2000,
+  "barWidth": 12,
+  "barBorderRadius": 4,
+  "alignment": "spaceAround",
+  "isStacked": false,
+  "isHorizontal": false,
+  "isMultiBar": false
+}

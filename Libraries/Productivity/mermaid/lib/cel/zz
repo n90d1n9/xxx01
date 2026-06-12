@@ -1,0 +1,515 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'dart:convert';
+
+// Models
+enum NodeType { comparison, logical, arithmetic, function, variable, literal }
+
+class ExpressionNode {
+  final String id;
+  final NodeType type;
+  String? operator;
+  dynamic value;
+  List<ExpressionNode> children;
+
+  ExpressionNode({
+    required this.id,
+    required this.type,
+    this.operator,
+    this.value,
+    List<ExpressionNode>? children,
+  }) : children = children ?? [];
+
+  String toCEL() {
+    switch (type) {
+      case NodeType.literal:
+        if (value is String) return '"$value"';
+        return value.toString();
+
+      case NodeType.variable:
+        return value.toString();
+
+      case NodeType.comparison:
+        if (children.length != 2) return '';
+        final left = children[0].toCEL();
+        final right = children[1].toCEL();
+        return '($left $operator $right)';
+
+      case NodeType.logical:
+        if (operator == '!') {
+          return '!(${children[0].toCEL()})';
+        }
+        if (children.length < 2) return '';
+        return '(${children.map((c) => c.toCEL()).join(' $operator ')})';
+
+      case NodeType.arithmetic:
+        if (children.length != 2) return '';
+        return '(${children[0].toCEL()} $operator ${children[1].toCEL()})';
+
+      case NodeType.function:
+        final args = children.map((c) => c.toCEL()).join(', ');
+        return '$value($args)';
+
+      default:
+        return '';
+    }
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'type': type.name,
+    'operator': operator,
+    'value': value,
+    'children': children.map((c) => c.toJson()).toList(),
+  };
+
+  factory ExpressionNode.fromJson(Map<String, dynamic> json) {
+    return ExpressionNode(
+      id: json['id'],
+      type: NodeType.values.firstWhere((e) => e.name == json['type']),
+      operator: json['operator'],
+      value: json['value'],
+      children: (json['children'] as List?)
+          ?.map((c) => ExpressionNode.fromJson(c))
+          .toList(),
+    );
+  }
+}
+
+// State Management
+class ExpressionState {
+  final ExpressionNode? rootNode;
+  final String script;
+  final bool isVisualMode;
+
+  ExpressionState({this.rootNode, this.script = '', this.isVisualMode = true});
+
+  ExpressionState copyWith({
+    ExpressionNode? rootNode,
+    String? script,
+    bool? isVisualMode,
+  }) {
+    return ExpressionState(
+      rootNode: rootNode ?? this.rootNode,
+      script: script ?? this.script,
+      isVisualMode: isVisualMode ?? this.isVisualMode,
+    );
+  }
+}
+
+class ExpressionNotifier extends StateNotifier<ExpressionState> {
+  ExpressionNotifier() : super(ExpressionState());
+
+  void setRootNode(ExpressionNode node) {
+    state = state.copyWith(rootNode: node);
+    _syncScriptFromVisual();
+  }
+
+  void updateScript(String script) {
+    state = state.copyWith(script: script);
+  }
+
+  void toggleMode() {
+    if (state.isVisualMode) {
+      // Switching to script mode
+      _syncScriptFromVisual();
+    }
+    state = state.copyWith(isVisualMode: !state.isVisualMode);
+  }
+
+  void _syncScriptFromVisual() {
+    if (state.rootNode != null) {
+      state = state.copyWith(script: state.rootNode!.toCEL());
+    }
+  }
+
+  void addChildNode(String parentId, ExpressionNode child) {
+    if (state.rootNode == null) return;
+
+    ExpressionNode addChild(ExpressionNode node) {
+      if (node.id == parentId) {
+        return ExpressionNode(
+          id: node.id,
+          type: node.type,
+          operator: node.operator,
+          value: node.value,
+          children: [...node.children, child],
+        );
+      }
+      return ExpressionNode(
+        id: node.id,
+        type: node.type,
+        operator: node.operator,
+        value: node.value,
+        children: node.children.map(addChild).toList(),
+      );
+    }
+
+    state = state.copyWith(rootNode: addChild(state.rootNode!));
+    _syncScriptFromVisual();
+  }
+
+  void deleteNode(String nodeId) {
+    if (state.rootNode?.id == nodeId) {
+      state = state.copyWith(rootNode: null, script: '');
+      return;
+    }
+
+    ExpressionNode? deleteChild(ExpressionNode node) {
+      final newChildren = node.children
+          .where((c) => c.id != nodeId)
+          .map((c) => deleteChild(c))
+          .whereType<ExpressionNode>()
+          .toList();
+
+      return ExpressionNode(
+        id: node.id,
+        type: node.type,
+        operator: node.operator,
+        value: node.value,
+        children: newChildren,
+      );
+    }
+
+    if (state.rootNode != null) {
+      state = state.copyWith(rootNode: deleteChild(state.rootNode!));
+      _syncScriptFromVisual();
+    }
+  }
+}
+
+final expressionProvider =
+    StateNotifierProvider<ExpressionNotifier, ExpressionState>(
+      (ref) => ExpressionNotifier(),
+    );
+
+// Main App
+void main() {
+  runApp(const ProviderScope(child: CELBuilderApp()));
+}
+
+class CELBuilderApp extends StatelessWidget {
+  const CELBuilderApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'CEL Expression Builder',
+      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
+      home: const CELBuilderHome(),
+    );
+  }
+}
+
+class CELBuilderHome extends ConsumerWidget {
+  const CELBuilderHome({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(expressionProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('CEL Expression Builder'),
+        actions: [
+          IconButton(
+            icon: Icon(state.isVisualMode ? Icons.code : Icons.account_tree),
+            onPressed: () => ref.read(expressionProvider.notifier).toggleMode(),
+            tooltip: state.isVisualMode
+                ? 'Switch to Script'
+                : 'Switch to Visual',
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: state.isVisualMode
+                ? const VisualBuilder()
+                : const ScriptEditor(),
+          ),
+          const OutputPanel(),
+        ],
+      ),
+      floatingActionButton: state.isVisualMode
+          ? FloatingActionButton(
+              onPressed: () => _showAddNodeDialog(context, ref),
+              child: const Icon(Icons.add),
+            )
+          : null,
+    );
+  }
+
+  void _showAddNodeDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AddNodeDialog(
+        onNodeCreated: (node) {
+          ref.read(expressionProvider.notifier).setRootNode(node);
+        },
+      ),
+    );
+  }
+}
+
+// Visual Builder
+
+// Add Node Dialog
+class AddNodeDialog extends StatefulWidget {
+  final Function(ExpressionNode) onNodeCreated;
+
+  const AddNodeDialog({Key? key, required this.onNodeCreated})
+    : super(key: key);
+
+  @override
+  State<AddNodeDialog> createState() => _AddNodeDialogState();
+}
+
+class _AddNodeDialogState extends State<AddNodeDialog> {
+  NodeType selectedType = NodeType.comparison;
+  final textController = TextEditingController();
+  String? selectedOperator;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add Node'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DropdownButtonFormField<NodeType>(
+            value: selectedType,
+            decoration: const InputDecoration(labelText: 'Node Type'),
+            items: NodeType.values.map((type) {
+              return DropdownMenuItem(value: type, child: Text(type.name));
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                selectedType = value!;
+                selectedOperator = null;
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+          if (_needsOperator()) _buildOperatorDropdown(),
+          if (_needsValue()) _buildValueField(),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(onPressed: _createNode, child: const Text('Add')),
+      ],
+    );
+  }
+
+  bool _needsOperator() {
+    return selectedType == NodeType.comparison ||
+        selectedType == NodeType.logical ||
+        selectedType == NodeType.arithmetic;
+  }
+
+  bool _needsValue() {
+    return selectedType == NodeType.literal ||
+        selectedType == NodeType.variable ||
+        selectedType == NodeType.function;
+  }
+
+  Widget _buildOperatorDropdown() {
+    List<String> operators;
+    switch (selectedType) {
+      case NodeType.comparison:
+        operators = ['==', '!=', '<', '<=', '>', '>='];
+        break;
+      case NodeType.logical:
+        operators = ['&&', '||', '!'];
+        break;
+      case NodeType.arithmetic:
+        operators = ['+', '-', '*', '/', '%'];
+        break;
+      default:
+        operators = [];
+    }
+
+    return DropdownButtonFormField<String>(
+      value: selectedOperator,
+      decoration: const InputDecoration(labelText: 'Operator'),
+      items: operators.map((op) {
+        return DropdownMenuItem(value: op, child: Text(op));
+      }).toList(),
+      onChanged: (value) {
+        setState(() => selectedOperator = value);
+      },
+    );
+  }
+
+  Widget _buildValueField() {
+    String label;
+    switch (selectedType) {
+      case NodeType.literal:
+        label = 'Value (e.g., 42, "hello", true)';
+        break;
+      case NodeType.variable:
+        label = 'Variable Name (e.g., user.age)';
+        break;
+      case NodeType.function:
+        label = 'Function Name (e.g., size, contains)';
+        break;
+      default:
+        label = 'Value';
+    }
+
+    return TextField(
+      controller: textController,
+      decoration: InputDecoration(labelText: label),
+    );
+  }
+
+  void _createNode() {
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    dynamic value = textController.text;
+
+    // Try to parse literal values
+    if (selectedType == NodeType.literal) {
+      if (value == 'true' || value == 'false') {
+        value = value == 'true';
+      } else if (int.tryParse(value) != null) {
+        value = int.parse(value);
+      } else if (double.tryParse(value) != null) {
+        value = double.parse(value);
+      }
+    }
+
+    final node = ExpressionNode(
+      id: id,
+      type: selectedType,
+      operator: selectedOperator,
+      value: value,
+    );
+
+    widget.onNodeCreated(node);
+    Navigator.pop(context);
+  }
+
+  @override
+  void dispose() {
+    textController.dispose();
+    super.dispose();
+  }
+}
+
+// Script Editor
+class ScriptEditor extends ConsumerStatefulWidget {
+  const ScriptEditor({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<ScriptEditor> createState() => _ScriptEditorState();
+}
+
+class _ScriptEditorState extends ConsumerState<ScriptEditor> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: ref.read(expressionProvider).script,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'CEL Script Editor',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              maxLines: null,
+              expands: true,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText:
+                    'Enter CEL expression...\nExample: user.age >= 18 && user.verified == true',
+              ),
+              style: const TextStyle(fontFamily: 'monospace'),
+              onChanged: (value) {
+                ref.read(expressionProvider.notifier).updateScript(value);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Output Panel
+class OutputPanel extends ConsumerWidget {
+  const OutputPanel({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(expressionProvider);
+    final output = state.isVisualMode
+        ? (state.rootNode?.toCEL() ?? 'No expression')
+        : state.script;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        border: Border(top: BorderSide(color: Colors.grey[300]!)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'CEL Output:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.copy, size: 20),
+                onPressed: () {
+                  // Copy to clipboard logic here
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: SelectableText(
+              output,
+              style: const TextStyle(fontFamily: 'monospace'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

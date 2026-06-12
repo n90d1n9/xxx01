@@ -1,0 +1,15 @@
+
+
+          switch (viewType) {
+            case TaskViewType.list:
+              return _buildListView(allTasks, plans);
+            case TaskViewType.kanban:
+              return _buildKanbanView(allTasks);
+            case TaskViewType.gantt:
+              return _buildGanttView(allTasks);
+            case TaskViewType.calendar:
+              return _buildCalendarView(allTasks);
+          }
+
+
+

@@ -1,0 +1,19 @@
+name: ky_gantt
+description: Reusable Flutter Gantt chart widgets for Kaysir project management.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.5.4
+  flutter: ">=1.17.0"
+
+dependencies:
+  collection: ^1.19.1
+  flutter:
+    sdk: flutter
+  intl: ^0.20.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0

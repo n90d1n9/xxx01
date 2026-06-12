@@ -1,0 +1,1641 @@
+// models/service_model.dart
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:flutter/foundation.dart';
+
+part 'service_model.freezed.dart';
+part 'service_model.g.dart';
+
+@freezed
+class ServiceEntry with _$ServiceEntry {
+  const factory ServiceEntry({
+    required String serviceName,
+    required String nodeAddress,
+    required int port,
+    @Default(false) bool isHealthy,
+    @Default({}) Map<String, String> tags,
+  }) = _ServiceEntry;
+
+  factory ServiceEntry.fromJson(Map<String, dynamic> json) => _$ServiceEntryFromJson(json);
+}
+
+// providers/consul_provider.dart
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:dio/dio.dart';
+import '../models/service_model.dart';
+
+class ConsulService {
+  final Dio _dio;
+
+  ConsulService(this._dio);
+
+  Future<List<ServiceEntry>> fetchServices() async {
+    try {
+      final response = await _dio.get('/v1/catalog/services');
+      final serviceNames = (response.data as Map<String, dynamic>).keys.toList();
+      
+      List<ServiceEntry> services = [];
+      for (var serviceName in serviceNames) {
+        final serviceResponse = await _dio.get('/v1/catalog/service/$serviceName');
+        services.addAll(
+          (serviceResponse.data as List)
+            .map((service) => ServiceEntry.fromJson(service))
+            .toList()
+        );
+      }
+      
+      return services;
+    } catch (e) {
+      throw Exception('Failed to fetch services: $e');
+    }
+  }
+
+  Future<void> registerService(ServiceEntry service) async {
+    try {
+      await _dio.put('/v1/agent/service/register', data: {
+        'Name': service.serviceName,
+        'Address': service.nodeAddress,
+        'Port': service.port,
+        'Tags': service.tags,
+      });
+    } catch (e) {
+      throw Exception('Failed to register service: $e');
+    }
+  }
+}
+
+// providers/consul_provider.dart continued
+final dioProvider = Provider<Dio>((ref) {
+  return Dio(BaseOptions(
+    baseUrl: 'http://localhost:8500', // Default Consul URL
+    connectTimeout: const Duration(seconds: 5),
+    receiveTimeout: const Duration(seconds: 5),
+  ));
+});
+
+final consulServiceProvider = Provider<ConsulService>((ref) {
+  final dio = ref.watch(dioProvider);
+  return ConsulService(dio);
+});
+
+final servicesProvider = StateNotifierProvider<ServicesNotifier, List<ServiceEntry>>((ref) {
+  final consulService = ref.watch(consulServiceProvider);
+  return ServicesNotifier(consulService);
+});
+
+class ServicesNotifier extends StateNotifier<List<ServiceEntry>> {
+  final ConsulService _consulService;
+
+  ServicesNotifier(this._consulService) : super([]);
+
+  Future<void> fetchServices() async {
+    try {
+      state = await _consulService.fetchServices();
+    } catch (e) {
+      state = [];
+      // Consider adding error handling mechanism
+    }
+  }
+
+  Future<void> registerService(ServiceEntry service) async {
+    try {
+      await _consulService.registerService(service);
+      await fetchServices(); // Refresh the list after registration
+    } catch (e) {
+      // Consider adding error handling mechanism
+    }
+  }
+}
+
+
+
+// screens/service_discovery_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import '../providers/consul_provider.dart';
+import '../models/service_model.dart';
+
+class ServiceDiscoveryScreen extends ConsumerStatefulWidget {
+  const ServiceDiscoveryScreen({Key? key}) : super(key: key);
+
+  @override
+  _ServiceDiscoveryScreenState createState() => _ServiceDiscoveryScreenState();
+}
+
+class _ServiceDiscoveryScreenState extends ConsumerState<ServiceDiscoveryScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _serviceNameController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _portController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Fetch services when the screen initializes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(servicesProvider.notifier).fetchServices();
+    });
+  }
+
+  void _showRegisterServiceBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          top: 20,
+          left: 20,
+          right: 20,
+        ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Register New Service',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _serviceNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Service Name',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => 
+                  value == null || value.isEmpty ? 'Please enter service name' : null,
+              ),
+              const SizedBox(height: 15),
+              TextFormField(
+                controller: _addressController,
+                decoration: const InputDecoration(
+                  labelText: 'Node Address',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => 
+                  value == null || value.isEmpty ? 'Please enter node address' : null,
+              ),
+              const SizedBox(height: 15),
+              TextFormField(
+                controller: _portController,
+                decoration: const InputDecoration(
+                  labelText: 'Port',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) => 
+                  value == null || value.isEmpty ? 'Please enter port' : null,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  if (_formKey.currentState!.validate()) {
+                    final service = ServiceEntry(
+                      serviceName: _serviceNameController.text,
+                      nodeAddress: _addressController.text,
+                      port: int.parse(_portController.text),
+                      isHealthy: true,
+                      tags: {'managed-by-app': 'true'},
+                    );
+                    
+                    ref.read(servicesProvider.notifier)
+                      .registerService(service)
+                      .then((_) {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Service Registered Successfully'))
+                        );
+                      });
+                  }
+                },
+                child: const Text('Register Service'),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final services = ref.watch(servicesProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Consul Service Discovery'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.read(servicesProvider.notifier).fetchServices(),
+          ),
+        ],
+      ),
+      body: services.isEmpty
+        ? const Center(child: CircularProgressIndicator())
+        : ListView.builder(
+            itemCount: services.length,
+            itemBuilder: (context, index) {
+              final service = services[index];
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                child: ListTile(
+                  title: Text(
+                    service.serviceName,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Address: ${service.nodeAddress}:${service.port}'),
+                      Text(
+                        'Status: ${service.isHealthy ? 'Healthy' : 'Unhealthy'}',
+                        style: TextStyle(
+                          color: service.isHealthy ? Colors.green : Colors.red,
+                        ),
+                      ),
+                    ],
+                  ),
+                  trailing: service.tags.isNotEmpty
+                    ? Chip(
+                        label: Text(service.tags.keys.first),
+                        backgroundColor: Colors.blue.shade100,
+                      )
+                    : null,
+                ),
+              );
+            },
+          ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showRegisterServiceBottomSheet,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _serviceNameController.dispose();
+    _addressController.dispose();
+    _portController.dispose();
+    super.dispose();
+  }
+}
+
+
+// main.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'screens/service_discovery_screen.dart';
+
+void main() {
+  runApp(
+    // Wrap the app with ProviderScope to enable Riverpod
+    const ProviderScope(
+      child: ConsulServiceDiscoveryApp(),
+    ),
+  );
+}
+
+class ConsulServiceDiscoveryApp extends StatelessWidget {
+  const ConsulServiceDiscoveryApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Consul Service Discovery',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+      home: const ServiceDiscoveryScreen(),
+    );
+  }
+}
+
+// lib/core/result.dart
+// Implement a robust Result wrapper for better error handling
+sealed class Result<T> {
+  const Result();
+}
+
+class Success<T> extends Result<T> {
+  final T data;
+  const Success(this.data);
+}
+
+class Failure<T> extends Result<T> {
+  final String message;
+  final StackTrace? stackTrace;
+  const Failure(this.message, {this.stackTrace});
+}
+
+// lib/core/network/network_connectivity.dart
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'network_connectivity.g.dart';
+
+@riverpod
+class NetworkConnectivityNotifier extends _$NetworkConnectivityNotifier {
+  @override
+  ConnectivityResult build() {
+    final connectivity = Connectivity();
+    
+    // Listen to connectivity changes
+    connectivity.onConnectivityChanged.listen((result) {
+      state = result;
+    });
+
+    return ConnectivityResult.wifi; // Default initial state
+  }
+
+  bool get isConnected => 
+    state != ConnectivityResult.none;
+}
+
+// lib/core/interceptors/logging_interceptor.dart
+class LoggingInterceptor extends Interceptor {
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    log.d('REQUEST[${options.method}] => PATH: ${options.path}');
+    return super.onRequest(options, handler);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    log.d('RESPONSE[${response.statusCode}] => PATH: ${response.requestOptions.path}');
+    return super.onResponse(response, handler);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    log.e('ERROR[${err.response?.statusCode}] => PATH: ${err.requestOptions.path}');
+    return super.onError(err, handler);
+  }
+}
+
+// lib/models/service_model.dart
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'service_model.freezed.dart';
+part 'service_model.g.dart';
+
+@freezed
+class ServiceHealth {
+  const factory ServiceHealth({
+    required bool isHealthy,
+    DateTime? lastChecked,
+    String? healthCheckMessage,
+    @Default(0) int consecutiveFailures,
+  }) = _ServiceHealth;
+
+  factory ServiceHealth.fromJson(Map<String, dynamic> json) => 
+    _$ServiceHealthFromJson(json);
+}
+
+@freezed
+class ServiceMetadata {
+  const factory ServiceMetadata({
+    required String id,
+    required String serviceName,
+    required String nodeAddress,
+    required int port,
+    @Default([]) List<String> tags,
+    ServiceHealth? health,
+    DateTime? registeredAt,
+    String? version,
+    Map<String, dynamic>? additionalMetadata,
+  }) = _ServiceMetadata;
+
+  factory ServiceMetadata.fromJson(Map<String, dynamic> json) => 
+    _$ServiceMetadataFromJson(json);
+}
+
+enum ServiceType {
+  webService,
+  databaseService,
+  cacheService,
+  messageQueue,
+  apiGateway,
+  microservice,
+  other
+}
+
+// lib/core/result.dart
+// Implement a robust Result wrapper for better error handling
+sealed class Result<T> {
+  const Result();
+}
+
+class Success<T> extends Result<T> {
+  final T data;
+  const Success(this.data);
+}
+
+class Failure<T> extends Result<T> {
+  final String message;
+  final StackTrace? stackTrace;
+  const Failure(this.message, {this.stackTrace});
+}
+
+// lib/core/network/network_connectivity.dart
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'network_connectivity.g.dart';
+
+@riverpod
+class NetworkConnectivityNotifier extends _$NetworkConnectivityNotifier {
+  @override
+  ConnectivityResult build() {
+    final connectivity = Connectivity();
+    
+    // Listen to connectivity changes
+    connectivity.onConnectivityChanged.listen((result) {
+      state = result;
+    });
+
+    return ConnectivityResult.wifi; // Default initial state
+  }
+
+  bool get isConnected => 
+    state != ConnectivityResult.none;
+}
+
+// lib/core/interceptors/logging_interceptor.dart
+class LoggingInterceptor extends Interceptor {
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    log.d('REQUEST[${options.method}] => PATH: ${options.path}');
+    return super.onRequest(options, handler);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    log.d('RESPONSE[${response.statusCode}] => PATH: ${response.requestOptions.path}');
+    return super.onResponse(response, handler);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    log.e('ERROR[${err.response?.statusCode}] => PATH: ${err.requestOptions.path}');
+    return super.onError(err, handler);
+  }
+}
+
+
+// lib/repositories/consul_repository.dart
+import 'package:dio/dio.dart';
+import '../models/service_model.dart';
+import '../core/result.dart';
+
+abstract class ConsulRepository {
+  Future<Result<List<ServiceMetadata>>> getAllServices();
+  Future<Result<ServiceMetadata>> getServiceDetails(String serviceName);
+  Future<Result<bool>> registerService(ServiceMetadata service);
+  Future<Result<bool>> deregisterService(String serviceId);
+  Future<Result<List<ServiceMetadata>>> filterServices({
+    ServiceType? type,
+    bool? healthStatus,
+    List<String>? tags,
+  });
+}
+
+class ConsulRepositoryImpl implements ConsulRepository {
+  final Dio _dio;
+
+  ConsulRepositoryImpl(this._dio);
+
+  @override
+  Future<Result<List<ServiceMetadata>>> getAllServices() async {
+    try {
+      final response = await _dio.get('/v1/catalog/services');
+      
+      // Complex parsing logic
+      final services = <ServiceMetadata>[];
+      
+      return Success(services);
+    } on DioException catch (e) {
+      return Failure(
+        'Failed to fetch services: ${e.message}', 
+        stackTrace: e.stackTrace
+      );
+    }
+  }
+
+  // Implement other methods with comprehensive error handling
+}
+
+// lib/ui/screens/service_discovery_dashboard.dart
+class ServiceDiscoveryDashboard extends ConsumerStatefulWidget {
+  const ServiceDiscoveryDashboard({Key? key}) : super(key: key);
+
+  @override
+  _ServiceDiscoveryDashboardState createState() => _ServiceDiscoveryDashboardState();
+}
+
+class _ServiceDiscoveryDashboardState extends ConsumerState<ServiceDiscoveryDashboard> {
+  // Advanced filtering and search capabilities
+  List<ServiceMetadata> _filterServices(
+    List<ServiceMetadata> services, 
+    String searchQuery, 
+    ServiceType? typeFilter,
+    bool? healthFilter
+  ) {
+    return services.where((service) {
+      final matchesSearch = service.serviceName
+        .toLowerCase()
+        .contains(searchQuery.toLowerCase());
+      
+      final matchesType = typeFilter == null || 
+        service.additionalMetadata?['type'] == typeFilter.toString();
+      
+      final matchesHealth = healthFilter == null || 
+        service.health?.isHealthy == healthFilter;
+      
+      return matchesSearch && matchesType && matchesHealth;
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: CustomScrollView(
+        slivers: [
+          // Sophisticated App Bar with Search and Filters
+          SliverAppBar(
+            floating: true,
+            snap: true,
+            title: const Text('Service Discovery'),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(100),
+              child: Column(
+                children: [
+                  // Advanced Search and Filter Row
+                  Row(
+                    children: [
+                      // Service Type Dropdown
+                      DropdownButton<ServiceType>(
+                        hint: const Text('Service Type'),
+                        items: ServiceType.values
+                          .map((type) => DropdownMenuItem(
+                            value: type,
+                            child: Text(type.toString().split('.').last),
+                          ))
+                          .toList(),
+                        onChanged: (selectedType) {
+                          // Implement filtering logic
+                        },
+                      ),
+                      // Health Status Toggle
+                      Switch(
+                        value: true, // Implement state management
+                        onChanged: (bool value) {
+                          // Implement health filter
+                        },
+                      ),
+                    ],
+                  ),
+                  // Advanced Search TextField
+                  TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search Services',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onChanged: (query) {
+                      // Implement search logic
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          // Services Grid with Advanced Visualization
+          SliverGrid(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 250,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.75,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                // Service Card with Detailed Information
+                return ServiceCard(
+                  service: services[index],
+                  onTap: () {
+                    // Navigate to service details
+                  },
+                );
+              },
+              childCount: services.length,
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          // Show advanced service registration bottom sheet
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Register Service'),
+      ),
+    );
+  }
+}
+
+
+// lib/core/di/service_locator.dart
+import 'package:get_it/get_it.dart';
+import 'package:dio/dio.dart';
+
+class ServiceLocator {
+  static final GetIt _getIt = GetIt.instance;
+
+  static void setup() {
+    // Dio Configuration with Advanced Interceptors
+    _getIt.registerLazySingleton<Dio>(() {
+      final dio = Dio(BaseOptions(
+        baseUrl: 'http://localhost:8500',
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 10),
+      ));
+
+      // Add Interceptors
+      dio.interceptors.addAll([
+        LoggingInterceptor(),
+        RetryInterceptor(
+          dio: dio,
+          retries: 3,
+          retryDelays: [
+            const Duration(seconds: 1),
+            const Duration(seconds: 3),
+            const Duration(seconds: 5),
+          ],
+        ),
+      ]);
+
+      return dio;
+    });
+
+    // Repositories
+    _getIt.registerLazySingleton<ConsulRepository>(
+      () => ConsulRepositoryImpl(_getIt<Dio>())
+    );
+
+    // Add more dependencies as needed
+  }
+
+  // Helper method to get dependencies
+  static T get<T extends Object>() => _getIt<T>();
+}
+
+// Configuration Management
+class AppConfig {
+  static const String consulBaseUrl = 'http://localhost:8500';
+  static const int connectTimeout = 10000;
+  static const int receiveTimeout = 10000;
+  
+  // Environment-specific configurations
+  static Map<String, dynamic> getEnvironmentConfig(String env) {
+    switch (env) {
+      case 'development':
+        return {
+          'baseUrl': 'http://localhost:8500',
+          'logLevel': LogLevel.debug,
+        };
+      case 'production':
+        return {
+          'baseUrl': 'https://consul.production.com',
+          'logLevel': LogLevel.error,
+        };
+      default:
+        return {};
+    }
+  }
+}
+
+
+// lib/services/health_monitoring_service.dart
+import 'dart:async';
+import 'package:dio/dio.dart';
+import 'package:rxdart/rxdart.dart';
+
+class ServiceHealthMonitor {
+  final Dio _dio;
+  final _healthSubject = BehaviorSubject<Map<String, ServiceHealthStatus>>();
+
+  ServiceHealthMonitor(this._dio);
+
+  Stream<Map<String, ServiceHealthStatus>> get healthStream => _healthSubject.stream;
+
+  // Continuous health checking
+  Timer? _healthCheckTimer;
+
+  void startContinuousMonitoring(List<String> services, {Duration interval = const Duration(minutes: 1)}) {
+    _healthCheckTimer = Timer.periodic(interval, (_) => checkServicesHealth(services));
+  }
+
+  Future<void> checkServicesHealth(List<String> services) async {
+    final healthStatuses = <String, ServiceHealthStatus>{};
+
+    for (var service in services) {
+      try {
+        final startTime = DateTime.now();
+        final response = await _dio.get('/v1/health/service/$service');
+        final endTime = DateTime.now();
+
+        final health = _evaluateServiceHealth(response.data, startTime, endTime);
+        healthStatuses[service] = health;
+      } catch (e) {
+        healthStatuses[service] = ServiceHealthStatus(
+          isHealthy: false,
+          lastChecked: DateTime.now(),
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    _healthSubject.add(healthStatuses);
+  }
+
+  ServiceHealthStatus _evaluateServiceHealth(
+    dynamic serviceData, 
+    DateTime startTime, 
+    DateTime endTime
+  ) {
+    final responseTime = endTime.difference(startTime).inMilliseconds;
+    
+    return ServiceHealthStatus(
+      isHealthy: true,
+      lastChecked: DateTime.now(),
+      responseTime: responseTime,
+      checks: {
+        'availability': true,
+        'responseTime': responseTime < 500, // < 500ms is considered good
+      },
+    );
+  }
+
+  void dispose() {
+    _healthCheckTimer?.cancel();
+    _healthSubject.close();
+  }
+}
+
+class ServiceHealthStatus {
+  final bool isHealthy;
+  final DateTime lastChecked;
+  final int? responseTime;
+  final String? errorMessage;
+  final Map<String, bool>? checks;
+
+  ServiceHealthStatus({
+    required this.isHealthy,
+    required this.lastChecked,
+    this.responseTime,
+    this.errorMessage,
+    this.checks,
+  });
+}
+
+
+// lib/services/service_auto_registrar.dart
+import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:network_info_plus/network_info_plus.dart';
+
+class ServiceAutoRegistrar {
+  final Dio _dio;
+  final NetworkInfo _networkInfo;
+
+  ServiceAutoRegistrar(this._dio, this._networkInfo);
+
+  Future<void> autoRegisterService({
+    required String serviceName,
+    int? port,
+    List<String> tags = const [],
+  }) async {
+    // Automatically detect network and system details
+    final ipAddress = await _networkInfo.getWifiIP();
+    final hostname = Platform.localHostname;
+    
+    // Generate unique service ID
+    final serviceId = _generateServiceId(serviceName, ipAddress);
+
+    // Prepare registration payload
+    final registrationPayload = {
+      'ID': serviceId,
+      'Name': serviceName,
+      'Address': ipAddress,
+      'Port': port ?? _findAvailablePort(),
+      'Tags': [
+        ...tags,
+        'auto-registered',
+        'platform:${Platform.operatingSystem}',
+      ],
+      'Check': {
+        'HTTP': 'http://$ipAddress:${port ?? _findAvailablePort()}/health',
+        'Interval': '10s',
+        'Timeout': '5s',
+      },
+    };
+
+    try {
+      await _dio.put('/v1/agent/service/register', data: registrationPayload);
+      print('Service $serviceName auto-registered successfully');
+    } catch (e) {
+      print('Failed to auto-register service: $e');
+    }
+  }
+
+  // Find an available port
+  int _findAvailablePort() {
+    // Implement port availability check
+    return 8080; // Placeholder
+  }
+
+  // Generate a unique service ID
+  String _generateServiceId(String serviceName, String? ipAddress) {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    return '$serviceName-${ipAddress ?? 'unknown'}-$timestamp';
+  }
+
+  // Automated deregistration
+  Future<void> deregisterService(String serviceId) async {
+    try {
+      await _dio.put('/v1/agent/service/deregister/$serviceId');
+      print('Service $serviceId deregistered successfully');
+    } catch (e) {
+      print('Failed to deregister service: $e');
+    }
+  }
+}
+
+// lib/models/service_dependency.dart
+import 'package:graph/graph.dart';
+
+class ServiceDependencyGraph {
+  final DiGraph<String> _dependencyGraph = DiGraph<String>();
+  
+  // Add a service dependency
+  void addDependency(String sourceService, String targetService) {
+    _dependencyGraph.addEdge(sourceService, targetService);
+  }
+
+  // Remove a service dependency
+  void removeDependency(String sourceService, String targetService) {
+    _dependencyGraph.removeEdge(sourceService, targetService);
+  }
+
+  // Get direct dependencies of a service
+  List<String> getDirectDependencies(String service) {
+    return _dependencyGraph.successors(service).toList();
+  }
+
+  // Get services that depend on a given service
+  List<String> getServiceDependents(String service) {
+    return _dependencyGraph.predecessors(service).toList();
+  }
+
+  // Find all transitive dependencies
+  List<String> getTransitiveDependencies(String service) {
+    final visited = <String>{};
+    final dependencies = <String>[];
+
+    void traverse(String currentService) {
+      for (var dependency in _dependencyGraph.successors(currentService)) {
+        if (!visited.contains(dependency)) {
+          visited.add(dependency);
+          dependencies.add(dependency);
+          traverse(dependency);
+        }
+      }
+    }
+
+    traverse(service);
+    return dependencies;
+  }
+
+  // Detect circular dependencies
+  bool hasCircularDependency() {
+    for (var service in _dependencyGraph.vertices) {
+      if (_hasCircularPath(service)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _hasCircularPath(String service) {
+    final visited = <String>{};
+    final path = <String>{};
+
+    bool dfs(String currentService) {
+      visited.add(currentService);
+      path.add(currentService);
+
+      for (var dependency in _dependencyGraph.successors(currentService)) {
+        if (path.contains(dependency)) {
+          return true;
+        }
+        if (!visited.contains(dependency)) {
+          if (dfs(dependency)) {
+            return true;
+          }
+        }
+      }
+
+      path.remove(currentService);
+      return false;
+    }
+
+    return dfs(service);
+  }
+
+  // Visualize dependency graph (could be expanded to generate GraphViz DOT)
+  String generateDependencyVisualization() {
+    final buffer = StringBuffer();
+    buffer.writeln('digraph ServiceDependencies {');
+    
+    for (var vertex in _dependencyGraph.vertices) {
+      for (var dependency in _dependencyGraph.successors(vertex)) {
+        buffer.writeln('  "$vertex" -> "$dependency";');
+      }
+    }
+    
+    buffer.writeln('}');
+    return buffer.toString();
+  }
+}
+
+// lib/services/performance_metrics_tracker.dart
+import 'dart:async';
+import 'package:collection/collection.dart';
+
+class PerformanceMetricsTracker {
+  // Metrics storage
+  final _serviceMetrics = <String, ServicePerformanceMetrics>{};
+  
+  // Streams for real-time metrics
+  final _metricsStreamController = StreamController<Map<String, ServicePerformanceMetrics>>.broadcast();
+  
+  Stream<Map<String, ServicePerformanceMetrics>> get metricsStream => _metricsStreamController.stream;
+
+  // Track request performance
+  void trackRequestPerformance(
+    String serviceName, {
+    required Duration duration,
+    bool isSuccess = true,
+  }) {
+    if (!_serviceMetrics.containsKey(serviceName)) {
+      _serviceMetrics[serviceName] = ServicePerformanceMetrics(serviceName);
+    }
+
+    _serviceMetrics[serviceName]!.addRequestMetric(
+      duration: duration,
+      isSuccess: isSuccess,
+    );
+
+    _metricsStreamController.add(_serviceMetrics);
+  }
+
+  // Aggregate performance summary
+  ServicePerformanceSummary getPerformanceSummary(String serviceName) {
+    final metrics = _serviceMetrics[serviceName];
+    if (metrics == null) {
+      return ServicePerformanceSummary.empty(serviceName);
+    }
+
+    return ServicePerformanceSummary(
+      serviceName: serviceName,
+      totalRequests: metrics.totalRequests,
+      successRate: metrics.successRate,
+      averageResponseTime: metrics.averageResponseTime,
+      p95ResponseTime: metrics.p95ResponseTime,
+    );
+  }
+
+  void dispose() {
+    _metricsStreamController.close();
+  }
+}
+
+class ServicePerformanceMetrics {
+  final String serviceName;
+  final List<Duration> _responseTimes = [];
+  final List<bool> _requestStatuses = [];
+
+  ServicePerformanceMetrics(this.serviceName);
+
+  void addRequestMetric({
+    required Duration duration,
+    required bool isSuccess,
+  }) {
+    _responseTimes.add(duration);
+    _requestStatuses.add(isSuccess);
+  }
+
+  int get totalRequests => _responseTimes.length;
+  
+  double get successRate {
+    if (_requestStatuses.isEmpty) return 0.0;
+    return _requestStatuses.where((status) => status).length / _requestStatuses.length;
+  }
+
+  Duration get averageResponseTime {
+    if (_responseTimes.isEmpty) return Duration.zero;
+    return Duration(
+      microseconds: (_responseTimes.map((d) => d.inMicroseconds).sum / _responseTimes.length).round(),
+    );
+  }
+
+  Duration get p95ResponseTime {
+    if (_responseTimes.isEmpty) return Duration.zero;
+    final sortedTimes = List<Duration>.from(_responseTimes)..sort();
+    final index = (sortedTimes.length * 0.95).floor();
+    return sortedTimes[index];
+  }
+}
+
+class ServicePerformanceSummary {
+  final String serviceName;
+  final int totalRequests;
+  final double successRate;
+  final Duration averageResponseTime;
+  final Duration p95ResponseTime;
+
+  ServicePerformanceSummary({
+    required this.serviceName,
+    required this.totalRequests,
+    required this.successRate,
+    required this.averageResponseTime,
+    required this.p95ResponseTime,
+  });
+
+  factory ServicePerformanceSummary.empty(String serviceName) {
+    return ServicePerformanceSummary(
+      serviceName: serviceName,
+      totalRequests: 0,
+      successRate: 0.0,
+      averageResponseTime: Duration.zero,
+      p95ResponseTime: Duration.zero,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'serviceName': serviceName,
+    'totalRequests': totalRequests,
+    'successRate': successRate,
+    'averageResponseTime': averageResponseTime.inMilliseconds,
+    'p95ResponseTime': p95ResponseTime.inMilliseconds,
+  };
+}
+
+
+// lib/services/config_management.dart
+import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:rxdart/rxdart.dart';
+
+class CentralizedConfigManager {
+  final FlutterSecureStorage _secureStorage;
+  
+  // Configuration streams for real-time updates
+  final _configSubject = BehaviorSubject<Map<String, dynamic>>();
+  
+  CentralizedConfigManager(this._secureStorage) {
+    // Load initial configuration
+    _loadSavedConfigurations();
+  }
+
+  Stream<Map<String, dynamic>> get configStream => _configSubject.stream;
+
+  // Load saved configurations
+  Future<void> _loadSavedConfigurations() async {
+    final savedConfig = await _secureStorage.read(key: 'app_configuration');
+    if (savedConfig != null) {
+      _configSubject.add(json.decode(savedConfig));
+    }
+  }
+
+  // Update configuration
+  Future<void> updateConfiguration(Map<String, dynamic> newConfig) async {
+    // Merge with existing configuration
+    final currentConfig = _configSubject.valueOrNull ?? {};
+    final mergedConfig = {
+      ...currentConfig,
+      ...newConfig,
+    };
+
+    // Save to secure storage
+    await _secureStorage.write(
+      key: 'app_configuration', 
+      value: json.encode(mergedConfig)
+    );
+
+    // Update stream
+    _configSubject.add(mergedConfig);
+  }
+
+  // Get specific configuration value
+  dynamic getConfigValue(String key, {dynamic defaultValue}) {
+    final currentConfig = _configSubject.valueOrNull ?? {};
+    return currentConfig[key] ?? defaultValue;
+  }
+
+  // Environment-specific configurations
+  Future<void> setEnvironment(String environment) async {
+    final environmentConfigs = {
+      'development': {
+        'consulUrl': 'http://localhost:8500',
+        'logLevel': 'DEBUG',
+        'featureFlags': {
+          'enableAutoRegistration': true,
+          'enableHealthMonitoring': true,
+        }
+      },
+      'production': {
+        'consulUrl': 'https://consul.production.com',
+        'logLevel': 'ERROR',
+        'featureFlags': {
+          'enableAutoRegistration': false,
+          'enableHealthMonitoring': true,
+        }
+      }
+    };
+
+    await updateConfiguration(
+      environmentConfigs[environment] ?? {}
+    );
+  }
+
+  // Dynamic feature flag management
+  bool isFeatureEnabled(String featureName) {
+    final featureFlags = getConfigValue('featureFlags', defaultValue: {});
+    return featureFlags[featureName] ?? false;
+  }
+
+  void dispose() {
+    _configSubject.close();
+  }
+}
+
+// Usage Example
+class AppConfigKeys {
+  static const consulUrl = 'consulUrl';
+  static const logLevel = 'logLevel';
+  static const featureFlags = 'featureFlags';
+}
+
+
+// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+// Import all the previously created services
+import 'services/health_monitoring_service.dart';
+import 'services/service_auto_registrar.dart';
+import 'services/performance_metrics_tracker.dart';
+import 'services/config_management.dart';
+
+void main() {
+  // Initialize core services
+  final dio = Dio();
+  final secureStorage = FlutterSecureStorage();
+  
+  // Setup configuration manager
+  final configManager = CentralizedConfigManager(secureStorage);
+  
+  // Initialize environment
+  configManager.setEnvironment('development');
+
+  // Setup health monitoring
+  final healthMonitor = ServiceHealthMonitor(dio);
+  
+  // Setup auto registrar
+  final networkInfo = NetworkInfo();
+  final autoRegistrar = ServiceAutoRegistrar(dio, networkInfo);
+  
+  // Performance metrics
+  final performanceTracker = PerformanceMetricsTracker();
+
+  runApp(
+    ProviderScope(
+      child: MultiProviders(
+        providers: [
+          Provider.value(value: configManager),
+          Provider.value(value: healthMonitor),
+          Provider.value(value: autoRegistrar),
+          Provider.value(value: performanceTracker),
+          // Add other providers
+        ],
+        child: ConsulServiceDiscoveryApp(),
+      ),
+    ),
+  );
+}
+
+class ConsulServiceDiscoveryApp extends StatefulWidget {
+  @override
+  _ConsulServiceDiscoveryAppState createState() => _ConsulServiceDiscoveryAppState();
+}
+
+class _ConsulServiceDiscoveryAppState extends State<ConsulServiceDiscoveryApp> {
+  @override
+  void initState() {
+    super.initState();
+    
+    // Initialize services based on configuration
+    final configManager = context.read(configManagerProvider);
+    final healthMonitor = context.read(healthMonitorProvider);
+    final autoRegistrar = context.read(autoRegistrarProvider);
+
+    // Check feature flags and initialize accordingly
+    if (configManager.isFeatureEnabled('enableHealthMonitoring')) {
+      healthMonitor.startContinuousMonitoring(['service1', 'service2']);
+    }
+
+    if (configManager.isFeatureEnabled('enableAutoRegistration')) {
+      autoRegistrar.autoRegisterService(
+        serviceName: 'my-service',
+        port: 8080,
+        tags: ['core', 'backend'],
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      // App configuration
+    );
+  }
+}
+
+// lib/security/authentication_service.dart
+import 'package:flutter_appauth/flutter_appauth.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+class AuthenticationService {
+  final FlutterAppAuth _appAuth = FlutterAppAuth();
+  final FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+
+  // OIDC Configuration
+  static const AuthorizationServiceConfiguration _serviceConfiguration = 
+    AuthorizationServiceConfiguration(
+      authorizationEndpoint: 'https://your-identity-provider/authorize',
+      tokenEndpoint: 'https://your-identity-provider/token',
+    );
+
+  // Advanced Role-Based Access Control
+  enum UserRole {
+    viewer,
+    operator,
+    administrator,
+    superAdmin
+  }
+
+  // Granular Permissions Map
+  static const Map<UserRole, List<String>> _rolePermissions = {
+    UserRole.viewer: ['read_services'],
+    UserRole.operator: [
+      'read_services', 
+      'register_services', 
+      'deregister_services'
+    ],
+    UserRole.administrator: [
+      'read_services', 
+      'register_services', 
+      'deregister_services',
+      'manage_clusters',
+      'view_metrics'
+    ],
+    UserRole.superAdmin: [
+      'read_services', 
+      'register_services', 
+      'deregister_services',
+      'manage_clusters',
+      'view_metrics',
+      'manage_users',
+      'configure_system'
+    ]
+  };
+
+  Future<bool> authenticateUser() async {
+    try {
+      final AuthorizationTokenResponse? result = 
+        await _appAuth.authorizeAndExchangeCode(
+          AuthorizationTokenRequest(
+            'your-client-id',
+            'your-redirect-uri',
+            serviceConfiguration: _serviceConfiguration,
+            scopes: ['openid', 'profile', 'email'],
+          ),
+        );
+
+      if (result != null) {
+        // Store tokens securely
+        await _secureStorage.write(
+          key: 'access_token', 
+          value: result.accessToken
+        );
+        await _secureStorage.write(
+          key: 'id_token', 
+          value: result.idToken
+        );
+
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Authentication Error: $e');
+      return false;
+    }
+  }
+
+  Future<UserRole> determineUserRole() async {
+    final token = await _secureStorage.read(key: 'access_token');
+    // Decode JWT and extract role information
+    // Implement JWT decoding logic
+    return UserRole.viewer; // Default minimal role
+  }
+
+  bool hasPermission(String permission) {
+    // Check user's role and associated permissions
+    return true; // Implement actual permission logic
+  }
+
+  Future<void> logout() async {
+    await _secureStorage.deleteAll();
+  }
+}
+
+// Secure Token Interceptor for Dio
+class SecureTokenInterceptor extends Interceptor {
+  final FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+
+  @override
+  Future<void> onRequest(
+    RequestOptions options, 
+    RequestInterceptorHandler handler
+  ) async {
+    final token = await _secureStorage.read(key: 'access_token');
+    options.headers['Authorization'] = 'Bearer $token';
+    return super.onRequest(options, handler);
+  }
+}
+
+// lib/events/event_bus.dart
+import 'package:rxdart/rxdart.dart';
+
+enum EventType {
+  serviceRegistered,
+  serviceDeregistered,
+  healthStatusChanged,
+  performanceMetricsUpdated,
+  systemConfigurationChanged
+}
+
+class AppEvent {
+  final EventType type;
+  final dynamic payload;
+  final DateTime timestamp;
+
+  AppEvent({
+    required this.type, 
+    this.payload, 
+    DateTime? timestamp
+  }) : timestamp = timestamp ?? DateTime.now();
+}
+
+class EnhancedEventBus {
+  final _eventSubject = PublishSubject<AppEvent>();
+  
+  // Broadcast stream for all events
+  Stream<AppEvent> get events => _eventSubject.stream;
+
+  // Filtered event streams
+  Stream<AppEvent> filteredEvents(EventType type) {
+    return _eventSubject.stream.where((event) => event.type == type);
+  }
+
+  void fire(AppEvent event) {
+    _eventSubject.add(event);
+  }
+
+  // Advanced event logging and tracing
+  void logEvent(AppEvent event) {
+    // Implement logging logic
+    print('Event: ${event.type} at ${event.timestamp}');
+  }
+
+  void dispose() {
+    _eventSubject.close();
+  }
+}
+
+// Distributed Tracing Support
+class DistributedTracer {
+  final String traceId = DateTime.now().millisecondsSinceEpoch.toString();
+
+  Map<String, dynamic> startTrace(String operationName) {
+    return {
+      'traceId': traceId,
+      'operationName': operationName,
+      'startTime': DateTime.now(),
+    };
+  }
+
+  void endTrace(Map<String, dynamic> trace) {
+    trace['endTime'] = DateTime.now();
+    trace['duration'] = DateTime.now().difference(trace['startTime']);
+    
+    // Send trace to centralized tracing system
+  }
+}
+
+// lib/ml/predictive_maintenance.dart
+import 'package:tensorflow_flutter/tensorflow_flutter.dart';
+
+class ServicePredictiveMaintenance {
+  late Interpreter _interpreter;
+
+  Future<void> initializeModel() async {
+    // Load pre-trained TensorFlow Lite model
+    _interpreter = await Interpreter.fromAsset('service_health_predictor.tflite');
+  }
+
+  Future<ServicePrediction> predictServiceHealth(
+    List<double> historicalMetrics
+  ) async {
+    // Prepare input tensor
+    var input = Float32List.fromList(historicalMetrics);
+    var output = Float32List(2); // [health_score, failure_probability]
+
+    // Run inference
+    _interpreter.run(input, output);
+
+    return ServicePrediction(
+      healthScore: output[0],
+      failureProbability: output[1]
+    );
+  }
+
+  List<ScalingRecommendation> generateScalingRecommendations(
+    List<ServicePerformanceMetrics> metrics
+  ) {
+    // Analyze performance metrics and generate scaling suggestions
+    return metrics.map((metric) {
+      return ScalingRecommendation(
+        serviceName: metric.serviceName,
+        recommendedReplicas: _calculateOptimalReplicas(metric),
+        reason: _generateScalingReason(metric)
+      );
+    }).toList();
+  }
+
+  int _calculateOptimalReplicas(ServicePerformanceMetrics metric) {
+    // Complex scaling algorithm based on current performance
+    return 1; // Placeholder implementation
+  }
+
+  String _generateScalingReason(ServicePerformanceMetrics metric) {
+    // Generate human-readable scaling rationale
+    return 'Based on current performance metrics';
+  }
+}
+
+class ServicePrediction {
+  final double healthScore;
+  final double failureProbability;
+
+  ServicePrediction({
+    required this.healthScore, 
+    required this.failureProbability
+  });
+}
+
+class ScalingRecommendation {
+  final String serviceName;
+  final int recommendedReplicas;
+  final String reason;
+
+  ScalingRecommendation({
+    required this.serviceName,
+    required this.recommendedReplicas,
+    required this.reason
+  });
+}
+
+// lib/clusters/multi_cluster_manager.dart
+class MultiClusterManager {
+  final Map<String, ClusterConfiguration> _clusters = {};
+
+  void registerCluster(ClusterConfiguration cluster) {
+    _clusters[cluster.clusterId] = cluster;
+  }
+
+  Future<List<ServiceMetadata>> discoverServicesAcrossClusters() async {
+    final List<ServiceMetadata> globalServices = [];
+
+    for (var cluster in _clusters.values) {
+      final clusterServices = await _fetchClusterServices(cluster);
+      globalServices.addAll(clusterServices);
+    }
+
+    return globalServices;
+  }
+
+  Future<List<ServiceMetadata>> _fetchClusterServices(
+    ClusterConfiguration cluster
+  ) async {
+    // Implement cross-cluster service discovery
+    return [];
+  }
+}
+
+class ClusterConfiguration {
+  final String clusterId;
+  final String consulUrl;
+  final String region;
+  final Map<String, String> credentials;
+  final bool isActive;
+
+  ClusterConfiguration({
+    required this.clusterId,
+    required this.consulUrl,
+    required this.region,
+    this.credentials = const {},
+    this.isActive = true
+  });
+}
+
+// lib/devops/deployment_tracker.dart
+class DeploymentTracker {
+  Future<DeploymentMetadata> trackDeployment({
+    required String serviceName,
+    required String version,
+    required DeploymentEnvironment environment
+  }) async {
+    final deployment = DeploymentMetadata(
+      serviceName: serviceName,
+      version: version,
+      environment: environment,
+      deployedAt: DateTime.now(),
+      status: DeploymentStatus.inProgress
+    );
+
+    // Trigger deployment validation
+    await _validateDeployment(deployment);
+
+    return deployment;
+  }
+
+  Future<void> _validateDeployment(DeploymentMetadata deployment) async {
+    // Implement deployment validation logic
+  }
+}
+
+enum DeploymentEnvironment { 
+  development, 
+  staging, 
+  production 
+}
+
+enum DeploymentStatus { 
+  pending, 
+  inProgress, 
+  successful, 
+  failed 
+}
+
+class DeploymentMetadata {
+  final String serviceName;
+  final String version;
+  final DeploymentEnvironment environment;
+  final DateTime deployedAt;
+  DeploymentStatus status;
+
+  DeploymentMetadata({
+    required this.serviceName,
+    required this.version,
+    required this.environment,
+    required this.deployedAt,
+    this.status = DeploymentStatus.pending
+  });
+}

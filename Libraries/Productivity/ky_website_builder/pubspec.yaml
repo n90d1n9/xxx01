@@ -1,0 +1,21 @@
+name: ky_website_builder
+description: Visual website builder package for composing Kaysir web experiences.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.7.0
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ky_builder_shared:
+    path: ../../../Syirkah/Syirkah-Platform/Kaysir/Library/ky_builder_shared
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter: {}

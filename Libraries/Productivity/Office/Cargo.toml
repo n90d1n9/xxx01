@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = [
+
+    "Engine/docs_engine",
+    "Engine/docx-engine",
+    "Engine/ppt-engine",
+    "Engine/sheet_engine",
+    "Engine/slide_engine",
+    "Parser/Core/ky-of-docx",
+    "Parser/Common/ky-of-graphics",
+    "Parser/Core/ky-of-pdf",
+    "Parser/Core/ky-of-xlsx",
+    "Parser/Common/ky-of-common",
+    "Parser/Common/ky-of-ods",
+]

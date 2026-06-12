@@ -1,0 +1,389 @@
+import 'package:collection/collection.dart';
+import 'package:flutter/material.dart';
+
+import 'event.dart';
+import 'day_header.dart';
+import '../settings/setting.dart';
+import 'task_row_per_week.dart';
+import 'task_list_panel.dart';
+import 'week_header.dart';
+import 'week_day.dart';
+
+typedef IsExtraHolidayFunc = bool Function(BuildContext context, DateTime date);
+typedef EventCellBuilderFunction = Widget Function(
+  BuildContext context,
+  DateTime eventStart,
+  DateTime eventEnd,
+  bool isHoliday,
+  GanttEventBase event,
+  DateTime day,
+  Color eventColor,
+);
+
+/// Displays a gantt chart
+class GanttChartView extends StatefulWidget {
+  GanttChartView(
+      {super.key,
+      required this.events,
+      required this.startDate,
+      this.maxDuration,
+      this.stickyAreaWidth = 200,
+      this.stickyAreaEventBuilder,
+      this.stickyAreaDayBuilder,
+      this.stickyAreaWeekBuilder,
+      this.showDays = true,
+      this.dayHeaderBuilder,
+      this.weekHeaderBuilder,
+      this.isExtraHoliday,
+      this.eventRowPerWeekBuilder,
+      this.eventCellPerDayBuilder,
+      this.holidayColor,
+      this.showStickyArea = true,
+      this.scrollController,
+      this.scrollPhysics,
+      this.timelineSetting})
+      : assert(
+          !timelineSetting!.weekEnds.contains(timelineSetting!.startOfTheWeek),
+          'startOfTheWeek must be a work day',
+        );
+
+  /// The horizontal scroll controller that gets passed to the internal listview
+  final ScrollController? scrollController;
+
+  /// The horizontal scroll physics that gets passed to the internal listview
+  final ScrollPhysics? scrollPhysics;
+
+  /// Custom builder for sticky area per event
+  ///
+  /// default([TaskListPanel])
+  final Widget Function(
+    BuildContext context,
+    int eventIndex,
+    GanttEventBase event,
+    Color eventColor,
+  )? stickyAreaEventBuilder;
+
+  /// Custom builder for sticky area as a header for the weeks row
+  ///
+  /// default(`null`)
+  final WidgetBuilder? stickyAreaWeekBuilder;
+
+  /// Custom builder for sticky area as a header for the days row
+  ///
+  /// default(`null`)
+  final WidgetBuilder? stickyAreaDayBuilder;
+
+  /// Color to mark holiday
+  ///
+  /// default(`null`)
+  final Color? holidayColor;
+
+  /// Initial datetime
+  final DateTime startDate;
+
+  /// Maximum duration that will be displayed by the gantt chart
+  final Duration? maxDuration;
+
+  /// override this to check if specific date is a holiday
+  final IsExtraHolidayFunc? isExtraHoliday;
+
+  /// list of events
+  final List<GanttEventBase> events;
+
+  /// show days row
+  final bool showDays;
+
+  /// the week header builder (gets called for every week)
+  ///
+  /// [weekDate] is the start of the week, which will always be a [startOfTheWeek]
+  final Widget Function(BuildContext context, DateTime weekDate)?
+      weekHeaderBuilder;
+
+  /// Show sticky row headers on the left
+  final bool showStickyArea;
+
+  /// Sticky area width
+  final double stickyAreaWidth;
+
+  /// the day header builder
+  final Widget Function(BuildContext context, DateTime date, bool isHoliday)?
+      dayHeaderBuilder;
+
+  /// Custom builder for the event row per week
+  ///
+  /// default([TaskRowPerWeek])
+  final Widget Function(
+    BuildContext context,
+    DateTime eventStart,
+    DateTime eventEnd,
+    double dayWidth,
+    double weekWidth,
+    DateTime weekStartDate,
+    bool Function(BuildContext, DateTime) isHoliday,
+    GanttEventBase event,
+    Color eventColor,
+  )? eventRowPerWeekBuilder;
+
+  /// Custom builder for the event cell per day
+  ///
+  /// default([GanttChartDefaultEventRowPerDayBuilder])
+  final EventCellBuilderFunction? eventCellPerDayBuilder;
+
+  /* /// a set of [WeekDay]s which are considered holidays that occur every week
+  ///
+  /// by default are [WeekDay.friday], [WeekDay.saturday]
+  final Set<WeekDay> weekEnds;
+
+  /// First workday of the week, by default [WeekDay.sunday]
+  final WeekDay startOfTheWeek;
+
+  /// Day column width (in pixels)
+  final double dayWidth;
+
+  /// Event row height (in pixels)
+  final double eventHeight;
+
+  /// Week header row height (in pixels)
+  final double weekHeaderHeight;
+
+  /// Day header row height (in pixels)
+  final double dayHeaderHeight; */
+
+  final TimelineSettings? timelineSetting;
+
+  @override
+  State<GanttChartView> createState() => GanttChartViewState();
+}
+
+class GanttChartViewState extends State<GanttChartView> {
+  late ScrollController controller; // = ScrollController();
+  final extraHolidayCache = <DateTime>{};
+
+  Set<WeekDay> get weekEnds => widget.timelineSetting!.weekEnds;
+
+  double get weekWidth => widget.timelineSetting!.dayWidth * 7;
+
+  WeekDay get startOfTheWeek => widget.timelineSetting!.startOfTheWeek;
+
+  late DateTime startDate;
+  late DateTime weekOfStartDate;
+
+  double durationToWeekOffset(Duration duration) {
+    final inWeeks = duration.inDays ~/ 7;
+    return inWeeks * weekWidth;
+  }
+
+  DateTime getWeekOf(DateTime date) {
+    var targetWeekday = WeekDay.fromDateTime(date);
+    var diff = -((targetWeekday.number - startOfTheWeek.number) % 7);
+    return date.add(Duration(days: diff));
+  }
+
+  final eventColors = <Color>[];
+  void initFromCurrentWidget() {
+    eventColors.clear();
+    eventColors.addAll(widget.events.mapIndexed((index, element) =>
+        element.suggestedColor ??
+        Colors.primaries[index % Colors.primaries.length]));
+    controller = widget.scrollController ?? ScrollController();
+    startDate = DateUtils.dateOnly(widget.startDate);
+    weekOfStartDate = getWeekOf(startDate);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    initFromCurrentWidget();
+  }
+
+  @override
+  void didUpdateWidget(covariant GanttChartView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final newScrollController = widget.scrollController;
+    final oldScrollController = oldWidget.scrollController;
+    if (newScrollController != oldScrollController &&
+        oldScrollController == null) {
+      //moves from null to not-null, dispose self-created controller
+      controller.dispose();
+    }
+    initFromCurrentWidget();
+  }
+
+  @override
+  void dispose() {
+    if (widget.scrollController == null) {
+      // dispose self-created controller
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  bool isHolidayCached(BuildContext context, DateTime date) {
+    if (weekEnds.contains(WeekDay.fromDateTime(date))) return true;
+
+    final dateOnly = DateUtils.dateOnly(date);
+    if (extraHolidayCache.contains(dateOnly)) return true;
+    if (widget.isExtraHoliday?.call(context, dateOnly) == true) {
+      extraHolidayCache.add(dateOnly);
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.showStickyArea) _taskListPanel(),
+        Expanded(
+          child: SizedBox(
+            height: widget.timelineSetting!.weekHeaderHeight +
+                (widget.showDays
+                    ? widget.timelineSetting!.dayHeaderHeight
+                    : 0) +
+                (widget.timelineSetting!.eventHeight * widget.events.length),
+            child: ListView.builder(
+              physics: widget.scrollPhysics,
+              itemExtent: weekWidth,
+              scrollDirection: Axis.horizontal,
+              controller: controller,
+              itemCount: widget.maxDuration == null
+                  ? null
+                  : (widget.maxDuration!.inDays / 7).ceil(),
+              itemBuilder: (context, index) {
+                //map index to week
+
+                //1) get week of startDate
+                final date = startDate.add(Duration(days: index * 7));
+                final weekDate = getWeekOf(date);
+
+                return Column(
+                  key: ValueKey(weekDate),
+                  children: [
+                    _weekHeaderRow(weekDate),
+                    if (widget.showDays) _holidayHeader(weekDate),
+
+                    //Body
+                    ...widget.events.mapIndexed(
+                      (index, e) {
+                        final actStartDate = e.getStartDateInclusive(
+                          context,
+                          startDate,
+                          weekEnds,
+                          isHolidayCached,
+                        );
+                        final actEndDate = e.getEndDateExeclusive(
+                          context,
+                          actStartDate,
+                          weekEnds,
+                          isHolidayCached,
+                        );
+
+                        final eventColor = eventColors[index];
+                        return Container(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: index == widget.events.length - 1
+                                  ? const BorderSide()
+                                  : BorderSide.none,
+                            ),
+                          ),
+                          height: widget.timelineSetting!.eventHeight,
+                          child: widget.eventRowPerWeekBuilder?.call(
+                                context,
+                                actStartDate,
+                                actEndDate,
+                                widget.timelineSetting!.dayWidth,
+                                weekWidth,
+                                weekDate,
+                                isHolidayCached,
+                                e,
+                                eventColor,
+                              ) ??
+                              TaskRowPerWeek(
+                                eventEndDate: actEndDate,
+                                eventStartDate: actStartDate,
+                                dayWidth: widget.timelineSetting!.dayWidth,
+                                event: e,
+                                isHolidayFunc: isHolidayCached,
+                                weekDate: weekDate,
+                                func: widget.eventCellPerDayBuilder,
+                                holidayColor: widget.holidayColor,
+                                eventColor: eventColor,
+                              ),
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  _holidayHeader(weekDate) => SizedBox(
+      height: widget.timelineSetting!.dayHeaderHeight,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: List<Widget>.generate(DateTime.daysPerWeek, (i) {
+          final day = weekDate.add(Duration(days: i));
+          final isHoliday = isHolidayCached(context, day);
+          //Header row
+          return SizedBox(
+            width: widget.timelineSetting!.dayWidth,
+            child: widget.dayHeaderBuilder?.call(context, day, isHoliday) ??
+                DayHeader(date: day, isHoliday: isHoliday),
+          );
+        }).toList(),
+      ));
+
+  _weekHeaderRow(weekDate) {
+    return //Week Header row
+        SizedBox(
+      height: widget.timelineSetting!.weekHeaderHeight,
+      width: weekWidth,
+      child: widget.weekHeaderBuilder?.call(context, weekDate) ??
+          WeekHeader(
+            weekDate: weekDate,
+          ),
+    );
+  }
+
+  Widget _headerDay() => SizedBox(
+        height: widget.timelineSetting!.dayHeaderHeight,
+        child: widget.stickyAreaDayBuilder?.call(context),
+      );
+
+  Widget _headerWeek() => SizedBox(
+        height: widget.timelineSetting!.weekHeaderHeight,
+        child: widget.stickyAreaWeekBuilder?.call(context),
+      );
+
+  Widget _taskListPanel() => SizedBox(
+        width: widget.stickyAreaWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _headerWeek(),
+            if (widget.showDays) _headerDay(),
+            ...widget.events.mapIndexed((index, event) {
+              final eventColor = eventColors[index];
+              return SizedBox(
+                height: widget.timelineSetting!.eventHeight,
+                child: widget.stickyAreaEventBuilder
+                        ?.call(context, index, event, eventColor) ??
+                    TaskListPanel(
+                      event: event,
+                      eventIndex: index,
+                      eventColor: eventColor,
+                    ),
+              );
+            })
+          ],
+        ),
+      );
+}

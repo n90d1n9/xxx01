@@ -1,0 +1,934 @@
+// pubspec.yaml dependencies:
+// flutter_riverpod: ^2.4.0
+// shared_preferences: ^2.2.2
+// intl: ^0.18.1
+// fl_chart: ^0.65.0
+// googleapis: ^11.4.0
+// googleapis_auth: ^1.4.1
+// url_launcher: ^6.2.1
+// csv: ^5.1.1
+// path_provider: ^2.1.1
+// share_plus: ^7.2.1
+
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:intl/intl.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:googleapis/sheets/v4.dart' as sheets;
+import 'package:googleapis_auth/auth_io.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:csv/csv.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+
+void main() {
+  runApp(const ProviderScope(child: HouseholdApp()));
+}
+
+// Models (keeping all previous models)
+class DailyTask {
+  final String id;
+  final String title;
+  final bool completed;
+  final DateTime date;
+  final String? notes;
+  final TaskPriority priority;
+  final String? assignedTo;
+
+  DailyTask({
+    required this.id,
+    required this.title,
+    required this.completed,
+    required this.date,
+    this.notes,
+    this.priority = TaskPriority.medium,
+    this.assignedTo,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'completed': completed,
+        'date': date.toIso8601String(),
+        'notes': notes,
+        'priority': priority.index,
+        'assignedTo': assignedTo,
+      };
+
+  factory DailyTask.fromJson(Map<String, dynamic> json) => DailyTask(
+        id: json['id'],
+        title: json['title'],
+        completed: json['completed'],
+        date: DateTime.parse(json['date']),
+        notes: json['notes'],
+        priority: TaskPriority.values[json['priority'] ?? 1],
+        assignedTo: json['assignedTo'],
+      );
+
+  DailyTask copyWith({
+    String? title,
+    bool? completed,
+    DateTime? date,
+    String? notes,
+    TaskPriority? priority,
+    String? assignedTo,
+  }) {
+    return DailyTask(
+      id: id,
+      title: title ?? this.title,
+      completed: completed ?? this.completed,
+      date: date ?? this.date,
+      notes: notes ?? this.notes,
+      priority: priority ?? this.priority,
+      assignedTo: assignedTo ?? this.assignedTo,
+    );
+  }
+}
+
+enum TaskPriority { low, medium, high }
+
+class ShoppingItem {
+  final String id;
+  final String name;
+  final double price;
+  final int quantity;
+  final bool purchased;
+  final String category;
+  final String? notes;
+  final DateTime createdAt;
+
+  ShoppingItem({
+    required this.id,
+    required this.name,
+    required this.price,
+    this.quantity = 1,
+    required this.purchased,
+    required this.category,
+    this.notes,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'price': price,
+        'quantity': quantity,
+        'purchased': purchased,
+        'category': category,
+        'notes': notes,
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory ShoppingItem.fromJson(Map<String, dynamic> json) => ShoppingItem(
+        id: json['id'],
+        name: json['name'],
+        price: json['price'],
+        quantity: json['quantity'] ?? 1,
+        purchased: json['purchased'],
+        category: json['category'],
+        notes: json['notes'],
+        createdAt: json['createdAt'] != null
+            ? DateTime.parse(json['createdAt'])
+            : DateTime.now(),
+      );
+
+  ShoppingItem copyWith({
+    String? name,
+    double? price,
+    int? quantity,
+    bool? purchased,
+    String? category,
+    String? notes,
+  }) {
+    return ShoppingItem(
+      id: id,
+      name: name ?? this.name,
+      price: price ?? this.price,
+      quantity: quantity ?? this.quantity,
+      purchased: purchased ?? this.purchased,
+      category: category ?? this.category,
+      notes: notes ?? this.notes,
+      createdAt: createdAt,
+    );
+  }
+}
+
+class BudgetCategory {
+  final String name;
+  final double budget;
+  final double spent;
+  final IconData icon;
+  final Color color;
+
+  BudgetCategory({
+    required this.name,
+    required this.budget,
+    required this.spent,
+    required this.icon,
+    required this.color,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'budget': budget,
+        'spent': spent,
+      };
+
+  factory BudgetCategory.fromJson(Map<String, dynamic> json) {
+    final categoryConfig = _getCategoryConfig(json['name']);
+    return BudgetCategory(
+      name: json['name'],
+      budget: json['budget'],
+      spent: json['spent'],
+      icon: categoryConfig['icon'],
+      color: categoryConfig['color'],
+    );
+  }
+
+  static Map<String, dynamic> _getCategoryConfig(String name) {
+    switch (name) {
+      case 'Groceries':
+        return {'icon': Icons.shopping_basket, 'color': Colors.green};
+      case 'Utilities':
+        return {'icon': Icons.electrical_services, 'color': Colors.blue};
+      case 'Entertainment':
+        return {'icon': Icons.movie, 'color': Colors.purple};
+      case 'Transportation':
+        return {'icon': Icons.directions_car, 'color': Colors.orange};
+      case 'Healthcare':
+        return {'icon': Icons.medical_services, 'color': Colors.red};
+      case 'Education':
+        return {'icon': Icons.school, 'color': Colors.indigo};
+      default:
+        return {'icon': Icons.more_horiz, 'color': Colors.grey};
+    }
+  }
+
+  BudgetCategory copyWith({String? name, double? budget, double? spent}) {
+    return BudgetCategory(
+      name: name ?? this.name,
+      budget: budget ?? this.budget,
+      spent: spent ?? this.spent,
+      icon: icon,
+      color: color,
+    );
+  }
+}
+
+class Expense {
+  final String id;
+  final String category;
+  final double amount;
+  final String description;
+  final DateTime date;
+  final String? receipt;
+  final PaymentMethod paymentMethod;
+
+  Expense({
+    required this.id,
+    required this.category,
+    required this.amount,
+    required this.description,
+    required this.date,
+    this.receipt,
+    this.paymentMethod = PaymentMethod.cash,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'category': category,
+        'amount': amount,
+        'description': description,
+        'date': date.toIso8601String(),
+        'receipt': receipt,
+        'paymentMethod': paymentMethod.index,
+      };
+
+  factory Expense.fromJson(Map<String, dynamic> json) => Expense(
+        id: json['id'],
+        category: json['category'],
+        amount: json['amount'],
+        description: json['description'],
+        date: DateTime.parse(json['date']),
+        receipt: json['receipt'],
+        paymentMethod: PaymentMethod.values[json['paymentMethod'] ?? 0],
+      );
+}
+
+enum PaymentMethod { cash, card, bankTransfer, ewallet }
+
+class RecurringExpense {
+  final String id;
+  final String name;
+  final double amount;
+  final String category;
+  final RecurrenceType recurrence;
+  final DateTime startDate;
+  final DateTime? endDate;
+  final bool isActive;
+
+  RecurringExpense({
+    required this.id,
+    required this.name,
+    required this.amount,
+    required this.category,
+    required this.recurrence,
+    required this.startDate,
+    this.endDate,
+    this.isActive = true,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'amount': amount,
+        'category': category,
+        'recurrence': recurrence.index,
+        'startDate': startDate.toIso8601String(),
+        'endDate': endDate?.toIso8601String(),
+        'isActive': isActive,
+      };
+
+  factory RecurringExpense.fromJson(Map<String, dynamic> json) =>
+      RecurringExpense(
+        id: json['id'],
+        name: json['name'],
+        amount: json['amount'],
+        category: json['category'],
+        recurrence: RecurrenceType.values[json['recurrence']],
+        startDate: DateTime.parse(json['startDate']),
+        endDate:
+            json['endDate'] != null ? DateTime.parse(json['endDate']) : null,
+        isActive: json['isActive'] ?? true,
+      );
+
+  RecurringExpense copyWith({bool? isActive}) {
+    return RecurringExpense(
+      id: id,
+      name: name,
+      amount: amount,
+      category: category,
+      recurrence: recurrence,
+      startDate: startDate,
+      endDate: endDate,
+      isActive: isActive ?? this.isActive,
+    );
+  }
+}
+
+enum RecurrenceType { daily, weekly, monthly, yearly }
+
+enum ReportPeriod { daily, weekly, monthly, yearly }
+
+// Report Data Model
+class ReportData {
+  final DateTime startDate;
+  final DateTime endDate;
+  final ReportPeriod period;
+  final double totalExpenses;
+  final int transactionCount;
+  final Map<String, double> categoryBreakdown;
+  final Map<String, double> paymentMethodBreakdown;
+  final double averageDaily;
+  final List<Expense> expenses;
+
+  ReportData({
+    required this.startDate,
+    required this.endDate,
+    required this.period,
+    required this.totalExpenses,
+    required this.transactionCount,
+    required this.categoryBreakdown,
+    required this.paymentMethodBreakdown,
+    required this.averageDaily,
+    required this.expenses,
+  });
+}
+
+// Google Sheets Service
+class GoogleSheetsService {
+  static const String spreadsheetIdKey = 'google_sheets_spreadsheet_id';
+  
+  Future<void> saveSpreadsheetId(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(spreadsheetIdKey, id);
+  }
+
+  Future<String?> getSpreadsheetId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(spreadsheetIdKey);
+  }
+
+  Future<void> exportToGoogleSheets(
+    List<Expense> expenses,
+    String spreadsheetId,
+  ) async {
+    // Note: This is a simplified version. In production, you need:
+    // 1. OAuth2 authentication with Google
+    // 2. Enable Google Sheets API in Google Cloud Console
+    // 3. Add credentials.json file
+    
+    // For now, we'll create a CSV that can be manually imported
+    throw UnimplementedError(
+      'Google Sheets integration requires OAuth2 setup. Use CSV export instead.',
+    );
+  }
+
+  Future<String> createSpreadsheet(String title) async {
+    throw UnimplementedError(
+      'Google Sheets integration requires OAuth2 setup.',
+    );
+  }
+}
+
+// CSV Export Service
+class CSVExportService {
+  Future<File> generateExpenseCSV(List<Expense> expenses) async {
+    List<List<dynamic>> rows = [
+      ['Date', 'Category', 'Amount', 'Description', 'Payment Method'],
+    ];
+
+    for (var expense in expenses) {
+      rows.add([
+        DateFormat('yyyy-MM-dd HH:mm').format(expense.date),
+        expense.category,
+        expense.amount,
+        expense.description,
+        _formatPaymentMethod(expense.paymentMethod),
+      ]);
+    }
+
+    String csv = const ListToCsvConverter().convert(rows);
+    
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File(
+      '${directory.path}/expenses_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv',
+    );
+    
+    await file.writeAsString(csv);
+    return file;
+  }
+
+  Future<File> generateFullReport(
+    ReportData report,
+    List<BudgetCategory> budget,
+  ) async {
+    List<List<dynamic>> rows = [
+      ['Household Manager Report'],
+      ['Period', '${DateFormat('yyyy-MM-dd').format(report.startDate)} to ${DateFormat('yyyy-MM-dd').format(report.endDate)}'],
+      [''],
+      ['Summary'],
+      ['Total Expenses', report.totalExpenses],
+      ['Transaction Count', report.transactionCount],
+      ['Average Daily', report.averageDaily],
+      [''],
+      ['Category Breakdown'],
+      ['Category', 'Amount', 'Percentage'],
+    ];
+
+    report.categoryBreakdown.forEach((category, amount) {
+      final percentage = (amount / report.totalExpenses * 100).toStringAsFixed(1);
+      rows.add([category, amount, '$percentage%']);
+    });
+
+    rows.addAll([
+      [''],
+      ['Budget Analysis'],
+      ['Category', 'Budget', 'Spent', 'Remaining', 'Status'],
+    ]);
+
+    for (var cat in budget) {
+      final remaining = cat.budget - cat.spent;
+      final status = cat.spent > cat.budget ? 'Over Budget' : 'Within Budget';
+      rows.add([cat.name, cat.budget, cat.spent, remaining, status]);
+    }
+
+    rows.addAll([
+      [''],
+      ['All Transactions'],
+      ['Date', 'Category', 'Amount', 'Description', 'Payment Method'],
+    ]);
+
+    for (var expense in report.expenses) {
+      rows.add([
+        DateFormat('yyyy-MM-dd HH:mm').format(expense.date),
+        expense.category,
+        expense.amount,
+        expense.description,
+        _formatPaymentMethod(expense.paymentMethod),
+      ]);
+    }
+
+    String csv = const ListToCsvConverter().convert(rows);
+    
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File(
+      '${directory.path}/report_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv',
+    );
+    
+    await file.writeAsString(csv);
+    return file;
+  }
+
+  String _formatPaymentMethod(PaymentMethod method) {
+    switch (method) {
+      case PaymentMethod.cash:
+        return 'Cash';
+      case PaymentMethod.card:
+        return 'Card';
+      case PaymentMethod.bankTransfer:
+        return 'Bank Transfer';
+      case PaymentMethod.ewallet:
+        return 'E-Wallet';
+    }
+  }
+}
+
+// Storage Service (keeping all previous methods)
+class StorageService {
+  static const String tasksKey = 'daily_tasks';
+  static const String shoppingKey = 'shopping_list';
+  static const String budgetKey = 'budget_categories';
+  static const String expensesKey = 'expenses';
+  static const String recurringKey = 'recurring_expenses';
+
+  Future<void> saveTasks(List<DailyTask> tasks) async {
+    final prefs = await SharedPreferences.getInstance();
+    final json = tasks.map((t) => t.toJson()).toList();
+    await prefs.setString(tasksKey, jsonEncode(json));
+  }
+
+  Future<List<DailyTask>> loadTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString(tasksKey);
+    if (data == null) return [];
+    final List<dynamic> json = jsonDecode(data);
+    return json.map((j) => DailyTask.fromJson(j)).toList();
+  }
+
+  Future<void> saveShoppingList(List<ShoppingItem> items) async {
+    final prefs = await SharedPreferences.getInstance();
+    final json = items.map((i) => i.toJson()).toList();
+    await prefs.setString(shoppingKey, jsonEncode(json));
+  }
+
+  Future<List<ShoppingItem>> loadShoppingList() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString(shoppingKey);
+    if (data == null) return [];
+    final List<dynamic> json = jsonDecode(data);
+    return json.map((j) => ShoppingItem.fromJson(j)).toList();
+  }
+
+  Future<void> saveBudget(List<BudgetCategory> categories) async {
+    final prefs = await SharedPreferences.getInstance();
+    final json = categories.map((c) => c.toJson()).toList();
+    await prefs.setString(budgetKey, jsonEncode(json));
+  }
+
+  Future<List<BudgetCategory>> loadBudget() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString(budgetKey);
+    if (data == null) return _getDefaultBudget();
+    final List<dynamic> json = jsonDecode(data);
+    return json.map((j) => BudgetCategory.fromJson(j)).toList();
+  }
+
+  Future<void> saveExpenses(List<Expense> expenses) async {
+    final prefs = await SharedPreferences.getInstance();
+    final json = expenses.map((e) => e.toJson()).toList();
+    await prefs.setString(expensesKey, jsonEncode(json));
+  }
+
+  Future<List<Expense>> loadExpenses() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString(expensesKey);
+    if (data == null) return [];
+    final List<dynamic> json = jsonDecode(data);
+    return json.map((j) => Expense.fromJson(j)).toList();
+  }
+
+  Future<void> saveRecurringExpenses(List<RecurringExpense> expenses) async {
+    final prefs = await SharedPreferences.getInstance();
+    final json = expenses.map((e) => e.toJson()).toList();
+    await prefs.setString(recurringKey, jsonEncode(json));
+  }
+
+  Future<List<RecurringExpense>> loadRecurringExpenses() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString(recurringKey);
+    if (data == null) return [];
+    final List<dynamic> json = jsonDecode(data);
+    return json.map((j) => RecurringExpense.fromJson(j)).toList();
+  }
+
+  static List<BudgetCategory> _getDefaultBudget() => [
+        BudgetCategory(
+          name: 'Groceries',
+          budget: 500,
+          spent: 0,
+          icon: Icons.shopping_basket,
+          color: Colors.green,
+        ),
+        BudgetCategory(
+          name: 'Utilities',
+          budget: 300,
+          spent: 0,
+          icon: Icons.electrical_services,
+          color: Colors.blue,
+        ),
+        BudgetCategory(
+          name: 'Entertainment',
+          budget: 200,
+          spent: 0,
+          icon: Icons.movie,
+          color: Colors.purple,
+        ),
+        BudgetCategory(
+          name: 'Transportation',
+          budget: 150,
+          spent: 0,
+          icon: Icons.directions_car,
+          color: Colors.orange,
+        ),
+        BudgetCategory(
+          name: 'Healthcare',
+          budget: 200,
+          spent: 0,
+          icon: Icons.medical_services,
+          color: Colors.red,
+        ),
+        BudgetCategory(
+          name: 'Education',
+          budget: 150,
+          spent: 0,
+          icon: Icons.school,
+          color: Colors.indigo,
+        ),
+      ];
+}
+
+// State Notifiers (keeping all previous notifiers)
+class DailyTasksNotifier extends StateNotifier<List<DailyTask>> {
+  final StorageService storage;
+
+  DailyTasksNotifier(this.storage) : super([]) {
+    _loadTasks();
+  }
+
+  Future<void> _loadTasks() async {
+    state = await storage.loadTasks();
+  }
+
+  Future<void> addTask(String title, TaskPriority priority, String? assignedTo) async {
+    state = [
+      ...state,
+      DailyTask(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        title: title,
+        completed: false,
+        date: DateTime.now(),
+        priority: priority,
+        assignedTo: assignedTo,
+      ),
+    ];
+    await storage.saveTasks(state);
+  }
+
+  Future<void> toggleTask(String id) async {
+    state = [
+      for (final task in state)
+        if (task.id == id) task.copyWith(completed: !task.completed) else task,
+    ];
+    await storage.saveTasks(state);
+  }
+
+  Future<void> updateTask(DailyTask updatedTask) async {
+    state = [
+      for (final task in state)
+        if (task.id == updatedTask.id) updatedTask else task,
+    ];
+    await storage.saveTasks(state);
+  }
+
+  Future<void> deleteTask(String id) async {
+    state = state.where((task) => task.id != id).toList();
+    await storage.saveTasks(state);
+  }
+
+  Future<void> clearCompleted() async {
+    state = state.where((task) => !task.completed).toList();
+    await storage.saveTasks(state);
+  }
+}
+
+class ShoppingListNotifier extends StateNotifier<List<ShoppingItem>> {
+  final StorageService storage;
+
+  ShoppingListNotifier(this.storage) : super([]) {
+    _loadItems();
+  }
+
+  Future<void> _loadItems() async {
+    state = await storage.loadShoppingList();
+  }
+
+  Future<void> addItem(
+      String name, double price, int quantity, String category, String? notes) async {
+    state = [
+      ...state,
+      ShoppingItem(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: name,
+        price: price,
+        quantity: quantity,
+        purchased: false,
+        category: category,
+        notes: notes,
+      ),
+    ];
+    await storage.saveShoppingList(state);
+  }
+
+  Future<void> togglePurchased(String id) async {
+    state = [
+      for (final item in state)
+        if (item.id == id) item.copyWith(purchased: !item.purchased) else item,
+    ];
+    await storage.saveShoppingList(state);
+  }
+
+  Future<void> updateItem(ShoppingItem updatedItem) async {
+    state = [
+      for (final item in state)
+        if (item.id == updatedItem.id) updatedItem else item,
+    ];
+    await storage.saveShoppingList(state);
+  }
+
+  Future<void> deleteItem(String id) async {
+    state = state.where((item) => item.id != id).toList();
+    await storage.saveShoppingList(state);
+  }
+
+  Future<void> clearPurchased() async {
+    state = state.where((item) => !item.purchased).toList();
+    await storage.saveShoppingList(state);
+  }
+}
+
+class BudgetNotifier extends StateNotifier<List<BudgetCategory>> {
+  final StorageService storage;
+
+  BudgetNotifier(this.storage) : super([]) {
+    _loadBudget();
+  }
+
+  Future<void> _loadBudget() async {
+    state = await storage.loadBudget();
+  }
+
+  Future<void> updateBudget(String name, double budget) async {
+    state = [
+      for (final cat in state)
+        if (cat.name == name) cat.copyWith(budget: budget) else cat,
+    ];
+    await storage.saveBudget(state);
+  }
+
+  Future<void> addExpense(String category, double amount) async {
+    state = [
+      for (final cat in state)
+        if (cat.name == category)
+          cat.copyWith(spent: cat.spent + amount)
+        else
+          cat,
+    ];
+    await storage.saveBudget(state);
+  }
+
+  Future<void> resetSpending() async {
+    state = [for (final cat in state) cat.copyWith(spent: 0)];
+    await storage.saveBudget(state);
+  }
+}
+
+class ExpensesNotifier extends StateNotifier<List<Expense>> {
+  final StorageService storage;
+
+  ExpensesNotifier(this.storage) : super([]) {
+    _loadExpenses();
+  }
+
+  Future<void> _loadExpenses() async {
+    state = await storage.loadExpenses();
+  }
+
+  Future<void> addExpense(String category, double amount, String description,
+      PaymentMethod method) async {
+    state = [
+      ...state,
+      Expense(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        category: category,
+        amount: amount,
+        description: description,
+        date: DateTime.now(),
+        paymentMethod: method,
+      ),
+    ];
+    await storage.saveExpenses(state);
+  }
+
+  Future<void> deleteExpense(String id) async {
+    state = state.where((e) => e.id != id).toList();
+    await storage.saveExpenses(state);
+  }
+}
+
+class RecurringExpensesNotifier extends StateNotifier<List<RecurringExpense>> {
+  final StorageService storage;
+
+  RecurringExpensesNotifier(this.storage) : super([]) {
+    _loadRecurring();
+  }
+
+  Future<void> _loadRecurring() async {
+    state = await storage.loadRecurringExpenses();
+  }
+
+  Future<void> addRecurring(String name, double amount, String category,
+      RecurrenceType recurrence) async {
+    state = [
+      ...state,
+      RecurringExpense(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: name,
+        amount: amount,
+        category: category,
+        recurrence: recurrence,
+        startDate: DateTime.now(),
+      ),
+    ];
+    await storage.saveRecurringExpenses(state);
+  }
+
+  Future<void> toggleActive(String id) async {
+    state = [
+      for (final expense in state)
+        if (expense.id == id)
+          expense.copyWith(isActive: !expense.isActive)
+        else
+          expense,
+    ];
+    await storage.saveRecurringExpenses(state);
+  }
+
+  Future<void> deleteRecurring(String id) async {
+    state = state.where((e) => e.id != id).toList();
+    await storage.saveRecurringExpenses(state);
+  }
+}
+
+// Report Notifier
+class ReportNotifier extends StateNotifier<ReportPeriod> {
+  ReportNotifier() : super(ReportPeriod.monthly);
+
+  void setPeriod(ReportPeriod period) {
+    state = period;
+  }
+}
+
+// Providers
+final storageProvider = Provider((ref) => StorageService());
+final csvExportProvider = Provider((ref) => CSVExportService());
+final googleSheetsProvider = Provider((ref) => GoogleSheetsService());
+
+final dailyTasksProvider =
+    StateNotifierProvider<DailyTasksNotifier, List<DailyTask>>((ref) {
+  return DailyTasksNotifier(ref.watch(storageProvider));
+});
+
+final shoppingListProvider =
+    StateNotifierProvider<ShoppingListNotifier, List<ShoppingItem>>((ref) {
+  return ShoppingListNotifier(ref.watch(storageProvider));
+});
+
+final budgetProvider =
+    StateNotifierProvider<BudgetNotifier, List<BudgetCategory>>((ref) {
+  return BudgetNotifier(ref.watch(storageProvider));
+});
+
+final expensesProvider =
+    StateNotifierProvider<ExpensesNotifier, List<Expense>>((ref) {
+  return ExpensesNotifier(ref.watch(storageProvider));
+});
+
+final recurringExpensesProvider =
+    StateNotifierProvider<RecurringExpensesNotifier, List<RecurringExpense>>(
+        (ref) {
+  return RecurringExpensesNotifier(ref.watch(storageProvider));
+});
+
+final reportPeriodProvider =
+    StateNotifierProvider<ReportNotifier, ReportPeriod>((ref) {
+  return ReportNotifier();
+});
+
+final reportDataProvider = Provider<ReportData>((ref) {
+  final period = ref.watch(reportPeriodProvider);
+  final expenses = ref.watch(expensesProvider);
+  
+  final now = DateTime.now();
+  DateTime startDate;
+  DateTime endDate = now;
+
+  switch (period) {
+    case ReportPeriod.daily:
+      startDate = DateTime(now.year, now.month, now.day);
+      break;
+    case ReportPeriod.weekly:
+      startDate = now.subtract(Duration(days: now.weekday - 1));
+      startDate = DateTime(startDate.year, startDate.month, startDate.day);
+      break;
+    case ReportPeriod.monthly:
+      startDate = DateTime(now.year, now.month, 1);
+      break;
+    case ReportPeriod.yearly:
+      startDate = DateTime(now.year, 1, 1);
+      break;
+  }
+
+  final periodExpenses = expenses.where((e) {
+    return e.date.isAfter(startDate.subtract(const Duration(seconds: 1))) &&
+        e.date.isBefore(endDate.add(const Duration(days: 1)));
+  }).toList();
+
+  final totalExpenses = periodExpenses.fold(0.0, (sum, e) => sum + e.amount);
+  
+  final categoryBreakdown = <String, double>{};
+  final paymentMethodBreakdown = <String, double>{};
+  
+  for (var expense in periodExpenses) {
+    categoryBreakdown[expense.category] =
+        (categoryBreakdown[expense.category] ?? 0) + expense.amount;
+    
+    final method = _formatPaymentMethod(expense.paymentMethod);
+    paymentMethodBreakdown[method] =
+        (paymentMethodBreakdown[method] ?? 0) + expense.amount;
+  }
+
+  final days = endDate.difference(startDate).inDays + 1;
+  final averageDaily = days > 0 ? totalExpenses / days : 0;
+
+  return ReportData(
+    startDate: startDate,
+    endDate: endDate,
+    period: period,
+    totalExpenses: totalExpenses,
+    transactionCount: periodExpenses.length,
+    categoryBreakdown: categoryBreakdown,
+    payment

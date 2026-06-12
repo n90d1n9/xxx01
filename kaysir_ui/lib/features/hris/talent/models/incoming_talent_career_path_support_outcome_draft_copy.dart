@@ -1,0 +1,73 @@
+import 'incoming_talent_career_path_review.dart';
+import 'incoming_talent_career_path_support_action.dart';
+import 'incoming_talent_career_path_support_outcome.dart';
+import 'incoming_talent_career_path_support_outcome_draft.dart';
+
+extension IncomingTalentCareerPathSupportOutcomeDraftCopy
+    on IncomingTalentCareerPathSupportOutcomeDraft {
+  IncomingTalentCareerPathSupportOutcomeDraft copyWith({
+    String? actionId,
+    String? reviewId,
+    String? careerPathId,
+    String? portfolioId,
+    String? roadmapId,
+    String? candidateId,
+    String? candidateName,
+    String? department,
+    String? targetRole,
+    String? competencyName,
+    IncomingTalentCareerPathSupportActionType? actionType,
+    IncomingTalentCareerPathSupportActionPriority? actionPriority,
+    IncomingTalentCareerPathSupportActionStatus? actionStatus,
+    String? actionOwnerName,
+    String? actionPlan,
+    String? successCriteria,
+    IncomingTalentCareerPathReviewDecision? sourceDecision,
+    int? reviewedLevelBefore,
+    int? targetLevel,
+    int? sourceLevelGap,
+    String? reviewerName,
+    DateTime? outcomeDate,
+    IncomingTalentCareerPathSupportOutcomeDecision? decision,
+    IncomingTalentCareerPathSupportOutcomeResidualRisk? residualRisk,
+    int? verifiedLevel,
+    String? evidenceSummary,
+    String? managerNote,
+    String? nextReviewAction,
+    DateTime? nextReviewDate,
+    DateTime? asOfDate,
+  }) {
+    return IncomingTalentCareerPathSupportOutcomeDraft(
+      actionId: actionId ?? this.actionId,
+      reviewId: reviewId ?? this.reviewId,
+      careerPathId: careerPathId ?? this.careerPathId,
+      portfolioId: portfolioId ?? this.portfolioId,
+      roadmapId: roadmapId ?? this.roadmapId,
+      candidateId: candidateId ?? this.candidateId,
+      candidateName: candidateName ?? this.candidateName,
+      department: department ?? this.department,
+      targetRole: targetRole ?? this.targetRole,
+      competencyName: competencyName ?? this.competencyName,
+      actionType: actionType ?? this.actionType,
+      actionPriority: actionPriority ?? this.actionPriority,
+      actionStatus: actionStatus ?? this.actionStatus,
+      actionOwnerName: actionOwnerName ?? this.actionOwnerName,
+      actionPlan: actionPlan ?? this.actionPlan,
+      successCriteria: successCriteria ?? this.successCriteria,
+      sourceDecision: sourceDecision ?? this.sourceDecision,
+      reviewedLevelBefore: reviewedLevelBefore ?? this.reviewedLevelBefore,
+      targetLevel: targetLevel ?? this.targetLevel,
+      sourceLevelGap: sourceLevelGap ?? this.sourceLevelGap,
+      reviewerName: reviewerName ?? this.reviewerName,
+      outcomeDate: outcomeDate ?? this.outcomeDate,
+      decision: decision ?? this.decision,
+      residualRisk: residualRisk ?? this.residualRisk,
+      verifiedLevel: verifiedLevel ?? this.verifiedLevel,
+      evidenceSummary: evidenceSummary ?? this.evidenceSummary,
+      managerNote: managerNote ?? this.managerNote,
+      nextReviewAction: nextReviewAction ?? this.nextReviewAction,
+      nextReviewDate: nextReviewDate ?? this.nextReviewDate,
+      asOfDate: asOfDate ?? this.asOfDate,
+    );
+  }
+}

@@ -1,0 +1,83 @@
+import 'incoming_talent_mobility_cadence_check_in.dart';
+import 'incoming_talent_mobility_cadence_intervention.dart';
+import 'incoming_talent_mobility_cadence_intervention_outcome.dart';
+import 'incoming_talent_mobility_cadence_intervention_outcome_draft.dart';
+import 'incoming_talent_mobility_stabilization_outcome.dart';
+
+extension IncomingTalentMobilityCadenceInterventionOutcomeDraftCopy
+    on IncomingTalentMobilityCadenceInterventionOutcomeDraft {
+  IncomingTalentMobilityCadenceInterventionOutcomeDraft copyWith({
+    String? interventionId,
+    String? checkInId,
+    String? outcomeId,
+    String? actionId,
+    String? reviewId,
+    String? checklistId,
+    String? matchId,
+    String? decisionId,
+    String? candidateId,
+    String? candidateName,
+    String? currentRole,
+    String? department,
+    String? targetRole,
+    String? opportunityTitle,
+    String? hostDepartment,
+    IncomingTalentMobilityCadenceStatus? cadenceStatusBefore,
+    IncomingTalentMobilityStabilizationResidualRisk? residualRiskBefore,
+    int? hostConfidenceBefore,
+    IncomingTalentMobilityCadenceInterventionType? interventionType,
+    IncomingTalentMobilityCadenceInterventionPriority? priority,
+    IncomingTalentMobilityCadenceInterventionStatus? interventionStatus,
+    String? interventionOwnerName,
+    String? interventionSummary,
+    String? reviewerName,
+    DateTime? reviewDate,
+    IncomingTalentMobilityCadenceInterventionOutcomeDecision? decision,
+    IncomingTalentMobilityCadenceInterventionSustainability? sustainability,
+    IncomingTalentMobilityStabilizationResidualRisk? residualRiskAfter,
+    int? hostConfidenceAfter,
+    String? evidenceSummary,
+    String? learningSummary,
+    String? nextCadenceAction,
+    DateTime? nextReviewDate,
+    DateTime? asOfDate,
+  }) {
+    return IncomingTalentMobilityCadenceInterventionOutcomeDraft(
+      interventionId: interventionId ?? this.interventionId,
+      checkInId: checkInId ?? this.checkInId,
+      outcomeId: outcomeId ?? this.outcomeId,
+      actionId: actionId ?? this.actionId,
+      reviewId: reviewId ?? this.reviewId,
+      checklistId: checklistId ?? this.checklistId,
+      matchId: matchId ?? this.matchId,
+      decisionId: decisionId ?? this.decisionId,
+      candidateId: candidateId ?? this.candidateId,
+      candidateName: candidateName ?? this.candidateName,
+      currentRole: currentRole ?? this.currentRole,
+      department: department ?? this.department,
+      targetRole: targetRole ?? this.targetRole,
+      opportunityTitle: opportunityTitle ?? this.opportunityTitle,
+      hostDepartment: hostDepartment ?? this.hostDepartment,
+      cadenceStatusBefore: cadenceStatusBefore ?? this.cadenceStatusBefore,
+      residualRiskBefore: residualRiskBefore ?? this.residualRiskBefore,
+      hostConfidenceBefore: hostConfidenceBefore ?? this.hostConfidenceBefore,
+      interventionType: interventionType ?? this.interventionType,
+      priority: priority ?? this.priority,
+      interventionStatus: interventionStatus ?? this.interventionStatus,
+      interventionOwnerName:
+          interventionOwnerName ?? this.interventionOwnerName,
+      interventionSummary: interventionSummary ?? this.interventionSummary,
+      reviewerName: reviewerName ?? this.reviewerName,
+      reviewDate: reviewDate ?? this.reviewDate,
+      decision: decision ?? this.decision,
+      sustainability: sustainability ?? this.sustainability,
+      residualRiskAfter: residualRiskAfter ?? this.residualRiskAfter,
+      hostConfidenceAfter: hostConfidenceAfter ?? this.hostConfidenceAfter,
+      evidenceSummary: evidenceSummary ?? this.evidenceSummary,
+      learningSummary: learningSummary ?? this.learningSummary,
+      nextCadenceAction: nextCadenceAction ?? this.nextCadenceAction,
+      nextReviewDate: nextReviewDate ?? this.nextReviewDate,
+      asOfDate: asOfDate ?? this.asOfDate,
+    );
+  }
+}

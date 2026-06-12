@@ -1,0 +1,155 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import '../models/promotion_model.dart';
+import '../providers/promotion_provider.dart';
+import 'promotion_form_screen.dart';
+
+class PromotionDetailScreen extends ConsumerWidget {
+  final Promotion promotion;
+
+  const PromotionDetailScreen({Key? key, required this.promotion}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_getPromotionTypeDisplayName(promotion.type)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PromotionFormScreen(promotion: promotion),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(context),
+            const SizedBox(height: 24),
+            _buildPriceInfo(context),
+            const SizedBox(height: 24),
+            _buildStatusInfo(context),
+            const SizedBox(height: 24),
+            _buildPromotionDetails(context, ref),
+            if (promotion.uri != null) _buildMediaPreview(context),
+          ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: promotion.isActive ? Colors.red : Colors.green,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () {
+                    ref.read(promotionsProvider.notifier).togglePromotionStatus(promotion.id);
+                    Navigator.pop(context);
+                  },
+                  child: Text(promotion.isActive ? 'Deactivate Promotion' : 'Activate Promotion'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: 30,
+          backgroundColor: _getColorForPromotionType(promotion.type),
+          child: Icon(_getIconForPromotionType(promotion.type), color: Colors.white, size: 30),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _getPromotionTypeDisplayName(promotion.type),
+                style: Theme.of(context).textTheme.headline5,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'ID: ${promotion.id}',
+                style: Theme.of(context).textTheme.bodyText2,
+              ),
+              if (promotion.product != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'Product: ${promotion.product!.name}',
+                    style: Theme.of(context).textTheme.subtitle1,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPriceInfo(BuildContext context) {
+    final savingsAmount = promotion.originPrice - promotion.promoPrice;
+    final savingsPercentage = (savingsAmount / promotion.originPrice * 100).toStringAsFixed(0);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Price Information',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Original Price'),
+                Text(
+                  'Rp ${promotion.originPrice.toStringAsFixed(0)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Promo Price'),
+                Text(
+                  'Rp ${promotion.promoPrice.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Savings'),
+                Text(
+                  'Rp ${savingsAmount.toStringAsFixed(0)} ($savingsPercentage%)',

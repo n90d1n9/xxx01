@@ -1,0 +1,4573 @@
+// pubspec.yaml dependencies:
+// flutter_riverpod: ^2.4.9
+// intl: ^0.18.0
+// uuid: ^4.0.0
+// mustache_template: ^2.0.0
+
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:intl/intl.dart';
+
+// ============================================================================
+// SCHEMA DEFINITIONS - Database-Ready Models
+// ============================================================================
+
+/// Represents SQL data types for schema generation
+enum SQLType {
+  varchar,
+  text,
+  integer,
+  bigint,
+  decimal,
+  boolean,
+  date,
+  timestamp,
+  time,
+  json,
+  jsonb,
+  uuid,
+  bytea,
+}
+
+/// Field constraints for database schema
+class FieldConstraints {
+  final bool unique;
+  final bool indexed;
+  final bool nullable;
+  final String? checkConstraint;
+  final String? foreignKey;
+  final String? onDelete; // CASCADE, SET NULL, RESTRICT
+  final String? onUpdate;
+  final List<String>? enumValues;
+
+  const FieldConstraints({
+    this.unique = false,
+    this.indexed = false,
+    this.nullable = true,
+    this.checkConstraint,
+    this.foreignKey,
+    this.onDelete,
+    this.onUpdate,
+    this.enumValues,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'unique': unique,
+        'indexed': indexed,
+        'nullable': nullable,
+        'checkConstraint': checkConstraint,
+        'foreignKey': foreignKey,
+        'onDelete': onDelete,
+        'onUpdate': onUpdate,
+        'enumValues': enumValues,
+      };
+
+  factory FieldConstraints.fromJson(Map<String, dynamic> json) => FieldConstraints(
+        unique: json['unique'] ?? false,
+        indexed: json['indexed'] ?? false,
+        nullable: json['nullable'] ?? true,
+        checkConstraint: json['checkConstraint'],
+        foreignKey: json['foreignKey'],
+        onDelete: json['onDelete'],
+        onUpdate: json['onUpdate'],
+        enumValues: json['enumValues']?.cast<String>(),
+      );
+
+  FieldConstraints copyWith({
+    bool? unique,
+    bool? indexed,
+    bool? nullable,
+    String? checkConstraint,
+    String? foreignKey,
+    String? onDelete,
+    String? onUpdate,
+    List<String>? enumValues,
+  }) {
+    return FieldConstraints(
+      unique: unique ?? this.unique,
+      indexed: indexed ?? this.indexed,
+      nullable: nullable ?? this.nullable,
+      checkConstraint: checkConstraint ?? this.checkConstraint,
+      foreignKey: foreignKey ?? this.foreignKey,
+      onDelete: onDelete ?? this.onDelete,
+      onUpdate: onUpdate ?? this.onUpdate,
+      enumValues: enumValues ?? this.enumValues,
+    );
+  }
+}
+
+/// UI field types for CMS interface
+enum UIFieldType {
+  textInput,
+  textArea,
+  richTextEditor,
+  markdown,
+  code,
+  numberInput,
+  slider,
+  rating,
+  datePicker,
+  dateTimePicker,
+  timePicker,
+  dateRange,
+  dropdown,
+  radioGroup,
+  checkboxGroup,
+  tags,
+  toggle,
+  checkbox,
+  imageUpload,
+  fileUpload,
+  mediaGallery,
+  colorPicker,
+  location,
+  json,
+  relation,
+  custom,
+}
+
+/// Complete field schema with database and UI mappings
+class FieldSchema {
+  final String id;
+  final String name;
+  final String label;
+  final String? description;
+  final UIFieldType uiType;
+  final SQLType sqlType;
+  final FieldConstraints constraints;
+  final ValidationRules? validation;
+  final WidgetOptions? widgetOptions;
+  final dynamic defaultValue;
+  final int position;
+  final bool isSystemField;
+  final Map<String, dynamic>? metadata;
+
+  const FieldSchema({
+    required this.id,
+    required this.name,
+    required this.label,
+    this.description,
+    required this.uiType,
+    required this.sqlType,
+    required this.constraints,
+    this.validation,
+    this.widgetOptions,
+    this.defaultValue,
+    required this.position,
+    this.isSystemField = false,
+    this.metadata,
+  });
+
+  /// Generate SQL column definition
+  String toSQLColumn() {
+    final buffer = StringBuffer();
+    buffer.write('$name ${_sqlTypeToString(sqlType)}');
+    
+    if (!constraints.nullable) buffer.write(' NOT NULL');
+    if (constraints.unique) buffer.write(' UNIQUE');
+    if (defaultValue != null) buffer.write(' DEFAULT $defaultValue');
+    if (constraints.checkConstraint != null) {
+      buffer.write(' CHECK (${constraints.checkConstraint})');
+    }
+    
+    return buffer.toString();
+  }
+
+  String _sqlTypeToString(SQLType type) {
+    switch (type) {
+      case SQLType.varchar:
+        return 'VARCHAR(${widgetOptions?.maxLength ?? 255})';
+      case SQLType.text:
+        return 'TEXT';
+      case SQLType.integer:
+        return 'INTEGER';
+      case SQLType.bigint:
+        return 'BIGINT';
+      case SQLType.decimal:
+        return 'DECIMAL(10,2)';
+      case SQLType.boolean:
+        return 'BOOLEAN';
+      case SQLType.date:
+        return 'DATE';
+      case SQLType.timestamp:
+        return 'TIMESTAMP';
+      case SQLType.time:
+        return 'TIME';
+      case SQLType.json:
+        return 'JSON';
+      case SQLType.jsonb:
+        return 'JSONB';
+      case SQLType.uuid:
+        return 'UUID';
+      case SQLType.bytea:
+        return 'BYTEA';
+    }
+  }
+
+  /// Convert to Java/Quarkus type
+  String toJavaType() {
+    switch (sqlType) {
+      case SQLType.varchar:
+      case SQLType.text:
+        return 'String';
+      case SQLType.integer:
+        return 'Integer';
+      case SQLType.bigint:
+        return 'Long';
+      case SQLType.decimal:
+        return 'BigDecimal';
+      case SQLType.boolean:
+        return 'Boolean';
+      case SQLType.date:
+        return 'LocalDate';
+      case SQLType.timestamp:
+        return 'LocalDateTime';
+      case SQLType.time:
+        return 'LocalTime';
+      case SQLType.uuid:
+        return 'UUID';
+      default:
+        return 'String';
+    }
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'label': label,
+        'description': description,
+        'uiType': uiType.name,
+        'sqlType': sqlType.name,
+        'constraints': constraints.toJson(),
+        'validation': validation?.toJson(),
+        'widgetOptions': widgetOptions?.toJson(),
+        'defaultValue': defaultValue,
+        'position': position,
+        'isSystemField': isSystemField,
+        'metadata': metadata,
+      };
+
+  factory FieldSchema.fromJson(Map<String, dynamic> json) => FieldSchema(
+        id: json['id'],
+        name: json['name'],
+        label: json['label'],
+        description: json['description'],
+        uiType: UIFieldType.values.firstWhere((e) => e.name == json['uiType']),
+        sqlType: SQLType.values.firstWhere((e) => e.name == json['sqlType']),
+        constraints: FieldConstraints.fromJson(json['constraints']),
+        validation: json['validation'] != null ? ValidationRules.fromJson(json['validation']) : null,
+        widgetOptions: json['widgetOptions'] != null ? WidgetOptions.fromJson(json['widgetOptions']) : null,
+        defaultValue: json['defaultValue'],
+        position: json['position'],
+        isSystemField: json['isSystemField'] ?? false,
+        metadata: json['metadata'],
+      );
+
+  FieldSchema copyWith({
+    String? id,
+    String? name,
+    String? label,
+    String? description,
+    UIFieldType? uiType,
+    SQLType? sqlType,
+    FieldConstraints? constraints,
+    ValidationRules? validation,
+    WidgetOptions? widgetOptions,
+    dynamic defaultValue,
+    int? position,
+    bool? isSystemField,
+    Map<String, dynamic>? metadata,
+  }) {
+    return FieldSchema(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      label: label ?? this.label,
+      description: description ?? this.description,
+      uiType: uiType ?? this.uiType,
+      sqlType: sqlType ?? this.sqlType,
+      constraints: constraints ?? this.constraints,
+      validation: validation ?? this.validation,
+      widgetOptions: widgetOptions ?? this.widgetOptions,
+      defaultValue: defaultValue ?? this.defaultValue,
+      position: position ?? this.position,
+      isSystemField: isSystemField ?? this.isSystemField,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+}
+
+/// Validation rules for fields
+class ValidationRules {
+  final int? minLength;
+  final int? maxLength;
+  final num? min;
+  final num? max;
+  final String? pattern;
+  final String? customValidator;
+  final String? errorMessage;
+  final List<String>? allowedValues;
+
+  const ValidationRules({
+    this.minLength,
+    this.maxLength,
+    this.min,
+    this.max,
+    this.pattern,
+    this.customValidator,
+    this.errorMessage,
+    this.allowedValues,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'minLength': minLength,
+        'maxLength': maxLength,
+        'min': min,
+        'max': max,
+        'pattern': pattern,
+        'customValidator': customValidator,
+        'errorMessage': errorMessage,
+        'allowedValues': allowedValues,
+      };
+
+  factory ValidationRules.fromJson(Map<String, dynamic> json) => ValidationRules(
+        minLength: json['minLength'],
+        maxLength: json['maxLength'],
+        min: json['min'],
+        max: json['max'],
+        pattern: json['pattern'],
+        customValidator: json['customValidator'],
+        errorMessage: json['errorMessage'],
+        allowedValues: json['allowedValues']?.cast<String>(),
+      );
+}
+
+/// Widget-specific options for UI rendering
+class WidgetOptions {
+  final String? placeholder;
+  final String? helpText;
+  final List<SelectOption>? options;
+  final int? rows;
+  final int? maxLength;
+  final bool? multiline;
+  final String? referenceTo;
+  final String? displayField;
+  final Map<String, dynamic>? config;
+
+  const WidgetOptions({
+    this.placeholder,
+    this.helpText,
+    this.options,
+    this.rows,
+    this.maxLength,
+    this.multiline,
+    this.referenceTo,
+    this.displayField,
+    this.config,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'placeholder': placeholder,
+        'helpText': helpText,
+        'options': options?.map((e) => e.toJson()).toList(),
+        'rows': rows,
+        'maxLength': maxLength,
+        'multiline': multiline,
+        'referenceTo': referenceTo,
+        'displayField': displayField,
+        'config': config,
+      };
+
+  factory WidgetOptions.fromJson(Map<String, dynamic> json) => WidgetOptions(
+        placeholder: json['placeholder'],
+        helpText: json['helpText'],
+        options: json['options'] != null
+            ? (json['options'] as List).map((e) => SelectOption.fromJson(e)).toList()
+            : null,
+        rows: json['rows'],
+        maxLength: json['maxLength'],
+        multiline: json['multiline'],
+        referenceTo: json['referenceTo'],
+        displayField: json['displayField'],
+        config: json['config'],
+      );
+}
+
+class SelectOption {
+  final String value;
+  final String label;
+  final String? description;
+  final String? icon;
+
+  const SelectOption({
+    required this.value,
+    required this.label,
+    this.description,
+    this.icon,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'value': value,
+        'label': label,
+        'description': description,
+        'icon': icon,
+      };
+
+  factory SelectOption.fromJson(Map<String, dynamic> json) => SelectOption(
+        value: json['value'],
+        label: json['label'],
+        description: json['description'],
+        icon: json['icon'],
+      );
+}
+
+/// Content Type Schema - Represents a database table
+class ContentTypeSchema {
+  final String id;
+  final String name;
+  final String tableName;
+  final String? description;
+  final String icon;
+  final List<FieldSchema> fields;
+  final ContentTypeSettings settings;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final int version;
+  final Map<String, dynamic>? metadata;
+
+  const ContentTypeSchema({
+    required this.id,
+    required this.name,
+    required this.tableName,
+    this.description,
+    required this.icon,
+    required this.fields,
+    required this.settings,
+    required this.createdAt,
+    required this.updatedAt,
+    this.version = 1,
+    this.metadata,
+  });
+
+  /// Generate SQL CREATE TABLE statement
+  String toCreateTableSQL() {
+    final buffer = StringBuffer();
+    buffer.writeln('CREATE TABLE $tableName (');
+    buffer.writeln('  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),');
+    
+    for (var field in fields) {
+      if (!field.isSystemField) {
+        buffer.writeln('  ${field.toSQLColumn()},');
+      }
+    }
+    
+    buffer.writeln('  created_at TIMESTAMP DEFAULT NOW(),');
+    buffer.writeln('  updated_at TIMESTAMP DEFAULT NOW(),');
+    buffer.writeln('  created_by UUID,');
+    buffer.writeln('  updated_by UUID,');
+    buffer.writeln('  published BOOLEAN DEFAULT FALSE,');
+    buffer.writeln('  published_at TIMESTAMP');
+    buffer.writeln(');');
+    
+    for (var field in fields.where((f) => f.constraints.indexed)) {
+      buffer.writeln('CREATE INDEX idx_${tableName}_${field.name} ON $tableName(${field.name});');
+    }
+    
+    return buffer.toString();
+  }
+
+  /// Generate Quarkus Entity (Panache)
+  String toQuarkusEntity() {
+    final className = _toPascalCase(tableName);
+    final buffer = StringBuffer();
+    
+    buffer.writeln('package com.example.entity;');
+    buffer.writeln();
+    buffer.writeln('import io.quarkus.hibernate.orm.panache.PanacheEntityBase;');
+    buffer.writeln('import javax.persistence.*;');
+    buffer.writeln('import java.time.*;');
+    buffer.writeln('import java.util.UUID;');
+    buffer.writeln();
+    buffer.writeln('@Entity');
+    buffer.writeln('@Table(name = "$tableName")');
+    buffer.writeln('public class $className extends PanacheEntityBase {');
+    buffer.writeln();
+    buffer.writeln('    @Id');
+    buffer.writeln('    @GeneratedValue');
+    buffer.writeln('    public UUID id;');
+    buffer.writeln();
+    
+    for (var field in fields) {
+      if (field.constraints.unique) {
+        buffer.writeln('    @Column(unique = true, nullable = ${field.constraints.nullable})');
+      } else if (!field.constraints.nullable) {
+        buffer.writeln('    @Column(nullable = false)');
+      }
+      buffer.writeln('    public ${field.toJavaType()} ${_toCamelCase(field.name)};');
+      buffer.writeln();
+    }
+    
+    buffer.writeln('    @Column(name = "created_at")');
+    buffer.writeln('    public LocalDateTime createdAt;');
+    buffer.writeln();
+    buffer.writeln('    @Column(name = "updated_at")');
+    buffer.writeln('    public LocalDateTime updatedAt;');
+    buffer.writeln();
+    buffer.writeln('    public Boolean published = false;');
+    buffer.writeln();
+    buffer.writeln('    @Column(name = "published_at")');
+    buffer.writeln('    public LocalDateTime publishedAt;');
+    buffer.writeln('}');
+    
+    return buffer.toString();
+  }
+
+  /// Generate Quarkus Resource (REST API)
+  String toQuarkusResource() {
+    final className = _toPascalCase(tableName);
+    final buffer = StringBuffer();
+    
+    buffer.writeln('package com.example.resource;');
+    buffer.writeln();
+    buffer.writeln('import com.example.entity.$className;');
+    buffer.writeln('import javax.transaction.Transactional;');
+    buffer.writeln('import javax.ws.rs.*;');
+    buffer.writeln('import javax.ws.rs.core.MediaType;');
+    buffer.writeln('import javax.ws.rs.core.Response;');
+    buffer.writeln('import java.time.LocalDateTime;');
+    buffer.writeln('import java.util.List;');
+    buffer.writeln();
+    buffer.writeln('@Path("/$tableName")');
+    buffer.writeln('@Produces(MediaType.APPLICATION_JSON)');
+    buffer.writeln('@Consumes(MediaType.APPLICATION_JSON)');
+    buffer.writeln('public class ${className}Resource {');
+    buffer.writeln();
+    buffer.writeln('    @GET');
+    buffer.writeln('    public List<$className> list() {');
+    buffer.writeln('        return $className.listAll();');
+    buffer.writeln('    }');
+    buffer.writeln();
+    buffer.writeln('    @GET');
+    buffer.writeln('    @Path("/{id}")');
+    buffer.writeln('    public $className get(@PathParam("id") String id) {');
+    buffer.writeln('        return $className.findById(UUID.fromString(id));');
+    buffer.writeln('    }');
+    buffer.writeln();
+    buffer.writeln('    @POST');
+    buffer.writeln('    @Transactional');
+    buffer.writeln('    public Response create($className entity) {');
+    buffer.writeln('        entity.createdAt = LocalDateTime.now();');
+    buffer.writeln('        entity.updatedAt = LocalDateTime.now();');
+    buffer.writeln('        entity.persist();');
+    buffer.writeln('        return Response.status(201).entity(entity).build();');
+    buffer.writeln('    }');
+    buffer.writeln();
+    buffer.writeln('    @PUT');
+    buffer.writeln('    @Path("/{id}")');
+    buffer.writeln('    @Transactional');
+    buffer.writeln('    public $className update(@PathParam("id") String id, $className updated) {');
+    buffer.writeln('        $className entity = $className.findById(UUID.fromString(id));');
+    buffer.writeln('        if (entity == null) throw new NotFoundException();');
+    
+    for (var field in fields) {
+      final camelName = _toCamelCase(field.name);
+      buffer.writeln('        entity.$camelName = updated.$camelName;');
+    }
+    
+    buffer.writeln('        entity.updatedAt = LocalDateTime.now();');
+    buffer.writeln('        return entity;');
+    buffer.writeln('    }');
+    buffer.writeln();
+    buffer.writeln('    @DELETE');
+    buffer.writeln('    @Path("/{id}")');
+    buffer.writeln('    @Transactional');
+    buffer.writeln('    public Response delete(@PathParam("id") String id) {');
+    buffer.writeln('        boolean deleted = $className.deleteById(UUID.fromString(id));');
+    buffer.writeln('        return deleted ? Response.noContent().build() : Response.status(404).build();');
+    buffer.writeln('    }');
+    buffer.writeln('}');
+    
+    return buffer.toString();
+  }
+
+  String _toPascalCase(String str) {
+    return str.split('_').map((word) => 
+      word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)
+    ).join('');
+  }
+
+  String _toCamelCase(String str) {
+    final pascal = _toPascalCase(str);
+    return pascal.isEmpty ? '' : pascal[0].toLowerCase() + pascal.substring(1);
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'tableName': tableName,
+        'description': description,
+        'icon': icon,
+        'fields': fields.map((f) => f.toJson()).toList(),
+        'settings': settings.toJson(),
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'version': version,
+        'metadata': metadata,
+      };
+
+  factory ContentTypeSchema.fromJson(Map<String, dynamic> json) => ContentTypeSchema(
+        id: json['id'],
+        name: json['name'],
+        tableName: json['tableName'],
+        description: json['description'],
+        icon: json['icon'],
+        fields: (json['fields'] as List).map((f) => FieldSchema.fromJson(f)).toList(),
+        settings: ContentTypeSettings.fromJson(json['settings']),
+        createdAt: DateTime.parse(json['createdAt']),
+        updatedAt: DateTime.parse(json['updatedAt']),
+        version: json['version'] ?? 1,
+        metadata: json['metadata'],
+      );
+
+  ContentTypeSchema copyWith({
+    String? id,
+    String? name,
+    String? tableName,
+    String? description,
+    String? icon,
+    List<FieldSchema>? fields,
+    ContentTypeSettings? settings,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    int? version,
+    Map<String, dynamic>? metadata,
+  }) {
+    return ContentTypeSchema(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      tableName: tableName ?? this.tableName,
+      description: description ?? this.description,
+      icon: icon ?? this.icon,
+      fields: fields ?? this.fields,
+      settings: settings ?? this.settings,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      version: version ?? this.version,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+}
+
+class ContentTypeSettings {
+  final bool enableVersioning;
+  final bool enablePublishing;
+  final bool enableComments;
+  final bool enableCategories;
+  final bool enableTags;
+  final String? defaultView;
+  final List<String>? displayFields;
+  final String? sortField;
+  final String? sortOrder;
+
+  const ContentTypeSettings({
+    this.enableVersioning = false,
+    this.enablePublishing = true,
+    this.enableComments = false,
+    this.enableCategories = false,
+    this.enableTags = false,
+    this.defaultView = 'list',
+    this.displayFields,
+    this.sortField,
+    this.sortOrder = 'DESC',
+  });
+
+  Map<String, dynamic> toJson() => {
+        'enableVersioning': enableVersioning,
+        'enablePublishing': enablePublishing,
+        'enableComments': enableComments,
+        'enableCategories': enableCategories,
+        'enableTags': enableTags,
+        'defaultView': defaultView,
+        'displayFields': displayFields,
+        'sortField': sortField,
+        'sortOrder': sortOrder,
+      };
+
+  factory ContentTypeSettings.fromJson(Map<String, dynamic> json) => ContentTypeSettings(
+        enableVersioning: json['enableVersioning'] ?? false,
+        enablePublishing: json['enablePublishing'] ?? true,
+        enableComments: json['enableComments'] ?? false,
+        enableCategories: json['enableCategories'] ?? false,
+        enableTags: json['enableTags'] ?? false,
+        defaultView: json['defaultView'] ?? 'list',
+        displayFields: json['displayFields']?.cast<String>(),
+        sortField: json['sortField'],
+        sortOrder: json['sortOrder'] ?? 'DESC',
+      );
+}
+
+/// Content Entry with full metadata
+class ContentEntry {
+  final String id;
+  final String contentTypeId;
+  final Map<String, dynamic> data;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String createdBy;
+  final String updatedBy;
+  final bool published;
+  final DateTime? publishedAt;
+  final int version;
+  final Map<String, dynamic>? metadata;
+
+  const ContentEntry({
+    required this.id,
+    required this.contentTypeId,
+    required this.data,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.createdBy,
+    required this.updatedBy,
+    this.published = false,
+    this.publishedAt,
+    this.version = 1,
+    this.metadata,
+  });
+
+  ContentEntry copyWith({
+    String? id,
+    String? contentTypeId,
+    Map<String, dynamic>? data,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? createdBy,
+    String? updatedBy,
+    bool? published,
+    DateTime? publishedAt,
+    int? version,
+    Map<String, dynamic>? metadata,
+  }) {
+    return ContentEntry(
+      id: id ?? this.id,
+      contentTypeId: contentTypeId ?? this.contentTypeId,
+      data: data ?? this.data,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      createdBy: createdBy ?? this.createdBy,
+      updatedBy: updatedBy ?? this.updatedBy,
+      published: published ?? this.published,
+      publishedAt: publishedAt ?? this.publishedAt,
+      version: version ?? this.version,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'contentTypeId': contentTypeId,
+        'data': data,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'createdBy': createdBy,
+        'updatedBy': updatedBy,
+        'published': published,
+        'publishedAt': publishedAt?.toIso8601String(),
+        'version': version,
+        'metadata': metadata,
+      };
+}
+
+// ============================================================================
+// CODE GENERATION ENGINE
+// ============================================================================
+
+class CodeGenerationEngine {
+  /// Generate Quarkus project structure
+  Map<String, String> generateQuarkusProject(List<ContentTypeSchema> schemas) {
+    final files = <String, String>{};
+    
+    // Generate application.properties
+    files['src/main/resources/application.properties'] = _generateApplicationProperties();
+    
+    // Generate pom.xml
+    files['pom.xml'] = _generatePomXml();
+    
+    // Generate entities and resources for each schema
+    for (var schema in schemas) {
+      final className = _toPascalCase(schema.tableName);
+      files['src/main/java/com/example/entity/$className.java'] = schema.toQuarkusEntity();
+      files['src/main/java/com/example/resource/${className}Resource.java'] = schema.toQuarkusResource();
+    }
+    
+    // Generate database migration
+    files['src/main/resources/db/migration/V1__init.sql'] = _generateMigrationSQL(schemas);
+    
+    return files;
+  }
+
+  String _generateApplicationProperties() {
+    return '''
+# Database Configuration
+quarkus.datasource.db-kind=postgresql
+quarkus.datasource.username=cms_user
+quarkus.datasource.password=cms_password
+quarkus.datasource.jdbc.url=jdbc:postgresql://localhost:5432/cms_db
+
+# Hibernate Configuration
+quarkus.hibernate-orm.database.generation=none
+quarkus.hibernate-orm.log.sql=true
+
+# Flyway Migration
+quarkus.flyway.migrate-at-start=true
+
+# HTTP Configuration
+quarkus.http.port=8080
+quarkus.http.cors=true
+
+# Dev Mode
+%dev.quarkus.http.port=8080
+%dev.quarkus.datasource.db-kind=h2
+%dev.quarkus.datasource.jdbc.url=jdbc:h2:mem:cms_db
+''';
+  }
+
+  String _generatePomXml() {
+    return '''
+<?xml version="1.0"?>
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>cms-runtime</artifactId>
+    <version>1.0.0</version>
+    
+    <properties>
+        <quarkus.version>3.6.0</quarkus.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+    </properties>
+    
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.quarkus</groupId>
+                <artifactId>quarkus-bom</artifactId>
+                <version>\${quarkus.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+    
+    <dependencies>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-hibernate-orm-panache</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-jdbc-postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-resteasy-reactive-jackson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-flyway</artifactId>
+        </dependency>
+    </dependencies>
+    
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>io.quarkus</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+                <version>\${quarkus.version}</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+''';
+  }
+
+  String _generateMigrationSQL(List<ContentTypeSchema> schemas) {
+    final buffer = StringBuffer();
+    buffer.writeln('-- Generated CMS Database Schema');
+    buffer.writeln('-- Generated at: ${DateTime.now()}');
+    buffer.writeln();
+    
+    for (var schema in schemas) {
+      buffer.writeln('-- Table: ${schema.tableName}');
+      buffer.writeln(schema.toCreateTableSQL());
+      buffer.writeln();
+    }
+    
+    return buffer.toString();
+  }
+
+  String _toPascalCase(String str) {
+    return str.split('_').map((word) => 
+      word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)
+    ).join('');
+  }
+}
+
+// ============================================================================
+// REPOSITORY & SERVICES
+// ============================================================================
+
+class CMSRepository {
+  final Map<String, ContentTypeSchema> _contentTypes = {};
+  final Map<String, List<ContentEntry>> _entries = {};
+  int _idCounter = 1;
+
+  String _generateId() => 'id_${_idCounter++}_${DateTime.now().millisecondsSinceEpoch}';
+
+  Future<List<ContentTypeSchema>> getContentTypes() async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    return _contentTypes.values.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  Future<ContentTypeSchema?> getContentType(String id) async {
+    await Future.delayed(const Duration(milliseconds: 50));
+    return _contentTypes[id];
+  }
+
+  Future<ContentTypeSchema> createContentType(ContentTypeSchema contentType) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    _contentTypes[contentType.id] = contentType;
+    _entries[contentType.id] = [];
+    return contentType;
+  }
+
+  Future<ContentTypeSchema> updateContentType(ContentTypeSchema contentType) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    final updated = contentType.copyWith(
+      version: contentType.version + 1,
+      updatedAt: DateTime.now(),
+    );
+    _contentTypes[contentType.id] = updated;
+    return updated;
+  }
+
+  Future<void> deleteContentType(String id) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    _contentTypes.remove(id);
+    _entries.remove(id);
+  }
+
+  Future<List<ContentEntry>> getEntries(String contentTypeId) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    return _entries[contentTypeId] ?? [];
+  }
+
+  Future<ContentEntry> createEntry(ContentEntry entry) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    _entries[entry.contentTypeId] = [
+      ..._entries[entry.contentTypeId] ?? [],
+      entry,
+    ];
+    return entry;
+  }
+
+  Future<ContentEntry> updateEntry(ContentEntry entry) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    final entries = List<ContentEntry>.from(_entries[entry.contentTypeId] ?? []);
+    final idx = entries.indexWhere((e) => e.id == entry.id);
+    if (idx != -1) {
+      entries[idx] = entry.copyWith(version: entry.version + 1);
+      _entries[entry.contentTypeId] = entries;
+    }
+    return entry;
+  }
+
+  Future<void> deleteEntry(String contentTypeId, String entryId) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    _entries[contentTypeId] = (_entries[contentTypeId] ?? [])
+        .where((e) => e.id != entryId)
+        .toList();
+  }
+
+  /// Export schema as SQL
+  String exportSchemaAsSQL(String contentTypeId) {
+    final contentType = _contentTypes[contentTypeId];
+    if (contentType == null) return '';
+    return contentType.toCreateTableSQL();
+  }
+
+  /// Export schema as JSON
+  String exportSchemaAsJSON(String contentTypeId) {
+    final contentType = _contentTypes[contentTypeId];
+    if (contentType == null) return '';
+    return const JsonEncoder.withIndent('  ').convert(contentType.toJson());
+  }
+
+  /// Generate Quarkus project
+  Map<String, String> generateQuarkusProject() {
+    final schemas = _contentTypes.values.toList();
+    final engine = CodeGenerationEngine();
+    return engine.generateQuarkusProject(schemas);
+  }
+}
+
+class ValidationService {
+  static String? validateField(FieldSchema field, dynamic value) {
+    if (!field.constraints.nullable && (value == null || value.toString().isEmpty)) {
+      return '${field.label} is required';
+    }
+
+    if (value == null || value.toString().isEmpty) return null;
+
+    final validation = field.validation;
+    if (validation == null) return null;
+
+    final strValue = value.toString();
+
+    if (validation.minLength != null && strValue.length < validation.minLength!) {
+      return validation.errorMessage ?? 'Minimum length is ${validation.minLength}';
+    }
+
+    if (validation.maxLength != null && strValue.length > validation.maxLength!) {
+      return validation.errorMessage ?? 'Maximum length is ${validation.maxLength}';
+    }
+
+    if (validation.pattern != null) {
+      final regex = RegExp(validation.pattern!);
+      if (!regex.hasMatch(strValue)) {
+        return validation.errorMessage ?? 'Invalid format';
+      }
+    }
+
+    if (field.sqlType == SQLType.integer || field.sqlType == SQLType.bigint || field.sqlType == SQLType.decimal) {
+      final numValue = num.tryParse(strValue);
+      if (numValue == null) return 'Must be a valid number';
+
+      if (validation.min != null && numValue < validation.min!) {
+        return validation.errorMessage ?? 'Minimum value is ${validation.min}';
+      }
+
+      if (validation.max != null && numValue > validation.max!) {
+        return validation.errorMessage ?? 'Maximum value is ${validation.max}';
+      }
+    }
+
+    if (validation.allowedValues != null && !validation.allowedValues!.contains(strValue)) {
+      return validation.errorMessage ?? 'Invalid value';
+    }
+
+    return null;
+  }
+}
+
+// ============================================================================
+// RIVERPOD PROVIDERS
+// ============================================================================
+
+final cmsRepositoryProvider = Provider<CMSRepository>((ref) => CMSRepository());
+
+final contentTypesProvider = StateNotifierProvider<ContentTypesNotifier, AsyncValue<List<ContentTypeSchema>>>((ref) {
+  return ContentTypesNotifier(ref.watch(cmsRepositoryProvider));
+});
+
+class ContentTypesNotifier extends StateNotifier<AsyncValue<List<ContentTypeSchema>>> {
+  final CMSRepository _repository;
+
+  ContentTypesNotifier(this._repository) : super(const AsyncValue.loading()) {
+    _loadContentTypes();
+  }
+
+  Future<void> _loadContentTypes() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _repository.getContentTypes());
+  }
+
+  Future<void> create(ContentTypeSchema contentType) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      await _repository.createContentType(contentType);
+      return _repository.getContentTypes();
+    });
+  }
+
+  Future<void> update(ContentTypeSchema contentType) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.updateContentType(contentType);
+      return _repository.getContentTypes();
+    });
+  }
+
+  Future<void> delete(String id) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.deleteContentType(id);
+      return _repository.getContentTypes();
+    });
+  }
+
+  void refresh() => _loadContentTypes();
+}
+
+final contentEntriesProvider = StateNotifierProvider.family<ContentEntriesNotifier, AsyncValue<List<ContentEntry>>, String>((ref, contentTypeId) {
+  return ContentEntriesNotifier(ref.watch(cmsRepositoryProvider), contentTypeId);
+});
+
+class ContentEntriesNotifier extends StateNotifier<AsyncValue<List<ContentEntry>>> {
+  final CMSRepository _repository;
+  final String contentTypeId;
+
+  ContentEntriesNotifier(this._repository, this.contentTypeId)
+      : super(const AsyncValue.loading()) {
+    _loadEntries();
+  }
+
+  Future<void> _loadEntries() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _repository.getEntries(contentTypeId));
+  }
+
+  Future<void> create(ContentEntry entry) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      await _repository.createEntry(entry);
+      return _repository.getEntries(contentTypeId);
+    });
+  }
+
+  Future<void> update(ContentEntry entry) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.updateEntry(entry);
+      return _repository.getEntries(contentTypeId);
+    });
+  }
+
+  Future<void> delete(String entryId) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.deleteEntry(contentTypeId, entryId);
+      return _repository.getEntries(contentTypeId);
+    });
+  }
+
+  void refresh() => _loadEntries();
+}
+
+// ============================================================================
+// MAIN APP
+// ============================================================================
+
+void main() {
+  runApp(const ProviderScope(child: CMSApp()));
+}
+
+class CMSApp extends StatelessWidget {
+  const CMSApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Enterprise CMS',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+        cardTheme: CardTheme(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.grey.shade200, width: 1),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          filled: true,
+          fillColor: Colors.grey.shade50,
+        ),
+      ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+      ),
+      home: const CMSHomePage(),
+    );
+  }
+}
+
+// ============================================================================
+// HOME PAGE - Enhanced Visual Design
+// ============================================================================
+
+class CMSHomePage extends ConsumerWidget {
+  const CMSHomePage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final contentTypesAsync = ref.watch(contentTypesProvider);
+
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.dashboard_customize, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Enterprise CMS', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('Schema Builder & Runtime', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          FilledButton.tonalIcon(
+            onPressed: () => _showCodeGenerationDialog(context, ref),
+            icon: const Icon(Icons.code, size: 20),
+            label: const Text('Generate Code'),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+          ),
+          const SizedBox(width: 12),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.read(contentTypesProvider.notifier).refresh(),
+            tooltip: 'Refresh',
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () {},
+            tooltip: 'Settings',
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: contentTypesAsync.when(
+        data: (contentTypes) => contentTypes.isEmpty
+            ? _buildEmptyState(context, ref)
+            : _buildContentTypesGrid(context, ref, contentTypes),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => _buildErrorState(context, ref, err),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showContentTypeDialog(context, ref),
+        icon: const Icon(Icons.add_circle_outline),
+        label: const Text('New Schema'),
+        elevation: 4,
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, WidgetRef ref) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(48),
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.indigo.shade100, Colors.purple.shade100],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.schema, size: 80, color: Colors.indigo.shade700),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'No Content Schemas Yet',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Create your first content schema to define your data structure. Schemas are automatically converted to database tables and REST APIs.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+            ),
+            const SizedBox(height: 32),
+            FilledButton.icon(
+              onPressed: () => _showContentTypeDialog(context, ref),
+              icon: const Icon(Icons.add_circle),
+              label: const Text('Create First Schema'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(BuildContext context, WidgetRef ref, Object error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+          const SizedBox(height: 16),
+          Text('Error: $error', style: TextStyle(color: Colors.red.shade700)),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: () => ref.read(contentTypesProvider.notifier).refresh(),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContentTypesGrid(
+    BuildContext context,
+    WidgetRef ref,
+    List<ContentTypeSchema> contentTypes,
+  ) {
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(24),
+          sliver: SliverToBoxAdapter(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Content Schemas',
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${contentTypes.length} schema${contentTypes.length != 1 ? 's' : ''} defined',
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 380,
+              childAspectRatio: 1.3,
+              crossAxisSpacing: 20,
+              mainAxisSpacing: 20,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _ContentTypeCard(contentType: contentTypes[index]),
+              childCount: contentTypes.length,
+            ),
+          ),
+        ),
+        const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
+      ],
+    );
+  }
+
+  void _showContentTypeDialog(BuildContext context, WidgetRef ref) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ContentTypeBuilderPage(
+          onSave: (contentType) {
+            ref.read(contentTypesProvider.notifier).create(contentType);
+          },
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+
+  void _showCodeGenerationDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => CodeGenerationDialog(),
+    );
+  }
+}
+
+// ============================================================================
+// CODE GENERATION DIALOG
+// ============================================================================
+
+class CodeGenerationDialog extends ConsumerWidget {
+  const CodeGenerationDialog({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Dialog(
+      child: Container(
+        width: 800,
+        height: 600,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.code, color: Colors.white),
+                  ),
+                  const SizedBox(width: 12),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Code Generation',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Generate production-ready code from your schemas',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Backend Frameworks',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildGenerationOption(
+                      context,
+                      ref,
+                      icon: Icons.coffee,
+                      title: 'Quarkus (Java)',
+                      description: 'Generate Quarkus entities, resources, and REST API',
+                      color: Colors.blue,
+                      onTap: () => _generateQuarkus(context, ref),
+                    ),
+                    _buildGenerationOption(
+                      context,
+                      ref,
+                      icon: Icons.code,
+                      title: 'Node.js/TypeScript',
+                      description: 'Express.js with Prisma ORM (Coming Soon)',
+                      color: Colors.green,
+                      enabled: false,
+                    ),
+                    _buildGenerationOption(
+                      context,
+                      ref,
+                      icon: Icons.language,
+                      title: 'Deno',
+                      description: 'Fresh framework with Deno KV (Coming Soon)',
+                      color: Colors.purple,
+                      enabled: false,
+                    ),
+                    _buildGenerationOption(
+                      context,
+                      ref,
+                      icon: Icons.php,
+                      title: 'PHP Laravel',
+                      description: 'Laravel models, controllers, and migrations (Coming Soon)',
+                      color: Colors.red,
+                      enabled: false,
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Frontend Frameworks',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildGenerationOption(
+                      context,
+                      ref,
+                      icon: Icons.flutter_dash,
+                      title: 'Flutter',
+                      description: 'Generate Flutter models and API clients (Coming Soon)',
+                      color: Colors.blue,
+                      enabled: false,
+                    ),
+                    _buildGenerationOption(
+                      context,
+                      ref,
+                      icon: Icons.web,
+                      title: 'React/Next.js',
+                      description: 'TypeScript types and React hooks (Coming Soon)',
+                      color: Colors.cyan,
+                      enabled: false,
+                    ),
+                    _buildGenerationOption(
+                      context,
+                      ref,
+                      icon: Icons.web_asset,
+                      title: 'Vue.js',
+                      description: 'Vue 3 composables and types (Coming Soon)',
+                      color: Colors.green,
+                      enabled: false,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGenerationOption(
+    BuildContext context,
+    WidgetRef ref, {
+    required IconData icon,
+    required String title,
+    required String description,
+    required Color color,
+    VoidCallback? onTap,
+    bool enabled = true,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 28),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: enabled ? null : Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: enabled ? Colors.grey.shade600 : Colors.grey.shade400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                enabled ? Icons.arrow_forward_ios : Icons.lock,
+                size: 20,
+                color: enabled ? Colors.grey : Colors.grey.shade400,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _generateQuarkus(BuildContext context, WidgetRef ref) {
+    final repository = ref.read(cmsRepositoryProvider);
+    final files = repository.generateQuarkusProject();
+    
+    Navigator.pop(context);
+    
+    showDialog(
+      context: context,
+      builder: (context) => GeneratedFilesDialog(files: files),
+    );
+  }
+}
+
+// ============================================================================
+// GENERATED FILES DIALOG
+// ============================================================================
+
+class GeneratedFilesDialog extends StatefulWidget {
+  final Map<String, String> files;
+
+  const GeneratedFilesDialog({super.key, required this.files});
+
+  @override
+  State<GeneratedFilesDialog> createState() => _GeneratedFilesDialogState();
+}
+
+class _GeneratedFilesDialogState extends State<GeneratedFilesDialog> {
+  String? _selectedFile;
+  String _selectedContent = '';
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.files.isNotEmpty) {
+      _selectedFile = widget.files.keys.first;
+      _selectedContent = widget.files.values.first;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: 1000,
+        height: 700,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green.shade700, size: 32),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Code Generated Successfully!',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        '${widget.files.length} files generated',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  FilledButton.icon(
+                    onPressed: _downloadAll,
+                    icon: const Icon(Icons.download),
+                    label: const Text('Download All'),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Row(
+                children: [
+                  Container(
+                    width: 300,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      border: Border(right: BorderSide(color: Colors.grey.shade200)),
+                    ),
+                    child: ListView.builder(
+                      itemCount: widget.files.length,
+                      itemBuilder: (context, index) {
+                        final fileName = widget.files.keys.elementAt(index);
+                        final isSelected = fileName == _selectedFile;
+                        return ListTile(
+                          selected: isSelected,
+                          leading: Icon(
+                            _getFileIcon(fileName),
+                            color: isSelected ? Theme.of(context).colorScheme.primary : null,
+                          ),
+                          title: Text(
+                            fileName.split('/').last,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isSelected ? FontWeight.bold : null,
+                            ),
+                          ),
+                          subtitle: Text(
+                            fileName.split('/').sublist(0, fileName.split('/').length - 1).join('/'),
+                            style: const TextStyle(fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () {
+                            setState(() {
+                              _selectedFile = fileName;
+                              _selectedContent = widget.files[fileName]!;
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.insert_drive_file, size: 20, color: Colors.grey.shade600),
+                              const SizedBox(width: 8),
+                              Text(
+                                _selectedFile ?? '',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.copy, size: 20),
+                                onPressed: () {
+                                  Clipboard.setData(ClipboardData(text: _selectedContent));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Copied to clipboard')),
+                                  );
+                                },
+                                tooltip: 'Copy to clipboard',
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Container(
+                            color: Colors.grey.shade900,
+                            padding: const EdgeInsets.all(16),
+                            child: SingleChildScrollView(
+                              child: SelectableText(
+                                _selectedContent,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 13,
+                                  color: Colors.greenAccent,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),// pubspec.yaml dependencies:
+// flutter_riverpod: ^2.4.9
+// intl: ^0.18.0
+// uuid: ^4.0.0
+
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:intl/intl.dart';
+
+// ============================================================================
+// SCHEMA DEFINITIONS - Database-Ready Models
+// ============================================================================
+
+/// Represents SQL data types for schema generation
+enum SQLType {
+  varchar,
+  text,
+  integer,
+  bigint,
+  decimal,
+  boolean,
+  date,
+  timestamp,
+  time,
+  json,
+  jsonb,
+  uuid,
+  bytea,
+}
+
+/// Field constraints for database schema
+class FieldConstraints {
+  final bool unique;
+  final bool indexed;
+  final bool nullable;
+  final String? checkConstraint;
+  final String? foreignKey;
+  final String? onDelete; // CASCADE, SET NULL, RESTRICT
+  final String? onUpdate;
+  final List<String>? enumValues;
+
+  const FieldConstraints({
+    this.unique = false,
+    this.indexed = false,
+    this.nullable = true,
+    this.checkConstraint,
+    this.foreignKey,
+    this.onDelete,
+    this.onUpdate,
+    this.enumValues,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'unique': unique,
+        'indexed': indexed,
+        'nullable': nullable,
+        'checkConstraint': checkConstraint,
+        'foreignKey': foreignKey,
+        'onDelete': onDelete,
+        'onUpdate': onUpdate,
+        'enumValues': enumValues,
+      };
+
+  factory FieldConstraints.fromJson(Map<String, dynamic> json) => FieldConstraints(
+        unique: json['unique'] ?? false,
+        indexed: json['indexed'] ?? false,
+        nullable: json['nullable'] ?? true,
+        checkConstraint: json['checkConstraint'],
+        foreignKey: json['foreignKey'],
+        onDelete: json['onDelete'],
+        onUpdate: json['onUpdate'],
+        enumValues: json['enumValues']?.cast<String>(),
+      );
+
+  FieldConstraints copyWith({
+    bool? unique,
+    bool? indexed,
+    bool? nullable,
+    String? checkConstraint,
+    String? foreignKey,
+    String? onDelete,
+    String? onUpdate,
+    List<String>? enumValues,
+  }) {
+    return FieldConstraints(
+      unique: unique ?? this.unique,
+      indexed: indexed ?? this.indexed,
+      nullable: nullable ?? this.nullable,
+      checkConstraint: checkConstraint ?? this.checkConstraint,
+      foreignKey: foreignKey ?? this.foreignKey,
+      onDelete: onDelete ?? this.onDelete,
+      onUpdate: onUpdate ?? this.onUpdate,
+      enumValues: enumValues ?? this.enumValues,
+    );
+  }
+}
+
+/// UI field types for CMS interface
+enum UIFieldType {
+  // Text inputs
+  textInput,
+  textArea,
+  richTextEditor,
+  markdown,
+  code,
+  
+  // Numbers
+  numberInput,
+  slider,
+  rating,
+  
+  // Dates & Time
+  datePicker,
+  dateTimePicker,
+  timePicker,
+  dateRange,
+  
+  // Selections
+  dropdown,
+  radioGroup,
+  checkboxGroup,
+  tags,
+  
+  // Boolean
+  toggle,
+  checkbox,
+  
+  // Media
+  imageUpload,
+  fileUpload,
+  mediaGallery,
+  
+  // Advanced
+  colorPicker,
+  location,
+  json,
+  relation,
+  
+  // Custom
+  custom,
+}
+
+/// Complete field schema with database and UI mappings
+class FieldSchema {
+  final String id;
+  final String name; // API/Database field name (snake_case)
+  final String label; // Human-readable label
+  final String? description;
+  final UIFieldType uiType;
+  final SQLType sqlType;
+  final FieldConstraints constraints;
+  final ValidationRules? validation;
+  final WidgetOptions? widgetOptions;
+  final dynamic defaultValue;
+  final int position;
+  final bool isSystemField;
+  final Map<String, dynamic>? metadata;
+
+  const FieldSchema({
+    required this.id,
+    required this.name,
+    required this.label,
+    this.description,
+    required this.uiType,
+    required this.sqlType,
+    required this.constraints,
+    this.validation,
+    this.widgetOptions,
+    this.defaultValue,
+    required this.position,
+    this.isSystemField = false,
+    this.metadata,
+  });
+
+  /// Generate SQL column definition
+  String toSQLColumn() {
+    final buffer = StringBuffer();
+    buffer.write('$name ${_sqlTypeToString(sqlType)}');
+    
+    if (!constraints.nullable) buffer.write(' NOT NULL');
+    if (constraints.unique) buffer.write(' UNIQUE');
+    if (defaultValue != null) buffer.write(' DEFAULT $defaultValue');
+    if (constraints.checkConstraint != null) {
+      buffer.write(' CHECK (${constraints.checkConstraint})');
+    }
+    
+    return buffer.toString();
+  }
+
+  String _sqlTypeToString(SQLType type) {
+    switch (type) {
+      case SQLType.varchar:
+        return 'VARCHAR(${widgetOptions?.maxLength ?? 255})';
+      case SQLType.text:
+        return 'TEXT';
+      case SQLType.integer:
+        return 'INTEGER';
+      case SQLType.bigint:
+        return 'BIGINT';
+      case SQLType.decimal:
+        return 'DECIMAL(10,2)';
+      case SQLType.boolean:
+        return 'BOOLEAN';
+      case SQLType.date:
+        return 'DATE';
+      case SQLType.timestamp:
+        return 'TIMESTAMP';
+      case SQLType.time:
+        return 'TIME';
+      case SQLType.json:
+        return 'JSON';
+      case SQLType.jsonb:
+        return 'JSONB';
+      case SQLType.uuid:
+        return 'UUID';
+      case SQLType.bytea:
+        return 'BYTEA';
+    }
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'label': label,
+        'description': description,
+        'uiType': uiType.name,
+        'sqlType': sqlType.name,
+        'constraints': constraints.toJson(),
+        'validation': validation?.toJson(),
+        'widgetOptions': widgetOptions?.toJson(),
+        'defaultValue': defaultValue,
+        'position': position,
+        'isSystemField': isSystemField,
+        'metadata': metadata,
+      };
+
+  factory FieldSchema.fromJson(Map<String, dynamic> json) => FieldSchema(
+        id: json['id'],
+        name: json['name'],
+        label: json['label'],
+        description: json['description'],
+        uiType: UIFieldType.values.firstWhere((e) => e.name == json['uiType']),
+        sqlType: SQLType.values.firstWhere((e) => e.name == json['sqlType']),
+        constraints: FieldConstraints.fromJson(json['constraints']),
+        validation: json['validation'] != null ? ValidationRules.fromJson(json['validation']) : null,
+        widgetOptions: json['widgetOptions'] != null ? WidgetOptions.fromJson(json['widgetOptions']) : null,
+        defaultValue: json['defaultValue'],
+        position: json['position'],
+        isSystemField: json['isSystemField'] ?? false,
+        metadata: json['metadata'],
+      );
+
+  FieldSchema copyWith({
+    String? id,
+    String? name,
+    String? label,
+    String? description,
+    UIFieldType? uiType,
+    SQLType? sqlType,
+    FieldConstraints? constraints,
+    ValidationRules? validation,
+    WidgetOptions? widgetOptions,
+    dynamic defaultValue,
+    int? position,
+    bool? isSystemField,
+    Map<String, dynamic>? metadata,
+  }) {
+    return FieldSchema(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      label: label ?? this.label,
+      description: description ?? this.description,
+      uiType: uiType ?? this.uiType,
+      sqlType: sqlType ?? this.sqlType,
+      constraints: constraints ?? this.constraints,
+      validation: validation ?? this.validation,
+      widgetOptions: widgetOptions ?? this.widgetOptions,
+      defaultValue: defaultValue ?? this.defaultValue,
+      position: position ?? this.position,
+      isSystemField: isSystemField ?? this.isSystemField,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+}
+
+/// Validation rules for fields
+class ValidationRules {
+  final int? minLength;
+  final int? maxLength;
+  final num? min;
+  final num? max;
+  final String? pattern;
+  final String? customValidator;
+  final String? errorMessage;
+  final List<String>? allowedValues;
+
+  const ValidationRules({
+    this.minLength,
+    this.maxLength,
+    this.min,
+    this.max,
+    this.pattern,
+    this.customValidator,
+    this.errorMessage,
+    this.allowedValues,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'minLength': minLength,
+        'maxLength': maxLength,
+        'min': min,
+        'max': max,
+        'pattern': pattern,
+        'customValidator': customValidator,
+        'errorMessage': errorMessage,
+        'allowedValues': allowedValues,
+      };
+
+  factory ValidationRules.fromJson(Map<String, dynamic> json) => ValidationRules(
+        minLength: json['minLength'],
+        maxLength: json['maxLength'],
+        min: json['min'],
+        max: json['max'],
+        pattern: json['pattern'],
+        customValidator: json['customValidator'],
+        errorMessage: json['errorMessage'],
+        allowedValues: json['allowedValues']?.cast<String>(),
+      );
+}
+
+/// Widget-specific options for UI rendering
+class WidgetOptions {
+  final String? placeholder;
+  final String? helpText;
+  final List<SelectOption>? options;
+  final int? rows;
+  final int? maxLength;
+  final bool? multiline;
+  final String? referenceTo;
+  final String? displayField;
+  final Map<String, dynamic>? config;
+
+  const WidgetOptions({
+    this.placeholder,
+    this.helpText,
+    this.options,
+    this.rows,
+    this.maxLength,
+    this.multiline,
+    this.referenceTo,
+    this.displayField,
+    this.config,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'placeholder': placeholder,
+        'helpText': helpText,
+        'options': options?.map((e) => e.toJson()).toList(),
+        'rows': rows,
+        'maxLength': maxLength,
+        'multiline': multiline,
+        'referenceTo': referenceTo,
+        'displayField': displayField,
+        'config': config,
+      };
+
+  factory WidgetOptions.fromJson(Map<String, dynamic> json) => WidgetOptions(
+        placeholder: json['placeholder'],
+        helpText: json['helpText'],
+        options: json['options'] != null
+            ? (json['options'] as List).map((e) => SelectOption.fromJson(e)).toList()
+            : null,
+        rows: json['rows'],
+        maxLength: json['maxLength'],
+        multiline: json['multiline'],
+        referenceTo: json['referenceTo'],
+        displayField: json['displayField'],
+        config: json['config'],
+      );
+}
+
+class SelectOption {
+  final String value;
+  final String label;
+  final String? description;
+  final String? icon;
+
+  const SelectOption({
+    required this.value,
+    required this.label,
+    this.description,
+    this.icon,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'value': value,
+        'label': label,
+        'description': description,
+        'icon': icon,
+      };
+
+  factory SelectOption.fromJson(Map<String, dynamic> json) => SelectOption(
+        value: json['value'],
+        label: json['label'],
+        description: json['description'],
+        icon: json['icon'],
+      );
+}
+
+/// Content Type Schema - Represents a database table
+class ContentTypeSchema {
+  final String id;
+  final String name; // Display name
+  final String tableName; // Database table name (snake_case)
+  final String? description;
+  final String icon;
+  final List<FieldSchema> fields;
+  final ContentTypeSettings settings;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final int version;
+  final Map<String, dynamic>? metadata;
+
+  const ContentTypeSchema({
+    required this.id,
+    required this.name,
+    required this.tableName,
+    this.description,
+    required this.icon,
+    required this.fields,
+    required this.settings,
+    required this.createdAt,
+    required this.updatedAt,
+    this.version = 1,
+    this.metadata,
+  });
+
+  /// Generate SQL CREATE TABLE statement
+  String toCreateTableSQL() {
+    final buffer = StringBuffer();
+    buffer.writeln('CREATE TABLE $tableName (');
+    buffer.writeln('  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),');
+    
+    for (var field in fields) {
+      if (!field.isSystemField) {
+        buffer.writeln('  ${field.toSQLColumn()},');
+      }
+    }
+    
+    buffer.writeln('  created_at TIMESTAMP DEFAULT NOW(),');
+    buffer.writeln('  updated_at TIMESTAMP DEFAULT NOW(),');
+    buffer.writeln('  created_by UUID,');
+    buffer.writeln('  updated_by UUID,');
+    buffer.writeln('  published BOOLEAN DEFAULT FALSE,');
+    buffer.writeln('  published_at TIMESTAMP');
+    buffer.writeln(');');
+    
+    // Add indexes
+    for (var field in fields.where((f) => f.constraints.indexed)) {
+      buffer.writeln('CREATE INDEX idx_${tableName}_${field.name} ON $tableName(${field.name});');
+    }
+    
+    return buffer.toString();
+  }
+
+  /// Export schema as JSON for API/documentation
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'tableName': tableName,
+        'description': description,
+        'icon': icon,
+        'fields': fields.map((f) => f.toJson()).toList(),
+        'settings': settings.toJson(),
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'version': version,
+        'metadata': metadata,
+      };
+
+  factory ContentTypeSchema.fromJson(Map<String, dynamic> json) => ContentTypeSchema(
+        id: json['id'],
+        name: json['name'],
+        tableName: json['tableName'],
+        description: json['description'],
+        icon: json['icon'],
+        fields: (json['fields'] as List).map((f) => FieldSchema.fromJson(f)).toList(),
+        settings: ContentTypeSettings.fromJson(json['settings']),
+        createdAt: DateTime.parse(json['createdAt']),
+        updatedAt: DateTime.parse(json['updatedAt']),
+        version: json['version'] ?? 1,
+        metadata: json['metadata'],
+      );
+
+  ContentTypeSchema copyWith({
+    String? id,
+    String? name,
+    String? tableName,
+    String? description,
+    String? icon,
+    List<FieldSchema>? fields,
+    ContentTypeSettings? settings,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    int? version,
+    Map<String, dynamic>? metadata,
+  }) {
+    return ContentTypeSchema(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      tableName: tableName ?? this.tableName,
+      description: description ?? this.description,
+      icon: icon ?? this.icon,
+      fields: fields ?? this.fields,
+      settings: settings ?? this.settings,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      version: version ?? this.version,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+}
+
+class ContentTypeSettings {
+  final bool enableVersioning;
+  final bool enablePublishing;
+  final bool enableComments;
+  final bool enableCategories;
+  final bool enableTags;
+  final String? defaultView; // list, grid, calendar
+  final List<String>? displayFields;
+  final String? sortField;
+  final String? sortOrder;
+
+  const ContentTypeSettings({
+    this.enableVersioning = false,
+    this.enablePublishing = true,
+    this.enableComments = false,
+    this.enableCategories = false,
+    this.enableTags = false,
+    this.defaultView = 'list',
+    this.displayFields,
+    this.sortField,
+    this.sortOrder = 'DESC',
+  });
+
+  Map<String, dynamic> toJson() => {
+        'enableVersioning': enableVersioning,
+        'enablePublishing': enablePublishing,
+        'enableComments': enableComments,
+        'enableCategories': enableCategories,
+        'enableTags': enableTags,
+        'defaultView': defaultView,
+        'displayFields': displayFields,
+        'sortField': sortField,
+        'sortOrder': sortOrder,
+      };
+
+  factory ContentTypeSettings.fromJson(Map<String, dynamic> json) => ContentTypeSettings(
+        enableVersioning: json['enableVersioning'] ?? false,
+        enablePublishing: json['enablePublishing'] ?? true,
+        enableComments: json['enableComments'] ?? false,
+        enableCategories: json['enableCategories'] ?? false,
+        enableTags: json['enableTags'] ?? false,
+        defaultView: json['defaultView'] ?? 'list',
+        displayFields: json['displayFields']?.cast<String>(),
+        sortField: json['sortField'],
+        sortOrder: json['sortOrder'] ?? 'DESC',
+      );
+}
+
+/// Content Entry with full metadata
+class ContentEntry {
+  final String id;
+  final String contentTypeId;
+  final Map<String, dynamic> data;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String createdBy;
+  final String updatedBy;
+  final bool published;
+  final DateTime? publishedAt;
+  final int version;
+  final Map<String, dynamic>? metadata;
+
+  const ContentEntry({
+    required this.id,
+    required this.contentTypeId,
+    required this.data,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.createdBy,
+    required this.updatedBy,
+    this.published = false,
+    this.publishedAt,
+    this.version = 1,
+    this.metadata,
+  });
+
+  ContentEntry copyWith({
+    String? id,
+    String? contentTypeId,
+    Map<String, dynamic>? data,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? createdBy,
+    String? updatedBy,
+    bool? published,
+    DateTime? publishedAt,
+    int? version,
+    Map<String, dynamic>? metadata,
+  }) {
+    return ContentEntry(
+      id: id ?? this.id,
+      contentTypeId: contentTypeId ?? this.contentTypeId,
+      data: data ?? this.data,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      createdBy: createdBy ?? this.createdBy,
+      updatedBy: updatedBy ?? this.updatedBy,
+      published: published ?? this.published,
+      publishedAt: publishedAt ?? this.publishedAt,
+      version: version ?? this.version,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'contentTypeId': contentTypeId,
+        'data': data,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'createdBy': createdBy,
+        'updatedBy': updatedBy,
+        'published': published,
+        'publishedAt': publishedAt?.toIso8601String(),
+        'version': version,
+        'metadata': metadata,
+      };
+}
+
+// ============================================================================
+// REPOSITORY & SERVICES
+// ============================================================================
+
+class CMSRepository {
+  final Map<String, ContentTypeSchema> _contentTypes = {};
+  final Map<String, List<ContentEntry>> _entries = {};
+  int _idCounter = 1;
+
+  String _generateId() => 'id_${_idCounter++}_${DateTime.now().millisecondsSinceEpoch}';
+
+  Future<List<ContentTypeSchema>> getContentTypes() async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    return _contentTypes.values.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  Future<ContentTypeSchema?> getContentType(String id) async {
+    await Future.delayed(const Duration(milliseconds: 50));
+    return _contentTypes[id];
+  }
+
+  Future<ContentTypeSchema> createContentType(ContentTypeSchema contentType) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    _contentTypes[contentType.id] = contentType;
+    _entries[contentType.id] = [];
+    return contentType;
+  }
+
+  Future<ContentTypeSchema> updateContentType(ContentTypeSchema contentType) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    final updated = contentType.copyWith(
+      version: contentType.version + 1,
+      updatedAt: DateTime.now(),
+    );
+    _contentTypes[contentType.id] = updated;
+    return updated;
+  }
+
+  Future<void> deleteContentType(String id) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    _contentTypes.remove(id);
+    _entries.remove(id);
+  }
+
+  Future<List<ContentEntry>> getEntries(String contentTypeId) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    return _entries[contentTypeId] ?? [];
+  }
+
+  Future<ContentEntry> createEntry(ContentEntry entry) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    _entries[entry.contentTypeId] = [
+      ..._entries[entry.contentTypeId] ?? [],
+      entry,
+    ];
+    return entry;
+  }
+
+  Future<ContentEntry> updateEntry(ContentEntry entry) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    final entries = List<ContentEntry>.from(_entries[entry.contentTypeId] ?? []);
+    final idx = entries.indexWhere((e) => e.id == entry.id);
+    if (idx != -1) {
+      entries[idx] = entry.copyWith(version: entry.version + 1);
+      _entries[entry.contentTypeId] = entries;
+    }
+    return entry;
+  }
+
+  Future<void> deleteEntry(String contentTypeId, String entryId) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    _entries[contentTypeId] = (_entries[contentTypeId] ?? [])
+        .where((e) => e.id != entryId)
+        .toList();
+  }
+
+  /// Export schema as SQL
+  String exportSchemaAsSQL(String contentTypeId) {
+    final contentType = _contentTypes[contentTypeId];
+    if (contentType == null) return '';
+    return contentType.toCreateTableSQL();
+  }
+
+  /// Export schema as JSON
+  String exportSchemaAsJSON(String contentTypeId) {
+    final contentType = _contentTypes[contentTypeId];
+    if (contentType == null) return '';
+    return const JsonEncoder.withIndent('  ').convert(contentType.toJson());
+  }
+}
+
+class ValidationService {
+  static String? validateField(FieldSchema field, dynamic value) {
+    if (!field.constraints.nullable && (value == null || value.toString().isEmpty)) {
+      return '${field.label} is required';
+    }
+
+    if (value == null || value.toString().isEmpty) return null;
+
+    final validation = field.validation;
+    if (validation == null) return null;
+
+    final strValue = value.toString();
+
+    if (validation.minLength != null && strValue.length < validation.minLength!) {
+      return validation.errorMessage ?? 'Minimum length is ${validation.minLength}';
+    }
+
+    if (validation.maxLength != null && strValue.length > validation.maxLength!) {
+      return validation.errorMessage ?? 'Maximum length is ${validation.maxLength}';
+    }
+
+    if (validation.pattern != null) {
+      final regex = RegExp(validation.pattern!);
+      if (!regex.hasMatch(strValue)) {
+        return validation.errorMessage ?? 'Invalid format';
+      }
+    }
+
+    if (field.sqlType == SQLType.integer || field.sqlType == SQLType.bigint || field.sqlType == SQLType.decimal) {
+      final numValue = num.tryParse(strValue);
+      if (numValue == null) return 'Must be a valid number';
+
+      if (validation.min != null && numValue < validation.min!) {
+        return validation.errorMessage ?? 'Minimum value is ${validation.min}';
+      }
+
+      if (validation.max != null && numValue > validation.max!) {
+        return validation.errorMessage ?? 'Maximum value is ${validation.max}';
+      }
+    }
+
+    if (validation.allowedValues != null && !validation.allowedValues!.contains(strValue)) {
+      return validation.errorMessage ?? 'Invalid value';
+    }
+
+    return null;
+  }
+}
+
+// ============================================================================
+// RIVERPOD PROVIDERS
+// ============================================================================
+
+final cmsRepositoryProvider = Provider<CMSRepository>((ref) => CMSRepository());
+
+final contentTypesProvider = StateNotifierProvider<ContentTypesNotifier, AsyncValue<List<ContentTypeSchema>>>((ref) {
+  return ContentTypesNotifier(ref.watch(cmsRepositoryProvider));
+});
+
+class ContentTypesNotifier extends StateNotifier<AsyncValue<List<ContentTypeSchema>>> {
+  final CMSRepository _repository;
+
+  ContentTypesNotifier(this._repository) : super(const AsyncValue.loading()) {
+    _loadContentTypes();
+  }
+
+  Future<void> _loadContentTypes() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _repository.getContentTypes());
+  }
+
+  Future<void> create(ContentTypeSchema contentType) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      await _repository.createContentType(contentType);
+      return _repository.getContentTypes();
+    });
+  }
+
+  Future<void> update(ContentTypeSchema contentType) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.updateContentType(contentType);
+      return _repository.getContentTypes();
+    });
+  }
+
+  Future<void> delete(String id) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.deleteContentType(id);
+      return _repository.getContentTypes();
+    });
+  }
+
+  void refresh() => _loadContentTypes();
+}
+
+final contentEntriesProvider = StateNotifierProvider.family<ContentEntriesNotifier, AsyncValue<List<ContentEntry>>, String>((ref, contentTypeId) {
+  return ContentEntriesNotifier(ref.watch(cmsRepositoryProvider), contentTypeId);
+});
+
+class ContentEntriesNotifier extends StateNotifier<AsyncValue<List<ContentEntry>>> {
+  final CMSRepository _repository;
+  final String contentTypeId;
+
+  ContentEntriesNotifier(this._repository, this.contentTypeId)
+      : super(const AsyncValue.loading()) {
+    _loadEntries();
+  }
+
+  Future<void> _loadEntries() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _repository.getEntries(contentTypeId));
+  }
+
+  Future<void> create(ContentEntry entry) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      await _repository.createEntry(entry);
+      return _repository.getEntries(contentTypeId);
+    });
+  }
+
+  Future<void> update(ContentEntry entry) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.updateEntry(entry);
+      return _repository.getEntries(contentTypeId);
+    });
+  }
+
+  Future<void> delete(String entryId) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.deleteEntry(contentTypeId, entryId);
+      return _repository.getEntries(contentTypeId);
+    });
+  }
+
+  void refresh() => _loadEntries();
+}
+
+// ============================================================================
+// MAIN APP
+// ============================================================================
+
+void main() {
+  runApp(const ProviderScope(child: CMSApp()));
+}
+
+class CMSApp extends StatelessWidget {
+  const CMSApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Enterprise CMS',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+        cardTheme: CardTheme(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.grey.shade200, width: 1),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          filled: true,
+          fillColor: Colors.grey.shade50,
+        ),
+      ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+      ),
+      home: const CMSHomePage(),
+    );
+  }
+}
+
+// ============================================================================
+// HOME PAGE - Enhanced Visual Design
+// ============================================================================
+
+class CMSHomePage extends ConsumerWidget {
+  const CMSHomePage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final contentTypesAsync = ref.watch(contentTypesProvider);
+
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.dashboard_customize, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Enterprise CMS', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('Schema Builder', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.read(contentTypesProvider.notifier).refresh(),
+            tooltip: 'Refresh',
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () {},
+            tooltip: 'Settings',
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: contentTypesAsync.when(
+        data: (contentTypes) => contentTypes.isEmpty
+            ? _buildEmptyState(context, ref)
+            : _buildContentTypesGrid(context, ref, contentTypes),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => _buildErrorState(context, ref, err),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showContentTypeDialog(context, ref),
+        icon: const Icon(Icons.add_circle_outline),
+        label: const Text('New Schema'),
+        elevation: 4,
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, WidgetRef ref) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(48),
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.indigo.shade100, Colors.purple.shade100],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.schema, size: 80, color: Colors.indigo.shade700),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'No Content Schemas Yet',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Create your first content schema to define your data structure. Schemas are automatically converted to database tables.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+            ),
+            const SizedBox(height: 32),
+            FilledButton.icon(
+              onPressed: () => _showContentTypeDialog(context, ref),
+              icon: const Icon(Icons.add_circle),
+              label: const Text('Create First Schema'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(BuildContext context, WidgetRef ref, Object error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+          const SizedBox(height: 16),
+          Text('Error: $error', style: TextStyle(color: Colors.red.shade700)),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: () => ref.read(contentTypesProvider.notifier).refresh(),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContentTypesGrid(
+    BuildContext context,
+    WidgetRef ref,
+    List<ContentTypeSchema> contentTypes,
+  ) {
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(24),
+          sliver: SliverToBoxAdapter(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Content Schemas',
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${contentTypes.length} schema${contentTypes.length != 1 ? 's' : ''} defined',
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 380,
+              childAspectRatio: 1.3,
+              crossAxisSpacing: 20,
+              mainAxisSpacing: 20,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _ContentTypeCard(contentType: contentTypes[index]),
+              childCount: contentTypes.length,
+            ),
+          ),
+        ),
+        const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
+      ],
+    );
+  }
+
+  void _showContentTypeDialog(BuildContext context, WidgetRef ref) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ContentTypeBuilderPage(
+          onSave: (contentType) {
+            ref.read(contentTypesProvider.notifier).create(contentType);
+          },
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+}
+
+class _ContentTypeCard extends ConsumerWidget {
+  final ContentTypeSchema contentType;
+
+  const _ContentTypeCard({required this.contentType});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _navigateToEntries(context),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                _getColorForIcon(contentType.icon).withOpacity(0.05),
+              ],
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            _getColorForIcon(contentType.icon),
+                            _getColorForIcon(contentType.icon).withOpacity(0.7),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _getColorForIcon(contentType.icon).withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        _getIconData(contentType.icon),
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    const Spacer(),
+                    PopupMenuButton(
+                      icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          child: const Row(
+                            children: [Icon(Icons.edit, size: 20), SizedBox(width: 12), Text('Edit Schema')],
+                          ),
+                          onTap: () => Future.delayed(Duration.zero, () => _editSchema(context, ref)),
+                        ),
+                        PopupMenuItem(
+                          child: const Row(
+                            children: [Icon(Icons.code, size: 20), SizedBox(width: 12), Text('View SQL')],
+                          ),
+                          onTap: () => Future.delayed(Duration.zero, () => _showSQL(context, ref)),
+                        ),
+                        PopupMenuItem(
+                          child: const Row(
+                            children: [Icon(Icons.download, size: 20), SizedBox(width: 12), Text('Export JSON')],
+                          ),
+                          onTap: () => Future.delayed(Duration.zero, () => _exportJSON(context, ref)),
+                        ),
+                        const PopupMenuDivider(),
+                        PopupMenuItem(
+                          child: const Row(
+                            children: [
+                              Icon(Icons.delete, size: 20, color: Colors.red),
+                              SizedBox(width: 12),
+                              Text('Delete', style: TextStyle(color: Colors.red)),
+                            ],
+                          ),
+                          onTap: () => Future.delayed(Duration.zero, () => _confirmDelete(context, ref)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  contentType.name,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  contentType.description ?? 'No description',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey.shade600,
+                      ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.layers, size: 16, color: Colors.grey.shade700),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${contentType.fields.length} fields',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Text(
+                      'v${contentType.version}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '•',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      contentType.tableName,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getColorForIcon(String iconName) {
+    switch (iconName) {
+      case 'article':
+        return const Color(0xFF6366F1);
+      case 'image':
+        return const Color(0xFFEC4899);
+      case 'video':
+        return const Color(0xFFF59E0B);
+      case 'person':
+        return const Color(0xFF10B981);
+      case 'category':
+        return const Color(0xFF8B5CF6);
+      case 'settings':
+        return const Color(0xFF6B7280);
+      default:
+        return const Color(0xFF3B82F6);
+    }
+  }
+
+  IconData _getIconData(String iconName) {
+    switch (iconName) {
+      case 'article':
+        return Icons.article;
+      case 'image':
+        return Icons.image;
+      case 'video':
+        return Icons.video_library;
+      case 'person':
+        return Icons.person;
+      case 'category':
+        return Icons.category;
+      case 'settings':
+        return Icons.settings;
+      default:
+        return Icons.folder;
+    }
+  }
+
+  void _navigateToEntries(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ContentEntriesPage(contentType: contentType),
+      ),
+    );
+  }
+
+  void _editSchema(BuildContext context, WidgetRef ref) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ContentTypeBuilderPage(
+          contentType: contentType,
+          onSave: (updated) {
+            ref.read(contentTypesProvider.notifier).update(updated);
+          },
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+
+  void _showSQL(BuildContext context, WidgetRef ref) {
+    final sql = ref.read(cmsRepositoryProvider).exportSchemaAsSQL(contentType.id);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('SQL Schema'),
+        content: Container(
+          width: 600,
+          constraints: const BoxConstraints(maxHeight: 500),
+          child: SingleChildScrollView(
+            child: SelectableText(
+              sql,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: sql));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('SQL copied to clipboard')),
+              );
+            },
+            child: const Text('Copy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _exportJSON(BuildContext context, WidgetRef ref) {
+    final json = ref.read(cmsRepositoryProvider).exportSchemaAsJSON(contentType.id);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('JSON Schema'),
+        content: Container(
+          width: 600,
+          constraints: const BoxConstraints(maxHeight: 500),
+          child: SingleChildScrollView(
+            child: SelectableText(
+              json,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: json));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('JSON copied to clipboard')),
+              );
+            },
+            child: const Text('Copy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Schema'),
+        content: Text(
+          'Are you sure you want to delete "${contentType.name}"?\n\nThis will also delete all entries and cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              ref.read(contentTypesProvider.notifier).delete(contentType.id);
+              Navigator.pop(context);
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// CONTENT TYPE BUILDER PAGE - Advanced Schema Designer
+// ============================================================================
+
+class ContentTypeBuilderPage extends StatefulWidget {
+  final ContentTypeSchema? contentType;
+  final Function(ContentTypeSchema) onSave;
+
+  const ContentTypeBuilderPage({
+    super.key,
+    this.contentType,
+    required this.onSave,
+  });
+
+  @override
+  State<ContentTypeBuilderPage> createState() => _ContentTypeBuilderPageState();
+}
+
+class _ContentTypeBuilderPageState extends State<ContentTypeBuilderPage> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nameController;
+  late TextEditingController _tableNameController;
+  late TextEditingController _descController;
+  late String _selectedIcon;
+  late List<FieldSchema> _fields;
+  late ContentTypeSettings _settings;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.contentType?.name);
+    _tableNameController = TextEditingController(text: widget.contentType?.tableName);
+    _descController = TextEditingController(text: widget.contentType?.description);
+    _selectedIcon = widget.contentType?.icon ?? 'article';
+    _fields = widget.contentType?.fields ?? [];
+    _settings = widget.contentType?.settings ?? const ContentTypeSettings();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: Text(widget.contentType == null ? 'New Content Schema' : 'Edit Schema'),
+        actions: [
+          TextButton.icon(
+            onPressed: _save,
+            icon: const Icon(Icons.check_circle),
+            label: const Text('Save Schema'),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Form(
+        key: _formKey,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Left Panel - Schema Info & Fields
+            Expanded(
+              flex: 3,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildBasicInfoCard(),
+                    const SizedBox(height: 24),
+                    _buildFieldsCard(),
+                  ],
+                ),
+              ),
+            ),
+            // Right Panel - Settings & Preview
+            Container(
+              width: 350,
+              color: Colors.white,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSettingsCard(),
+                    const SizedBox(height: 24),
+                    _buildPreviewCard(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBasicInfoCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Basic Information',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 24),
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Schema Name',
+                hintText: 'e.g., Blog Post, Product, User',
+                prefixIcon: Icon(Icons.label),
+              ),
+              validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
+              onChanged: (v) {
+                if (_tableNameController.text.isEmpty || widget.contentType == null) {
+                  _tableNameController.text = v.toLowerCase().replaceAll(' ', '_');
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _tableNameController,
+              decoration: const InputDecoration(
+                labelText: 'Table Name (Database)',
+                hintText: 'e.g., blog_posts, products, users',
+                prefixIcon: Icon(Icons.storage),
+                helperText: 'Snake_case recommended for database compatibility',
+              ),
+              validator: (v) {
+                if (v?.isEmpty ?? true) return 'Required';
+                if (!RegExp(r'^[a-z][a-z0-9_]*).hasMatch(v!)) {
+                  return 'Only lowercase, numbers, underscores';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _descController,
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                hintText: 'Brief description of this content type',
+                prefixIcon: Icon(Icons.description),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: _selectedIcon,
+              decoration: const InputDecoration(
+                labelText: 'Icon',
+                prefixIcon: Icon(Icons.emoji_symbols),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'article', child: Text('📄 Article')),
+                DropdownMenuItem(value: 'image', child: Text('🖼️ Image')),
+                DropdownMenuItem(value: 'video', child: Text('🎥 Video')),
+                DropdownMenuItem(value: 'person', child: Text('👤 Person')),
+                DropdownMenuItem(value: 'category', child: Text('📁 Category')),
+                DropdownMenuItem(value: 'settings', child: Text('⚙️ Settings')),
+              ],
+              onChanged: (v) => setState(() => _selectedIcon = v!),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFieldsCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Fields',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.indigo.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_fields.length}',
+                    style: TextStyle(
+                      color: Colors.indigo.shade700,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                FilledButton.icon(
+                  onPressed: _addField,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Field'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (_fields.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(48),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200, width: 2, strokeAlign: BorderSide.strokeAlignInside),
+                ),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.layers, size: 48, color: Colors.grey.shade400),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No fields yet',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Add your first field to define the schema',
+                        style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ReorderableListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _fields.length,
+                onReorder: (oldIndex, newIndex) {
+                  setState(() {
+                    if (newIndex > oldIndex) newIndex--;
+                    final field = _fields.removeAt(oldIndex);
+                    _fields.insert(newIndex, field);
+                    for (int i = 0; i < _fields.length; i++) {
+                      _fields[i] = _fields[i].copyWith(position: i);
+                    }
+                  });
+                },
+                itemBuilder: (context, index) {
+                  final field = _fields[index];
+                  return _FieldListItem(
+                    key: ValueKey(field.id),
+                    field: field,
+                    onEdit: () => _editField(index),
+                    onDelete: () => setState(() => _fields.removeAt(index)),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Settings',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            SwitchListTile(
+              title: const Text('Enable Publishing'),
+              subtitle: const Text('Draft/Published status'),
+              value: _settings.enablePublishing,
+              onChanged: (v) => setState(() {
+                _settings = ContentTypeSettings(
+                  enablePublishing: v,
+                  enableVersioning: _settings.enableVersioning,
+                  enableComments: _settings.enableComments,
+                );
+              }),
+              contentPadding: EdgeInsets.zero,
+            ),
+            SwitchListTile(
+              title: const Text('Enable Versioning'),
+              subtitle: const Text('Track content versions'),
+              value: _settings.enableVersioning,
+              onChanged: (v) => setState(() {
+                _settings = ContentTypeSettings(
+                  enablePublishing: _settings.enablePublishing,
+                  enableVersioning: v,
+                  enableComments: _settings.enableComments,
+                );
+              }),
+              contentPadding: EdgeInsets.zero,
+            ),
+            SwitchListTile(
+              title: const Text('Enable Comments'),
+              subtitle: const Text('Allow user comments'),
+              value: _settings.enableComments,
+              onChanged: (v) => setState(() {
+                _settings = ContentTypeSettings(
+                  enablePublishing: _settings.enablePublishing,
+                  enableVersioning: _settings.enableVersioning,
+                  enableComments: v,
+                );
+              }),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreviewCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'SQL Preview',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade900,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                _generatePreviewSQL(),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  color: Colors.greenAccent,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _generatePreviewSQL() {
+    if (_tableNameController.text.isEmpty) return '-- Enter table name';
+    
+    final buffer = StringBuffer();
+    buffer.writeln('CREATE TABLE ${_tableNameController.text} (');
+    buffer.writeln('  id UUID PRIMARY KEY,');
+    
+    for (var field in _fields.take(3)) {
+      buffer.writeln('  ${field.toSQLColumn()},');
+    }
+    
+    if (_fields.length > 3) {
+      buffer.writeln('  ...');
+    }
+    
+    buffer.writeln('  created_at TIMESTAMP');
+    buffer.write(');');
+    
+    return buffer.toString();
+  }
+
+  void _addField() {
+    showDialog(
+      context: context,
+      builder: (context) => FieldSchemaDialog(
+        onSave: (field) {
+          setState(() => _fields.add(field.copyWith(position: _fields.length)));
+        },
+      ),
+    );
+  }
+
+  void _editField(int index) {
+    showDialog(
+      context: context,
+      builder: (context) => FieldSchemaDialog(
+        field: _fields[index],
+        onSave: (field) {
+          setState(() => _fields[index] = field);
+        },
+      ),
+    );
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fix the errors')),
+      );
+      return;
+    }
+
+    if (_fields.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add at least one field')),
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+    final schema = ContentTypeSchema(
+      id: widget.contentType?.id ?? 'ct_${now.millisecondsSinceEpoch}',
+      name: _nameController.text,
+      tableName: _tableNameController.text,
+      description: _descController.text.isEmpty ? null : _descController.text,
+      icon: _selectedIcon,
+      fields: _fields,
+      settings: _settings,
+      createdAt: widget.contentType?.createdAt ?? now,
+      updatedAt: now,
+      version: widget.contentType?.version ?? 1,
+    );
+
+    widget.onSave(schema);
+    Navigator.pop(context);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _tableNameController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+}
+
+class _FieldListItem extends StatelessWidget {
+  final FieldSchema field;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _FieldListItem({
+    super.key,
+    required this.field,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      color: Colors.grey.shade50,
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: _getFieldTypeColor().withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(_getFieldIcon(), color: _getFieldTypeColor(), size: 20),
+        ),
+        title: Row(
+          children: [
+            Text(
+              field.label,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(width: 8),
+            if (!field.constraints.nullable)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade100,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Required',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.red.shade700,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            if (field.constraints.unique)
+              Container(
+                margin: const EdgeInsets.only(left: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Unique',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.blue.shade700,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text(
+              '${field.name} • ${field.uiType.name} → ${field.sqlType.name.toUpperCase()}',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            if (field.description != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                field.description!,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit, size: 20),
+              onPressed: onEdit,
+              tooltip: 'Edit',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, size: 20),
+              onPressed: onDelete,
+              tooltip: 'Delete',
+            ),
+            const Icon(Icons.drag_handle, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getFieldTypeColor() {
+    switch (field.uiType) {
+      case UIFieldType.textInput:
+      case UIFieldType.textArea:
+        return Colors.blue;
+      case UIFieldType.numberInput:
+        return Colors.orange;
+      case UIFieldType.datePicker:
+      case UIFieldType.dateTimePicker:
+        return Colors.purple;
+      case UIFieldType.toggle:
+      case UIFieldType.checkbox:
+        return Colors.green;
+      case UIFieldType.imageUpload:
+      case UIFieldType.fileUpload:
+        return Colors.pink;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getFieldIcon() {
+    switch (field.uiType) {
+      case UIFieldType.textInput:
+        return Icons.text_fields;
+      case UIFieldType.textArea:
+        return Icons.notes;
+      case UIFieldType.richTextEditor:
+        return Icons.format_align_left;
+      case UIFieldType.numberInput:
+        return Icons.numbers;
+      case UIFieldType.datePicker:
+        return Icons.calendar_today;
+      case UIFieldType.dateTimePicker:
+        return Icons.access_time;
+      case UIFieldType.toggle:
+        return Icons.toggle_on;
+      case UIFieldType.dropdown:
+        return Icons.arrow_drop_down_circle;
+      case UIFieldType.imageUpload:
+        return Icons.image;
+      case UIFieldType.colorPicker:
+        return Icons.palette;
+      default:
+        return Icons.create;
+    }
+  }
+}
+
+// ============================================================================
+// FIELD SCHEMA DIALOG - Advanced Field Designer
+// ============================================================================
+
+class FieldSchemaDialog extends StatefulWidget {
+  final FieldSchema? field;
+  final Function(FieldSchema) onSave;
+
+  const FieldSchemaDialog({
+    super.key,
+    this.field,
+    required this.onSave,
+  });
+
+  @override
+  State<FieldSchemaDialog> createState() => _FieldSchemaDialogState();
+}
+
+class _FieldSchemaDialogState extends State<FieldSchemaDialog> with SingleTickerProviderStateMixin {
+  final _formKey = GlobalKey<FormState>();
+  late TabController _tabController;
+  late TextEditingController _nameController;
+  late TextEditingController _labelController;
+  late TextEditingController _descController;
+  late TextEditingController _placeholderController;
+  late TextEditingController _helpTextController;
+  late UIFieldType _uiType;
+  late SQLType _sqlType;
+  late bool _nullable;
+  late bool _unique;
+  late bool _indexed;
+  late ValidationRules? _validation;
+  late List<SelectOption> _selectOptions;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _nameController = TextEditingController(text: widget.field?.name);
+    _labelController = TextEditingController(text: widget.field?.label);
+    _descController = TextEditingController(text: widget.field?.description);
+    _placeholderController = TextEditingController(text: widget.field?.widgetOptions?.placeholder);
+    _helpTextController = TextEditingController(text: widget.field?.widgetOptions?.helpText);
+    _uiType = widget.field?.uiType ?? UIFieldType.textInput;
+    _sqlType = widget.field?.sqlType ?? SQLType.varchar;
+    _nullable = widget.field?.constraints.nullable ?? true;
+    _unique = widget.field?.constraints.unique ?? false;
+    _indexed = widget.field?.constraints.indexed ?? false;
+    _validation = widget.field?.validation;
+    _selectOptions = widget.field?.widgetOptions?.options ?? [];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: 700,
+        height: 700,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.indigo.shade50,
+                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.create, color: Colors.white),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.field == null ? 'New Field' : 'Edit Field',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'Define field schema and behavior',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            TabBar(
+              controller: _tabController,
+              tabs: const [
+                Tab(text: 'Basic', icon: Icon(Icons.info, size: 20)),
+                Tab(text: 'Database', icon: Icon(Icons.storage, size: 20)),
+                Tab(text: 'Validation', icon: Icon(Icons.check_circle, size: 20)),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildBasicTab(),
+                  _buildDatabaseTab(),
+                  _buildValidationTab(),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                border: Border(top: BorderSide(color: Colors.grey.shade200)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: _save,
+                    icon: const Icon(Icons.check),
+                    label: const Text('Save Field'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBasicTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Field Name (API)',
+                hintText: 'e.g., title, author_name, price',
+                helperText: 'Used in database and API (snake_case)',
+                prefixIcon: Icon(Icons.code),
+              ),
+              validator: (v) {
+                if (v?.isEmpty ?? true) return 'Required';
+                if (!RegExp(r'^[a-z][a-z0-9_]*).hasMatch(v!)) {
+                  return 'Only lowercase, numbers, underscores';
+                }
+                return null;
+              },
+              onChanged: (v) {
+                if (_labelController.text.isEmpty) {
+                  _labelController.text = v.split('_').map((w) => 
+                    w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1)
+                  ).join(' ');
+                }
+              },
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _labelController,
+              decoration: const InputDecoration(
+                labelText: 'Label',
+                hintText: 'e.g., Title, Author Name, Price',
+                helperText: 'Display name shown in forms',
+                prefixIcon: Icon(Icons.label),
+              ),
+              validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _descController,
+              decoration: const InputDecoration(
+                labelText: 'Description (Optional)',
+                hintText: 'Brief description of this field',
+                prefixIcon: Icon(Icons.description),
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 20),
+            DropdownButtonFormField<UIFieldType>(
+              value: _uiType,
+              decoration: const InputDecoration(
+                labelText: 'UI Field Type',
+                helperText: 'How users interact with this field',
+                prefixIcon: Icon(Icons.widgets),
+              ),
+              items: UIFieldType.values.map((type) {
+                return DropdownMenuItem(
+                  value: type,
+                  child: Text(type.name),
+                );
+              }).toList(),
+              onChanged: (v) => setState(() {
+                _uiType = v!;
+                _sqlType = _getDefaultSQLType(v);
+              }),
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _placeholderController,
+              decoration: const InputDecoration(
+                labelText: 'Placeholder (Optional)',
+                hintText: 'e.g., Enter title here...',
+                prefixIcon: Icon(Icons.edit_note),
+              ),
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _helpTextController,
+              decoration: const InputDecoration(
+                labelText: 'Help Text (Optional)',
+                hintText: 'Additional guidance for users',
+                prefixIcon: Icon(Icons.help_outline),
+              ),
+              maxLines: 2,
+            ),
+            if (_needsOptions()) ...[
+              const SizedBox(height: 20),
+              _buildOptionsEditor(),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDatabaseTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DropdownButtonFormField<SQLType>(
+            value: _sqlType,
+            decoration: const InputDecoration(
+              labelText: 'SQL Data Type',
+              helperText: 'Database column type',
+              prefixIcon: Icon(Icons.storage),
+            ),
+            items: SQLType.values.map((type) {
+              return DropdownMenuItem(
+                value: type,
+                child: Text(type.name.toUpperCase()),
+              );
+            }).toList(),
+            onChanged: (v) => setState(() => _sqlType = v!),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Constraints',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            title: const Text('Nullable'),
+            subtitle: const Text('Allow NULL values'),
+            value: _nullable,
+            onChanged: (v) => setState(() => _nullable = v),
+            contentPadding: EdgeInsets.zero,
+          ),
+          SwitchListTile(
+            title: const Text('Unique'),
+            subtitle: const Text('Enforce unique values'),
+            value: _unique,
+            onChanged: (v) => setState(() => _unique = v),
+            contentPadding: EdgeInsets.zero,
+          ),
+          SwitchListTile(
+            title: const Text('Indexed'),
+            subtitle: const Text('Create database index'),
+            value: _indexed,
+            onChanged: (v) => setState(() => _indexed = v),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.grey.shade600),
+                    const SizedBox(width: 8),
+                    Text(
+                      'SQL Preview',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _generateFieldSQL(),
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildValidationTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_supportsLengthValidation()) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    initialValue: _validation?.minLength?.toString(),
+                    decoration: const InputDecoration(
+                      labelText: 'Min Length',
+                      prefixIcon: Icon(Icons.remove),
+                    ),
+                    keyboardType: TextInputType.number,
+                    onChanged: (v) => _updateValidation(
+                      minLength: v.isEmpty ? null : int.tryParse(v),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextFormField(
+                    initialValue: _validation?.maxLength?.toString(),
+                    decoration: const InputDecoration(
+                      labelText: 'Max Length',
+                      prefixIcon: Icon(Icons.add),
+                    ),
+                    keyboardType: TextInputType.number,
+                    onChanged: (v) => _updateValidation(
+                      maxLength: v.isEmpty ? null : int.tryParse(v),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+          if (_supportsNumericValidation()) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    initialValue: _validation?.min?.toString(),
+                    decoration: const InputDecoration(
+                      labelText: 'Min Value',
+                      prefixIcon: Icon(Icons.remove),
+                    ),
+                    keyboardType: TextInputType.number,
+                    onChanged: (v) => _updateValidation(
+                      min: v.isEmpty ? null : num.tryParse(v),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextFormField(
+                    initialValue: _validation?.max?.toString(),
+                    decoration: const InputDecoration(
+                      labelText: 'Max Value',
+                      prefixIcon: Icon(Icons.add),
+                    ),
+                    keyboardType: TextInputType.number,
+                    onChanged: (v) => _updateValidation(
+                      max: v.isEmpty ? null : num.tryParse(v),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+          TextFormField(
+            initialValue: _validation?.pattern,
+            decoration: const InputDecoration(
+              labelText: 'Pattern (Regex)',
+              hintText: 'e.g., ^[A-Z][a-z]+,
+              prefixIcon: Icon(Icons.pattern),
+              helperText: 'Regular expression for validation',
+            ),
+            onChanged: (v) => _updateValidation(
+              pattern: v.isEmpty ? null : v,
+            ),
+          ),
+          const SizedBox(height: 20),
+          TextFormField(
+            initialValue: _validation?.errorMessage,
+            decoration: const InputDecoration(
+              labelText: 'Custom Error Message',
+              hintText: 'Message shown when validation fails',
+              prefixIcon: Icon(Icons.error_outline),
+            ),
+            onChanged: (v) => _updateValidation(
+              errorMessage: v.isEmpty ? null : v,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptionsEditor() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Options',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: _addOption,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add Option'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_selectOptions.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Center(
+              child: Text(
+                'No options yet. Add your first option.',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ),
+          )
+        else
+          ..._selectOptions.asMap().entries.map((entry) {
+            final index = entry.key;
+            final option = entry.value;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                title: Text(option.label),
+                subtitle: Text('Value: ${option.value}'),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete, size: 20),
+                  onPressed: () => setState(() => _selectOptions.removeAt(index)),
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  void _addOption() {
+    final valueController = TextEditingController();
+    final labelController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Option'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: valueController,
+              decoration: const InputDecoration(
+                labelText: 'Value',
+                hintText: 'e.g., draft, published',
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: labelController,
+              decoration: const InputDecoration(
+                labelText: 'Label',
+                hintText: 'e.g., Draft, Published',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (valueController.text.isNotEmpty && labelController.text.isNotEmpty) {
+                setState(() {
+                  _selectOptions.add(SelectOption(
+                    value: valueController.text,
+                    label: labelController.text,
+                  ));
+                });
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _needsOptions() {
+    return _uiType == UIFieldType.dropdown ||
+        _uiType == UIFieldType.radioGroup ||
+        _uiType == UIFieldType.checkboxGroup;
+  }
+
+  bool _supportsLengthValidation() {
+    return _uiType == UIFieldType.textInput ||
+        _uiType == UIFieldType.textArea ||
+        _uiType == UIFieldType.richTextEditor;
+  }
+
+  bool _supportsNumericValidation() {
+    return _uiType == UIFieldType.numberInput || _uiType == UIFieldType.slider;
+  }
+
+  SQLType _getDefaultSQLType(UIFieldType uiType) {
+    switch (uiType) {
+      case UIFieldType.textInput:
+        return SQLType.varchar;
+      case UIFieldType.textArea:
+      case UIFieldType.richTextEditor:
+      case UIFieldType.markdown:
+      case UIFieldType.code:
+        return SQLType.text;
+      case UIFieldType.numberInput:
+      case UIFieldType.slider:
+      case UIFieldType.rating:
+        return SQLType.integer;
+      case UIFieldType.datePicker:
+        return SQLType.date;
+      case UIFieldType.dateTimePicker:
+        return SQLType.timestamp;
+      case UIFieldType.timePicker:
+        return SQLType.time;
+      case UIFieldType.toggle:
+      case UIFieldType.checkbox:
+        return SQLType.boolean;
+      case UIFieldType.json:
+        return SQLType.jsonb;
+      default:
+        return SQLType.varchar;
+    }
+  }
+
+  String _generateFieldSQL() {
+    final buffer = StringBuffer();
+    buffer.write('${_nameController.text.isEmpty ? 'field_name' : _nameController.text} ');
+    buffer.write(_sqlType.name.toUpperCase());
+    if (!_nullable) buffer.write(' NOT NULL');
+    if (_unique) buffer.write(' UNIQUE');
+    return buffer.toString();
+  }
+
+  void _updateValidation({
+    int? minLength,
+    int? maxLength,
+    num? min,
+    num? max,
+    String? pattern,
+    String? errorMessage,
+  }) {
+    setState(() {
+      _validation = ValidationRules(
+        minLength: minLength ?? _validation?.minLength,
+        maxLength: maxLength ?? _validation?.maxLength,
+        min: min ?? _validation?.min,
+        max: max ?? _validation?.max,
+        pattern: pattern ?? _validation?.pattern,
+        errorMessage: errorMessage ?? _validation?.errorMessage,
+      );
+    });
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+
+    final field = FieldSchema(
+      id: widget.field?.id ?? 'field_${DateTime.now().millisecondsSinceEpoch}',
+      name: _nameController.text,
+      label: _labelController.text,
+      description: _descController.text.isEmpty ? null : _descController.text,
+      uiType: _uiType,
+      sqlType: _sqlType,
+      constraints: FieldConstraints(
+        nullable: _nullable,
+        unique: _unique,
+        indexed: _indexed,
+      ),
+      validation: _validation,
+      widgetOptions: WidgetOptions(
+        placeholder: _placeholderController.text.isEmpty ? null : _placeholderController.text,
+        helpText: _helpTextController.text.isEmpty ? null : _helpTextController.text,
+        options: _selectOptions.isEmpty ? null : _selectOptions,
+      ),
+      position: widget.field?.position ?? 0,
+    );
+
+    widget.onSave(field);
+    Navigator.pop(context);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _nameController.dispose();
+    _labelController.dispose();
+    _descController.dispose();
+    _placeholderController.dispose();
+    _helpTextController.dispose();
+    super.dispose();
+  }
+}
+
+// ============================================================================
+// CONTENT ENTRIES PAGE (Simplified for now)
+// ============================================================================
+
+class ContentEntriesPage extends ConsumerWidget {
+  final ContentTypeSchema contentType;
+
+  const ContentEntriesPage({super.key, required this.contentType});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final entriesAsync = ref.watch(contentEntriesProvider(contentType.id));
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(contentType.name),
+      ),
+      body: entriesAsync.when(
+        data: (entries) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.inbox, size: 64, color: Colors.grey.shade300),
+              const SizedBox(height: 16),
+              Text(
+                entries.isEmpty ? 'No entries yet' : '${entries.length} entries',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ],
+          ),
+        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
+      ),
+    );
+  }
+}

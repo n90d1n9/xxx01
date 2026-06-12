@@ -1,0 +1,23 @@
+{
+  "contract_version": 1,
+  "engine_id": "waraq.editor",
+  "primitives": {
+    "operation": "OperationEnvelope<Edit>",
+    "operation_log": "OperationLog<Edit>",
+    "artifact": "OperationArtifact<Snapshot, Edit>"
+  },
+  "shared_guarantees": [
+    "operation envelopes carry schema_version, engine, document_id, actor_id, sequence, timestamp_ms, edit, and metadata",
+    "operation logs validate schema version, engine identity, non-empty identity fields, duplicate operation IDs, and monotonic sequence order",
+    "artifacts pair one snapshot with one ordered operation tail for the same engine and document",
+    "restore implementations must validate the snapshot and operation tail before mutating editor state",
+    "compaction folds an operation prefix into the snapshot while preserving a replayable retained tail and compaction metadata"
+  ],
+  "domain_responsibilities": [
+    "choose a stable engine identifier",
+    "define a serializable edit operation model",
+    "define a serializable snapshot model",
+    "validate domain-specific edit ranges and object references against evolving state",
+    "apply and replay operations without partially mutating state on failure"
+  ]
+}

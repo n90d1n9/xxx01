@@ -1,0 +1,38 @@
+Building macOS application...                                   
+lib/features/ai/services/ml_kit_service.dart:64:13: Error: The getter 'TextMessage' isn't defined for the type 'MLKitService'.
+ - 'MLKitService' is from 'package:tsiqahub/features/ai/services/ml_kit_service.dart' ('lib/features/ai/services/ml_kit_service.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'TextMessage'.
+            TextMessage.createForLocalUser(msg, DateTime.now().millisecondsSinceEpoch),
+            ^^^^^^^^^^^
+lib/features/ai/services/ml_kit_service.dart:63:23: Error: The method 'addConversationMessage' isn't defined for the type 'SmartReply'.
+ - 'SmartReply' is from 'package:google_mlkit_smart_reply/src/smart_reply.dart' ('../../../../../../.pub-cache/hosted/pub.dev/google_mlkit_smart_reply-0.13.1/lib/src/smart_reply.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'addConversationMessage'.
+          _smartReply.addConversationMessage(
+                      ^^^^^^^^^^^^^^^^^^^^^^
+lib/features/ai/services/ml_kit_service.dart:68:13: Error: The getter 'TextMessage' isn't defined for the type 'MLKitService'.
+ - 'MLKitService' is from 'package:tsiqahub/features/ai/services/ml_kit_service.dart' ('lib/features/ai/services/ml_kit_service.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'TextMessage'.
+            TextMessage.createForRemoteUser(msg, DateTime.now().millisecondsSinceEpoch, 'user_id'),
+            ^^^^^^^^^^^
+lib/features/ai/services/ml_kit_service.dart:67:23: Error: The method 'addConversationMessage' isn't defined for the type 'SmartReply'.
+ - 'SmartReply' is from 'package:google_mlkit_smart_reply/src/smart_reply.dart' ('../../../../../../.pub-cache/hosted/pub.dev/google_mlkit_smart_reply-0.13.1/lib/src/smart_reply.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'addConversationMessage'.
+          _smartReply.addConversationMessage(
+                      ^^^^^^^^^^^^^^^^^^^^^^
+Target kernel_snapshot_program failed: Exception
+Failed to package /Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui.
+Command PhaseScriptExecution failed with a nonzero exit code
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'AppAuth-AppAuthCore_Privacy' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'GTMSessionFetcher-GTMSessionFetcher_Core_Privacy' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.11, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'PromisesObjC-FBLPromises_Privacy' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.11, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'geolocator_apple-geolocator_apple_privacy' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.11, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'PromisesObjC' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'GTMSessionFetcher-GTMSessionFetcher_Full_Privacy' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'AppAuth' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'GTMSessionFetcher' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'GTMAppAuth-GTMAppAuth_Privacy' from project 'Pods')
+/Users/bhangun/Workspace/workkayys/Projects/tsiqahub/ui/tsiqahub_ui/macos/Pods/Pods.xcodeproj: warning: The macOS deployment target 'MACOSX_DEPLOYMENT_TARGET' is set to 10.12, but the range of supported deployment target versions is 10.13 to 26.5.99. (in target 'GTMAppAuth' from project 'Pods')
+warning: Run script build phase 'Run Script' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'Flutter Assemble' from project 'Runner')
+** BUILD FAILED **
+
+Build process failed

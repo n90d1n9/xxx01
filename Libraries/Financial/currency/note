@@ -1,0 +1,54 @@
+// Add this to the ConversionState class
+class ConversionState {
+
+
+  ConversionState({
+    required this.amount,
+    required this.fromCurrency,
+    required this.toCurrency,
+    this.exchangeRate,
+    this.isLoading = false,
+    this.error,
+
+
+  ConversionState copyWith({
+    double? amount,
+    Currency? fromCurrency,
+    Currency? toCurrency,
+    ExchangeRate? exchangeRate,
+    bool? isLoading,
+    String? error,
+
+  }) {
+    return ConversionState(
+      amount: amount ?? this.amount,
+      fromCurrency: fromCurrency ?? this.fromCurrency,
+      toCurrency: toCurrency ?? this.toCurrency,
+      exchangeRate: exchangeRate ?? this.exchangeRate,
+      isLoading: isLoading ?? this.isLoading,
+      error: error,
+      
+    );
+  }
+
+  
+  
+  
+}
+
+// Add these methods to the ConversionStateNotifier class
+class ConversionStateNotifier extends StateNotifier<ConversionState> {
+  // ... existing code ...
+
+  
+}
+
+// Add this widget between _buildInfoCard and _buildAmountInput in the CurrencyConverter class
+
+
+// Add this method to the CurrencyConverter class
+
+// Add this new widget class at the end of the file
+
+
+// Update the _buildConverterBody method in CurrencyConverter class to include the toggle

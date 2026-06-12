@@ -1,0 +1,24 @@
+{
+  "contract_version": 1,
+  "engine_id": "waraq.test",
+  "document_id": "doc-1",
+  "operation_count": 2,
+  "first_sequence": 1,
+  "last_sequence": 2,
+  "last_operation_id": "op-2",
+  "completed_checks": [
+    "ArtifactValidation",
+    "OperationLogValidation",
+    "OperationValidation",
+    "OperationJsonRoundtrip",
+    "OperationLogJsonRoundtrip",
+    "ArtifactJsonRoundtrip",
+    "OperationWrongEngineRejection",
+    "OperationLogWrongEngineRejection",
+    "ArtifactWrongEngineRejection",
+    "ArtifactWrongDocumentRejection"
+  ],
+  "checked_json_roundtrip": true,
+  "checked_wrong_engine_rejection": true,
+  "checked_wrong_document_rejection": true
+}

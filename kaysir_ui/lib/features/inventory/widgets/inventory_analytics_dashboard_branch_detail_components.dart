@@ -1,0 +1,5 @@
+export 'inventory_analytics_branch_detail_row_state.dart';
+export 'inventory_analytics_dashboard_branch_detail_panel.dart';
+export 'inventory_analytics_dashboard_branch_detail_rows.dart';
+export 'inventory_analytics_dashboard_branch_detail_sections.dart';
+export 'inventory_analytics_dashboard_branch_detail_summary_components.dart';
