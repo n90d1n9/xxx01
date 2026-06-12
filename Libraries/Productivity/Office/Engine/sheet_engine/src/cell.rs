@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+/// Represents the possible values that can be stored in a spreadsheet cell.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CellValue {
     Empty,
@@ -9,6 +10,7 @@ pub enum CellValue {
     Error(String),
 }
 
+/// Cell formatting options for visual presentation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CellFormat {
     pub bold: bool,
@@ -30,6 +32,10 @@ impl Default for CellFormat {
     }
 }
 
+/// A single cell in the spreadsheet grid.
+/// 
+/// Contains both the raw content (as entered by the user) and the evaluated value
+/// (the result after formula evaluation). Also includes formatting information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Cell {
     pub raw_content: String, // e.g., "=A1+B1" or "123"

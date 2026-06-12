@@ -1,85 +1,78 @@
-# -------------------------------------------------------------------------
-# Monorepo / Multi-App Flutter Core Glob Patterns
-# -------------------------------------------------------------------------
+```
+# Rust/Cargo specific ignores
+target/
+Cargo.lock
+*.rs.bk
 
-# Tooling artifacts (Applies to root and all child apps)
-**/**/develop-log.json
-**/.pub-cache/
-**/.pub/
-**/build/
-**/.dart_tool/
+# Dependencies
+vendor/
 
-# Flutter/Dart web dependencies
-**/.packages
-**/.flutter-plugins
-**/.flutter-plugins-dependencies
-**/generated_plugin_registrant.dart
+# Logs and temp files
+*.log
+*.tmp
 
-# Symbol artifacts
-**/*.jmpl
-**/*.js.deps
-**/*.js.manifest
-**/*.js.sourcemap
+# Environment
+.env
+.env.local
+.env.*
 
-# -------------------------------------------------------------------------
-# Android Child Apps
-# -------------------------------------------------------------------------
-**/android/**.iml
-**/android/.gradle/
-**/android/local.properties
-**/android/captures/
-**/android/gradlew
-**/android/gradlew.bat
-**/android/generated_gradle_redirect.gradle
-**/android/app/src/main/res/generated/
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# -------------------------------------------------------------------------
-# iOS/macOS Child Apps
-# -------------------------------------------------------------------------
-**/ios/.generated/
-**/ios/Flutter/ephemeral/
-**/ios/Flutter/Flutter Xcode Generated File/
-**/ios/Flutter/Generated.xcconfig
-**/ios/Flutter/flutter_export_environment.sh
-**/ios/**.moved-aside
-**/ios/**.mode1v3
-**/ios/**.mode2v3
-**/ios/**.perspectivev3
-**/ios/**/*sync/
-**/ios/**/.generated/
+# OS generated files
+.DS_Store
+Thumbs.db
 
-# CocoaPods - Ignore Pods folders inside any iOS/macOS directory
-**/Pods/
-**/.symlinks/
-**/xcuserdata/
-**/*.xcworkspace/
-**/*.xcuserdata/
-**/DerivedData/
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
 
-# -------------------------------------------------------------------------
-# Windows/Linux Child Apps
-# -------------------------------------------------------------------------
-**/windows/flutter/ephemeral/
-**/linux/flutter/ephemeral/
+# Build artifacts
+dist/
+build/
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
 
-# -------------------------------------------------------------------------
-# IDEs and System Files (Universal)
-# -------------------------------------------------------------------------
-# VS Code
-**/.vscode/
+# Python related (if any mixed projects)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
 
-# IntelliJ / Android Studio
-**/.idea/
-**/*.iml
-**/*.ipr
-**/*.iws
-
-# Operating System Files
-**/.DS_Store
-**/Thumbs.db
-
-# -------------------------------------------------------------------------
-# Rust (Cargo) Child Projects
-# -------------------------------------------------------------------------
-**/target/
-**/*.rs.bk
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+```
