@@ -3,10 +3,11 @@ pub enum Expr {
     Number(f64),
     String(String),
     Error(String),
-    CellRef(u32, u32), // col, row
+    CellRef(u32, u32), // col, row (zero-based)
     BinaryOp(Box<Expr>, BinaryOperator, Box<Expr>),
 }
 
+/// Binary operators supported in spreadsheet formulas.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinaryOperator {
     Add,
@@ -15,6 +16,19 @@ pub enum BinaryOperator {
     Divide,
 }
 
+/// Parse a formula string into an expression AST.
+/// 
+/// The input may optionally start with '=' which will be stripped.
+/// Supports cell references (A1, $B$2, etc.), numbers, and basic arithmetic.
+/// 
+/// # Examples
+/// 
+/// ```
+/// use sheet_engine::ast::{parse_formula, Expr};
+/// 
+/// let expr = parse_formula("=A1+B2").unwrap();
+/// assert!(matches!(expr, Expr::BinaryOp(_, _, _)));
+/// ```
 pub fn parse_formula(input: &str) -> Result<Expr, String> {
     let s = input
         .trim()
@@ -34,6 +48,7 @@ fn parse_expr(input: &str) -> Result<Expr, String> {
         return Ok(Expr::Error("#REF!".to_owned()));
     }
 
+    // Parse addition/subtraction (lowest precedence)
     if let Some((idx, op)) = find_binary_operator(s, &['+', '-']) {
         let left = parse_expr(&s[..idx])?;
         let right = parse_expr(&s[idx + op.len_utf8()..])?;
@@ -48,6 +63,7 @@ fn parse_expr(input: &str) -> Result<Expr, String> {
         ));
     }
 
+    // Parse multiplication/division (higher precedence)
     if let Some((idx, op)) = find_binary_operator(s, &['*', '/']) {
         let left = parse_expr(&s[..idx])?;
         let right = parse_expr(&s[idx + op.len_utf8()..])?;
@@ -62,10 +78,12 @@ fn parse_expr(input: &str) -> Result<Expr, String> {
         ));
     }
 
+    // Try to parse as cell reference
     if let Some(expr) = parse_cell_ref(s)? {
         return Ok(expr);
     }
 
+    // Try to parse as number
     if let Ok(n) = s.parse::<f64>() {
         return Ok(Expr::Number(n));
     }
@@ -73,6 +91,8 @@ fn parse_expr(input: &str) -> Result<Expr, String> {
     Err(format!("Could not parse: {}", s))
 }
 
+/// Find the rightmost binary operator at the current precedence level.
+/// This ensures left-to-right associativity for operators of the same precedence.
 fn find_binary_operator(s: &str, operators: &[char]) -> Option<(usize, char)> {
     s.char_indices()
         .rev()

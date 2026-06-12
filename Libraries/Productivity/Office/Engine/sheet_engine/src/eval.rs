@@ -4,21 +4,34 @@ use crate::grid::{CellPosition, SheetGrid};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
+/// Error types that can occur during formula evaluation.
 #[derive(Debug, Error)]
 pub enum EvalError {
+    /// A circular reference was detected in the formula dependency graph.
     #[error("Circular reference detected at cell")]
     CircularReference,
+    
+    /// The formula could not be parsed due to syntax errors.
     #[error("Parse error: {0}")]
     ParseError(String),
+    
+    /// A cell reference points to an invalid location.
     #[error("Invalid reference: {0}")]
     InvalidReference(String),
+    
+    /// An error occurred while applying a structure edit.
     #[error("Structure edit error: {0}")]
     StructureError(String),
+    
+    /// Division by zero was attempted in a formula.
     #[error("Divide by zero")]
     DivideByZero,
 }
 
-/// A simplified formula evaluator for the spreadsheet DAG
+/// A simplified formula evaluator for the spreadsheet DAG.
+/// 
+/// The evaluator uses depth-first traversal with cycle detection to evaluate
+/// all formulas in the grid, caching intermediate results to avoid redundant computation.
 pub struct FormulaEvaluator;
 
 impl FormulaEvaluator {
@@ -26,7 +39,14 @@ impl FormulaEvaluator {
         Self
     }
 
-    /// Evaluates the entire grid, updating the `evaluated_value` of each cell
+    /// Evaluates the entire grid, updating the `evaluated_value` of each cell.
+    /// 
+    /// This method performs a complete evaluation pass over all cells in the grid,
+    /// resolving formula dependencies and detecting circular references.
+    /// 
+    /// # Errors
+    /// 
+    /// Returns `EvalError::CircularReference` if any circular dependency is detected.
     pub fn evaluate_grid(&self, grid: &mut SheetGrid) -> Result<(), EvalError> {
         let positions: Vec<CellPosition> = grid.iter().map(|(pos, _)| *pos).collect();
         let mut evaluated_values = HashMap::new();

@@ -15,6 +15,9 @@ impl CellPosition {
 }
 
 /// A sparse matrix representation of a spreadsheet grid.
+/// 
+/// Uses a hash map to store only non-empty cells, making it memory-efficient
+/// for large spreadsheets with sparse data.
 #[derive(Debug, Default)]
 pub struct SheetGrid {
     pub name: String,
@@ -23,12 +26,14 @@ pub struct SheetGrid {
     pub max_row: u32,
 }
 
+/// Snapshot of a single cell for serialization and state management.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SheetCellSnapshot {
     pub position: CellPosition,
     pub cell: Cell,
 }
 
+/// Complete snapshot of a sheet grid for persistence and transfer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SheetGridSnapshot {
     pub name: String,

@@ -1,0 +1,16 @@
+[package]
+name = "ky-of-chart"
+version = "0.1.0"
+edition = "2021"
+description = "Chart types and utilities for Office documents"
+
+[dependencies]
+serde = { version = "1", features = ["derive"], optional = true }
+ky-of-color = { path = "../ky-of-color", optional = true }
+
+[features]
+serde-support = ["serde"]
+default = ["ky-of-color"]
+
+[lib]
+path = "src/lib.rs"
