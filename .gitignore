@@ -1,56 +1,49 @@
 ```
-# Rust/Cargo specific ignores
+# Rust-specific ignores
 target/
 Cargo.lock
-*.rs.bk
 
 # Dependencies
-vendor/
+**/node_modules/
 
-# Logs and temp files
-*.log
-*.tmp
+# Compiled/Binary files
+*.pyc
+*.class
+*.o
+*.exe
+*.dll
+*.so
+*.a
+*.obj
+*.out
 
-# Environment
-.env
-.env.local
-.env.*
+# Dependency directories
+venv/
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.gradle/
 
-# Editors
+# Editor/IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
+*.tmp
 
-# OS generated files
+# System/Environment files
 .DS_Store
 Thumbs.db
+.env
+.env.local
+*.env.*
 
-# Coverage reports
+# Logs and coverage
+*.log
 coverage/
 htmlcov/
 .coverage
-
-# Build artifacts
-dist/
-build/
-*.o
-*.obj
-*.a
-*.lib
-*.so
-*.dylib
-*.dll
-*.exe
-*.out
-
-# Python related (if any mixed projects)
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.mypy_cache/
 
 # Compressed files
 *.zip
