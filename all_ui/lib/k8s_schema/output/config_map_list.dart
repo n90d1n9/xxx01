@@ -1,0 +1,32 @@
+import 'list_meta.dart';
+import 'config_map.dart';
+
+class ConfigMapList {
+  final String apiVersion;
+  final String kind;
+  final ListMeta? metadata;
+  final List<ConfigMap> items;
+  ConfigMapList({
+    this.apiVersion = 'v1',
+    this.kind = 'ConfigMapList',
+    this.metadata,
+    required this.items,
+  });
+  factory ConfigMapList.fromJson(Map<String, dynamic> json) {
+    return ConfigMapList(
+      apiVersion: json['apiVersion'] ?? 'v1',
+      kind: json['kind'] ?? 'ConfigMapList',
+      metadata:
+          json['metadata'] != null ? ListMeta.fromJson(json['metadata']) : null,
+      items: (json['items'] as List).map((e) => ConfigMap.fromJson(e)).toList(),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      if (metadata != null) 'metadata': metadata!.toJson(),
+      'items': items.map((e) => e.toJson()).toList(),
+    };
+  }
+}

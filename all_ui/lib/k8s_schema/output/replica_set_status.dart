@@ -1,0 +1,45 @@
+import 'replica_set_condition.dart';
+
+class ReplicaSetStatus {
+  final int replicas;
+  final int? fullyLabeledReplicas;
+  final int? readyReplicas;
+  final int? availableReplicas;
+  final int? observedGeneration;
+  final List<ReplicaSetCondition>? conditions;
+  ReplicaSetStatus({
+    required this.replicas,
+    this.fullyLabeledReplicas,
+    this.readyReplicas,
+    this.availableReplicas,
+    this.observedGeneration,
+    this.conditions,
+  });
+  factory ReplicaSetStatus.fromJson(Map<String, dynamic> json) {
+    return ReplicaSetStatus(
+      replicas: json['replicas'],
+      fullyLabeledReplicas: json['fullyLabeledReplicas'],
+      readyReplicas: json['readyReplicas'],
+      availableReplicas: json['availableReplicas'],
+      observedGeneration: json['observedGeneration'],
+      conditions:
+          json['conditions'] != null
+              ? (json['conditions'] as List)
+                  .map((e) => ReplicaSetCondition.fromJson(e))
+                  .toList()
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'replicas': replicas,
+      if (fullyLabeledReplicas != null)
+        'fullyLabeledReplicas': fullyLabeledReplicas,
+      if (readyReplicas != null) 'readyReplicas': readyReplicas,
+      if (availableReplicas != null) 'availableReplicas': availableReplicas,
+      if (observedGeneration != null) 'observedGeneration': observedGeneration,
+      if (conditions != null)
+        'conditions': conditions!.map((e) => e.toJson()).toList(),
+    };
+  }
+}

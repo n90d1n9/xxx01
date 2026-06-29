@@ -1,0 +1,18 @@
+name: flutter_chart_library
+description: >
+  A high-performance, config/JSON-driven chart library for Flutter.
+  37+ chart types with zero required external dependencies.
+version: 2.0.0
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0

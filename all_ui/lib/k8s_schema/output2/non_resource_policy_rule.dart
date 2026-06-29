@@ -1,0 +1,14 @@
+class NonResourcePolicyRule {
+  final List<String> verbs;
+  final List<String> nonResourceURLs;
+  NonResourcePolicyRule({required this.verbs, required this.nonResourceURLs});
+  factory NonResourcePolicyRule.fromJson(Map<String, dynamic> json) {
+    return NonResourcePolicyRule(
+      verbs: List<String>.from(json['verbs']),
+      nonResourceURLs: List<String>.from(json['nonResourceURLs']),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {'verbs': verbs, 'nonResourceURLs': nonResourceURLs};
+  }
+}

@@ -1,0 +1,217 @@
+rules:
+  - name: "Wife With Children"
+    group: "fixed-shares"
+    salience: 200
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="deceased" and genderName=="male").count >= 1'
+      - 'facts.FamilyMember.where(relationName=="spouse" and genderName=="female" and isDeceased==false).count >= 1'
+      - 'facts.FamilyMember.where(relationName=="son").count > 0'
+    then:
+      - assignShare:
+          heir: "wife"
+          share: "1/8"
+      - log: "Wife gets 1/8 because son exists"
+
+  - name: "Wife With Daughter"
+    group: "fixed-shares"
+    salience: 200
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="deceased" and genderName=="male").count >= 1'
+      - 'facts.FamilyMember.where(relationName=="spouse" and genderName=="female" and isDeceased==false).count >= 1'
+      - 'facts.FamilyMember.where(relationName=="daughter").count > 0'
+    then:
+      - assignShare:
+          heir: "wife"
+          share: "1/8"
+      - log: "Wife gets 1/8 because daughter exists"
+
+  - name: "Wife Without Children"
+    group: "fixed-shares"
+    salience: 200
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="deceased" and genderName=="male").count >= 1'
+      - 'facts.FamilyMember.where(relationName=="spouse" and genderName=="female" and isDeceased==false).count >= 1'
+      - 'facts.FamilyMember.where(relationName=="son" or relationName=="daughter").count == 0'
+    then:
+      - assignShare:
+          heir: "wife"
+          share: "1/4"
+      - log: "Wife gets 1/4 because no children"
+
+  - name: "Husband With Children"
+    group: "fixed-shares"
+    salience: 200
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="deceased" and genderName=="female").count >= 1'
+      - 'facts.FamilyMember.where(relationName=="spouse" and genderName=="male" and isDeceased==false).count >= 1'
+      - 'facts.FamilyMember.where(relationName=="son" or relationName=="daughter").count > 0'
+    then:
+      - assignShare:
+          heir: "husband"
+          share: "1/4"
+      - log: "Husband gets 1/4 (children exist)"
+
+  - name: "Husband Without Children"
+    group: "fixed-shares"
+    salience: 200
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="deceased" and genderName=="female").count >= 1'
+      - 'facts.FamilyMember.where(relationName=="spouse" and genderName=="male" and isDeceased==false).count >= 1'
+      - 'facts.FamilyMember.where(relationName=="son" or relationName=="daughter").count == 0'
+    then:
+      - assignShare:
+          heir: "husband"
+          share: "1/2"
+      - log: "Husband gets 1/2 (no children)"
+
+  - name: "Mother With ChildrenOrSiblings"
+    group: "fixed-shares"
+    salience: 190
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="mother" and isDeceased==false).count >= 1'
+      - '( facts.FamilyMember.where(relationName=="son" or relationName=="daughter").count > 0 ) or ( facts.FamilyMember.where(relationName=="brother" or relationName=="sister").count > 0 )'
+    then:
+      - assignShare:
+          heir: "mother"
+          share: "1/6"
+      - log: "Mother gets 1/6"
+
+  - name: "Mother NoChildrenNoSiblings"
+    group: "fixed-shares"
+    salience: 190
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="mother" and isDeceased==false).count >= 1'
+      - 'facts.FamilyMember.where(relationName=="son" or relationName=="daughter").count == 0'
+      - 'facts.FamilyMember.where(relationName=="brother" or relationName=="sister").count == 0'
+    then:
+      - assignShare:
+          heir: "mother"
+          share: "1/3"
+      - log: "Mother gets 1/3"
+
+  - name: "Father With Children"
+    group: "fixed-shares"
+    salience: 180
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="father" and isDeceased==false).count >= 1'
+      - 'facts.FamilyMember.where(relationName=="son" or relationName=="daughter").count > 0'
+    then:
+      - assignShare:
+          heir: "father"
+          share: "1/6"
+      - log: "Father gets 1/6"
+
+  - name: "Single Daughter Only"
+    group: "fixed-shares"
+    salience: 170
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="daughter" and isDeceased==false).count == 1'
+      - 'facts.FamilyMember.where(relationName=="son" and isDeceased==false).count == 0'
+    then:
+      - assignShare:
+          heir: "daughter"
+          share: "1/2"
+      - log: "Single daughter gets 1/2"
+
+  - name: "Multiple Daughters Only"
+    group: "fixed-shares"
+    salience: 170
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="daughter" and isDeceased==false).count >= 2'
+      - 'facts.FamilyMember.where(relationName=="son" and isDeceased==false).count == 0'
+    then:
+      - assignShare:
+          heir: "daughters"
+          share: "2/3"
+      - log: "Multiple daughters share 2/3 equally"
+
+  - name: "Compute Remaining"
+    group: "residual-calculation"
+    salience: 100
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="deceased").count >= 1'
+    then:
+      - computeRemaining: true
+      - log: "Remaining share computed"
+
+  - name: "Children Residual (2:1)"
+    group: "residual-distribution"
+    salience: 90
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="deceased").count >= 1'
+      - 'facts.FamilyMember.where(relationName=="son" and isDeceased==false).count + facts.FamilyMember.where(relationName=="daughter" and isDeceased==false).count > 0'
+      - 'global.remainingShare > 0'
+    then:
+      - set:
+          sonsCount: 'facts.FamilyMember.where(relationName=="son").count'
+          daughtersCount: 'facts.FamilyMember.where(relationName=="daughter").count'
+          totalUnits: '(global.sonsCount * 2) + global.daughtersCount'
+          unitValue: 'global.remainingShare / global.totalUnits'
+      - assignShare:
+          heir: "sons_residual"
+          share: 'global.sonsCount * 2 * global.unitValue'
+      - assignShare:
+          heir: "daughters_residual"
+          share: 'global.daughtersCount * global.unitValue'
+      - set:
+          remainingShare: 0
+      - log: "Residual distributed to children"
+
+  - name: "Father Takes Residual"
+    group: "residual-distribution"
+    salience: 80
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="deceased").count >= 1'
+      - 'facts.FamilyMember.where(relationName=="father" and isDeceased==false).count >= 1'
+      - 'facts.FamilyMember.where(relationName=="son" or relationName=="daughter").count == 0'
+      - 'global.remainingShare > 0'
+    then:
+      - assignShare:
+          heir: "father_residual"
+          share: "global.remainingShare"
+      - set:
+          remainingShare: 0
+      - log: "Father receives residual"
+
+  - name: "Apply Awl"
+    group: "validation"
+    salience: 60
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="deceased").count >= 1'
+    then:
+      - applyAwl: true
+      - log: "AWL applied if needed"
+
+  - name: "Apply Radd"
+    group: "validation"
+    salience: 59
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="deceased").count >= 1'
+      - 'global.remainingShare > 0'
+    then:
+      - applyRadd: true
+      - log: "Radd applied if needed"
+
+  - name: "Finish"
+    group: "completion"
+    salience: 1
+    no_loop: true
+    when:
+      - 'facts.FamilyMember.where(relationName=="deceased").count >= 1'
+    then:
+      - log: "Faraid calculation finished"

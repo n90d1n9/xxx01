@@ -1,0 +1,2 @@
+
+class IngressServiceBackend {final String name; final ServiceBackendPort? port; IngressServiceBackend({required this.name, this.port}); factory IngressServiceBackend.fromJson(Map<String, dynamic> json) {return IngressServiceBackend(name: json['name'], port: json['port'] != null ? ServiceBackendPort.fromJson(json['port']) : null);} Map<String, dynamic> toJson() {return {'name' : name, if (port != null) 'port' : port!.toJson()};}}

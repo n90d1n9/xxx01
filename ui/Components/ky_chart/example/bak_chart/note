@@ -1,0 +1,122 @@
+from below snippet code of general chart config, we can see that the chart config is a class that contains all the necessary information to render a chart. 
+Can you help me to enhance the code to make it more flexible and reusable? and also make it easier to add new chart types in the future?
+
+
+
+```dart
+import 'package:fl_chart/fl_chart.dart';
+import 'package:ky_chart/utils/fl_chart_helper.dart';
+
+
+import 'chart_type.dart';
+import 'grid.dart';
+import 'title.dart';
+import 'legend.dart';
+import 'series.dart';
+import 'tooltip.dart';
+import 'xyaxis.dart';
+
+class ChartConfig {
+  final ChartTitle? title;
+  final ChartTooltip? tooltip;
+  final ChartLegend? legend;
+  final ChartToolbox? toolbox;
+  final Grid? grid;
+  final List<Series> series;
+  final ChartType? type;
+  final XYAxis? xAxis;
+  final XYAxis? yAxis;
+  final double? maxValueY;
+  final double? maxY;
+
+  ChartConfig({
+    ChartType? type,
+    this.maxValueY,
+    double? maxY,
+    this.title,
+    this.tooltip,
+    this.legend,
+    this.toolbox,
+    this.grid,
+    this.xAxis,
+    this.yAxis,
+    this.series = const [],
+  })  : maxY = (type != getChartType('pie')) && maxY != null
+            ? getMaxSeriesValue(series)
+            : 100,
+        type = type ?? ChartType.bar;
+
+  factory ChartConfig.fromJson(Map<String, dynamic> json) {
+    return ChartConfig(
+      title: json['title'] != null ? ChartTitle.fromJson(json['title']) : null,
+      tooltip: json['tooltip'] != null
+          ? ChartTooltip.fromJson(json['tooltip'])
+          : null,
+      type: json['type'] != null
+          ? getChartType(json['type'])
+          : getChartType("line"),
+      legend:
+          json['legend'] != null ? ChartLegend.fromJson(json['legend']) : null,
+      toolbox: json['toolbox'] != null
+          ? ChartToolbox.fromJson(json['toolbox'])
+          : null,
+      grid: json['grid'] != null ? Grid.fromJson(json['grid']) : null,
+      xAxis: json['xAxis'] != null ? XYAxis.fromJson(json['xAxis']) : null,
+      yAxis: json['yAxis'] != null ? XYAxis.fromJson(json['yAxis']) : null,
+      series: json['series'] != null
+          ? (json['series'] as List).map((s) => Series.fromJson(s)).toList()
+          : [],
+    );
+  }
+
+  double getMax() {
+    return series
+        .map((series) => series.data as List<dynamic>)
+        .expand((dataList) => dataList)
+        .reduce((curr, next) => curr > next ? curr : next);
+  }
+}
+
+class KBar extends StatelessWidget {
+  final ChartConfig config;
+  const KBar({super.key, required this.config});
+
+  @override
+  Widget build(BuildContext context) {
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: config.maxY,
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              return BarTooltipItem(
+                '${config.series[rodIndex].name}\n${rod.toY.round()}',
+                const TextStyle(color: Colors.white),
+              );
+            },
+          ),
+        ),
+        barGroups: List.generate(config.xAxis!.data!.length, (index) {
+          return BarChartGroupData(
+            x: index,
+            barRods: List.generate(config.series.length, (seriesIndex) {
+              final series = config.series[seriesIndex];
+              return BarChartRodData(
+                toY: series.data![index].toDouble(),
+                color: series.itemStyle!.color!,
+                width: 16,
+                borderRadius: BorderRadius.zero,
+              );
+            }),
+          );
+        }),
+        gridData: gridData(config),
+        titlesData: titlesData(config),
+        borderData: borderData(config),
+      ),
+    );
+  }
+}
+
+```

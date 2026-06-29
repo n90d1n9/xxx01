@@ -1,0 +1,1495 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:ui' as ui;
+import 'dart:math' as math;
+import 'dart:convert';
+
+// ==================== MODELS ====================
+
+enum DrawingTool { pen, eraser, highlighter, line, rectangle, circle, arrow, text }
+
+class DrawingPoint {
+  final Offset point;
+  final Paint paint;
+  final String userId;
+  final DateTime timestamp;
+  final double pressure;
+
+  DrawingPoint({
+    required this.point,
+    required this.paint,
+    required this.userId,
+    required this.timestamp,
+    this.pressure = 1.0,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'x': point.dx,
+    'y': point.dy,
+    'userId': userId,
+    'timestamp': timestamp.toIso8601String(),
+    'pressure': pressure,
+    'color': paint.color.value,
+    'strokeWidth': paint.strokeWidth,
+  };
+
+  factory DrawingPoint.fromJson(Map<String, dynamic> json) {
+    final paint = Paint()
+      ..color = Color(json['color'])
+      ..strokeWidth = json['strokeWidth']
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    return DrawingPoint(
+      point: Offset(json['x'], json['y']),
+      paint: paint,
+      userId: json['userId'],
+      timestamp: DateTime.parse(json['timestamp']),
+      pressure: json['pressure'] ?? 1.0,
+    );
+  }
+}
+
+class DrawingPath {
+  final List<DrawingPoint> points;
+  final String id;
+  final String userId;
+  final DrawingTool tool;
+  final String? text;
+  final bool isLocked;
+
+  DrawingPath({
+    required this.points,
+    required this.id,
+    required this.userId,
+    required this.tool,
+    this.text,
+    this.isLocked = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'userId': userId,
+    'tool': tool.toString(),
+    'text': text,
+    'isLocked': isLocked,
+    'points': points.map((p) => p.toJson()).toList(),
+  };
+
+  factory DrawingPath.fromJson(Map<String, dynamic> json) {
+    return DrawingPath(
+      id: json['id'],
+      userId: json['userId'],
+      tool: DrawingTool.values.firstWhere(
+        (t) => t.toString() == json['tool'],
+        orElse: () => DrawingTool.pen,
+      ),
+      text: json['text'],
+      isLocked: json['isLocked'] ?? false,
+      points: (json['points'] as List)
+          .map((p) => DrawingPoint.fromJson(p))
+          .toList(),
+    );
+  }
+
+  DrawingPath copyWith({bool? isLocked}) {
+    return DrawingPath(
+      points: points,
+      id: id,
+      userId: userId,
+      tool: tool,
+      text: text,
+      isLocked: isLocked ?? this.isLocked,
+    );
+  }
+}
+
+class User {
+  final String id;
+  final String name;
+  final Color cursorColor;
+  final Offset? cursorPosition;
+  final bool isActive;
+
+  User({
+    required this.id,
+    required this.name,
+    required this.cursorColor,
+    this.cursorPosition,
+    this.isActive = true,
+  });
+
+  User copyWith({
+    String? name,
+    Color? cursorColor,
+    Offset? cursorPosition,
+    bool? isActive,
+  }) {
+    return User(
+      id: id,
+      name: name ?? this.name,
+      cursorColor: cursorColor ?? this.cursorColor,
+      cursorPosition: cursorPosition ?? this.cursorPosition,
+      isActive: isActive ?? this.isActive,
+    );
+  }
+}
+
+class WhiteboardState {
+  final List<DrawingPath> paths;
+  final List<DrawingPath> redoStack;
+  final DrawingTool currentTool;
+  final Color currentColor;
+  final double strokeWidth;
+  final Map<String, User> activeUsers;
+  final double zoom;
+  final Offset panOffset;
+  final String? selectedPathId;
+  final bool isGridVisible;
+  final bool isHandMode;
+
+  WhiteboardState({
+    this.paths = const [],
+    this.redoStack = const [],
+    this.currentTool = DrawingTool.pen,
+    this.currentColor = Colors.black,
+    this.strokeWidth = 3.0,
+    this.activeUsers = const {},
+    this.zoom = 1.0,
+    this.panOffset = Offset.zero,
+    this.selectedPathId,
+    this.isGridVisible = false,
+    this.isHandMode = false,
+  });
+
+  WhiteboardState copyWith({
+    List<DrawingPath>? paths,
+    List<DrawingPath>? redoStack,
+    DrawingTool? currentTool,
+    Color? currentColor,
+    double? strokeWidth,
+    Map<String, User>? activeUsers,
+    double? zoom,
+    Offset? panOffset,
+    String? selectedPathId,
+    bool? isGridVisible,
+    bool? isHandMode,
+    bool clearSelection = false,
+  }) {
+    return WhiteboardState(
+      paths: paths ?? this.paths,
+      redoStack: redoStack ?? this.redoStack,
+      currentTool: currentTool ?? this.currentTool,
+      currentColor: currentColor ?? this.currentColor,
+      strokeWidth: strokeWidth ?? this.strokeWidth,
+      activeUsers: activeUsers ?? this.activeUsers,
+      zoom: zoom ?? this.zoom,
+      panOffset: panOffset ?? this.panOffset,
+      selectedPathId: clearSelection ? null : (selectedPathId ?? this.selectedPathId),
+      isGridVisible: isGridVisible ?? this.isGridVisible,
+      isHandMode: isHandMode ?? this.isHandMode,
+    );
+  }
+}
+
+// ==================== STATE NOTIFIER ====================
+
+class WhiteboardNotifier extends StateNotifier<WhiteboardState> {
+  WhiteboardNotifier() : super(WhiteboardState());
+
+  DrawingPath? _currentPath;
+  Offset? _startPoint;
+
+  void startDrawing(Offset point, String userId, {double pressure = 1.0}) {
+    if (state.isHandMode) return;
+
+    _startPoint = point;
+    
+    final paint = Paint()
+      ..color = state.currentTool == DrawingTool.eraser
+          ? Colors.white
+          : state.currentColor
+      ..strokeWidth = state.currentTool == DrawingTool.highlighter
+          ? state.strokeWidth * 3 * pressure
+          : state.strokeWidth * pressure
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    if (state.currentTool == DrawingTool.highlighter) {
+      paint.color = state.currentColor.withOpacity(0.3);
+    }
+
+    _currentPath = DrawingPath(
+      points: [
+        DrawingPoint(
+          point: point,
+          paint: paint,
+          userId: userId,
+          timestamp: DateTime.now(),
+          pressure: pressure,
+        )
+      ],
+      id: '${userId}_${DateTime.now().millisecondsSinceEpoch}',
+      userId: userId,
+      tool: state.currentTool,
+    );
+
+    // Clear redo stack on new action
+    state = state.copyWith(redoStack: []);
+  }
+
+  void updateDrawing(Offset point, String userId, {double pressure = 1.0}) {
+    if (_currentPath == null || state.isHandMode) return;
+
+    final paint = _currentPath!.points.first.paint;
+
+    if (state.currentTool == DrawingTool.pen ||
+        state.currentTool == DrawingTool.eraser ||
+        state.currentTool == DrawingTool.highlighter) {
+      _currentPath = DrawingPath(
+        points: [
+          ..._currentPath!.points,
+          DrawingPoint(
+            point: point,
+            paint: paint,
+            userId: userId,
+            timestamp: DateTime.now(),
+            pressure: pressure,
+          )
+        ],
+        id: _currentPath!.id,
+        userId: userId,
+        tool: _currentPath!.tool,
+      );
+
+      state = state.copyWith(
+        paths: [...state.paths.where((p) => p.id != _currentPath!.id), _currentPath!],
+      );
+    } else {
+      // For shapes, just update the end point
+      _currentPath = DrawingPath(
+        points: [
+          _currentPath!.points.first,
+          DrawingPoint(
+            point: point,
+            paint: paint,
+            userId: userId,
+            timestamp: DateTime.now(),
+            pressure: pressure,
+          )
+        ],
+        id: _currentPath!.id,
+        userId: userId,
+        tool: _currentPath!.tool,
+      );
+
+      state = state.copyWith(
+        paths: [...state.paths.where((p) => p.id != _currentPath!.id), _currentPath!],
+      );
+    }
+  }
+
+  void endDrawing() {
+    if (_currentPath != null) {
+      state = state.copyWith(
+        paths: [...state.paths.where((p) => p.id != _currentPath!.id), _currentPath!],
+      );
+      _currentPath = null;
+      _startPoint = null;
+    }
+  }
+
+  void addTextPath(Offset position, String text, String userId) {
+    final paint = Paint()
+      ..color = state.currentColor
+      ..strokeWidth = state.strokeWidth;
+
+    final textPath = DrawingPath(
+      points: [
+        DrawingPoint(
+          point: position,
+          paint: paint,
+          userId: userId,
+          timestamp: DateTime.now(),
+        )
+      ],
+      id: '${userId}_${DateTime.now().millisecondsSinceEpoch}',
+      userId: userId,
+      tool: DrawingTool.text,
+      text: text,
+    );
+
+    state = state.copyWith(
+      paths: [...state.paths, textPath],
+      redoStack: [],
+    );
+  }
+
+  void setTool(DrawingTool tool) {
+    state = state.copyWith(currentTool: tool, isHandMode: false);
+  }
+
+  void setColor(Color color) {
+    state = state.copyWith(currentColor: color);
+  }
+
+  void setStrokeWidth(double width) {
+    state = state.copyWith(strokeWidth: width);
+  }
+
+  void toggleHandMode() {
+    state = state.copyWith(isHandMode: !state.isHandMode);
+  }
+
+  void toggleGrid() {
+    state = state.copyWith(isGridVisible: !state.isGridVisible);
+  }
+
+  void setZoom(double zoom) {
+    state = state.copyWith(zoom: zoom.clamp(0.5, 3.0));
+  }
+
+  void setPanOffset(Offset offset) {
+    state = state.copyWith(panOffset: offset);
+  }
+
+  void resetView() {
+    state = state.copyWith(zoom: 1.0, panOffset: Offset.zero);
+  }
+
+  void clearBoard() {
+    state = state.copyWith(paths: [], redoStack: []);
+  }
+
+  void undo() {
+    if (state.paths.isNotEmpty) {
+      final lastPath = state.paths.last;
+      state = state.copyWith(
+        paths: state.paths.sublist(0, state.paths.length - 1),
+        redoStack: [...state.redoStack, lastPath],
+      );
+    }
+  }
+
+  void redo() {
+    if (state.redoStack.isNotEmpty) {
+      final redoPath = state.redoStack.last;
+      state = state.copyWith(
+        paths: [...state.paths, redoPath],
+        redoStack: state.redoStack.sublist(0, state.redoStack.length - 1),
+      );
+    }
+  }
+
+  void selectPath(String? pathId) {
+    state = state.copyWith(selectedPathId: pathId);
+  }
+
+  void deletePath(String pathId) {
+    state = state.copyWith(
+      paths: state.paths.where((p) => p.id != pathId).toList(),
+      clearSelection: true,
+      redoStack: [],
+    );
+  }
+
+  void lockPath(String pathId) {
+    final paths = state.paths.map((p) {
+      if (p.id == pathId) return p.copyWith(isLocked: !p.isLocked);
+      return p;
+    }).toList();
+    state = state.copyWith(paths: paths);
+  }
+
+  void updateUserCursor(String userId, Offset position) {
+    final users = Map<String, User>.from(state.activeUsers);
+    if (users.containsKey(userId)) {
+      users[userId] = users[userId]!.copyWith(cursorPosition: position);
+      state = state.copyWith(activeUsers: users);
+    }
+  }
+
+  void addUser(User user) {
+    final users = Map<String, User>.from(state.activeUsers);
+    users[user.id] = user;
+    state = state.copyWith(activeUsers: users);
+  }
+
+  void removeUser(String userId) {
+    final users = Map<String, User>.from(state.activeUsers);
+    users.remove(userId);
+    state = state.copyWith(activeUsers: users);
+  }
+
+  String exportToJson() {
+    final data = {
+      'paths': state.paths.map((p) => p.toJson()).toList(),
+      'version': '1.0',
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+    return jsonEncode(data);
+  }
+
+  void importFromJson(String jsonStr) {
+    try {
+      final data = jsonDecode(jsonStr);
+      final paths = (data['paths'] as List)
+          .map((p) => DrawingPath.fromJson(p))
+          .toList();
+      state = state.copyWith(paths: paths, redoStack: []);
+    } catch (e) {
+      debugPrint('Import error: $e');
+    }
+  }
+}
+
+// ==================== PROVIDERS ====================
+
+final whiteboardProvider =
+    StateNotifierProvider<WhiteboardNotifier, WhiteboardState>((ref) {
+  return WhiteboardNotifier();
+});
+
+final currentUserProvider = Provider<User>((ref) {
+  final colors = [
+    const Color(0xFF3B82F6),
+    const Color(0xFF10B981),
+    const Color(0xFFF59E0B),
+    const Color(0xFFEF4444),
+    const Color(0xFF8B5CF6),
+    const Color(0xFFEC4899),
+  ];
+  
+  final userId = 'user_${DateTime.now().millisecondsSinceEpoch}';
+  return User(
+    id: userId,
+    name: 'User ${userId.substring(userId.length - 4)}',
+    cursorColor: colors[math.Random().nextInt(colors.length)],
+  );
+});
+
+// ==================== CUSTOM PAINTER ====================
+
+class WhiteboardPainter extends CustomPainter {
+  final List<DrawingPath> paths;
+  final Map<String, User> activeUsers;
+  final double zoom;
+  final Offset panOffset;
+  final String? selectedPathId;
+  final bool isGridVisible;
+
+  WhiteboardPainter({
+    required this.paths,
+    required this.activeUsers,
+    required this.zoom,
+    required this.panOffset,
+    this.selectedPathId,
+    required this.isGridVisible,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    
+    // Apply transformations
+    canvas.translate(panOffset.dx, panOffset.dy);
+    canvas.scale(zoom);
+
+    // Draw grid
+    if (isGridVisible) {
+      _drawGrid(canvas, size);
+    }
+
+    // Draw paths
+    for (var path in paths) {
+      _drawPath(canvas, path);
+      
+      // Draw selection
+      if (path.id == selectedPathId) {
+        _drawSelection(canvas, path);
+      }
+
+      // Draw lock indicator
+      if (path.isLocked) {
+        _drawLockIndicator(canvas, path);
+      }
+    }
+
+    canvas.restore();
+
+    // Draw user cursors (not scaled)
+    _drawUserCursors(canvas);
+  }
+
+  void _drawGrid(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey.withOpacity(0.2)
+      ..strokeWidth = 1;
+
+    const gridSize = 50.0;
+    
+    for (double x = 0; x < size.width / zoom; x += gridSize) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height / zoom), paint);
+    }
+    
+    for (double y = 0; y < size.height / zoom; y += gridSize) {
+      canvas.drawLine(Offset(0, y), Offset(size.width / zoom, y), paint);
+    }
+  }
+
+  void _drawPath(Canvas canvas, DrawingPath path) {
+    if (path.points.isEmpty) return;
+
+    final paint = path.points.first.paint;
+
+    if (path.tool == DrawingTool.text) {
+      _drawText(canvas, path);
+    } else if (path.tool == DrawingTool.pen ||
+        path.tool == DrawingTool.eraser ||
+        path.tool == DrawingTool.highlighter) {
+      final drawPath = Path();
+      drawPath.moveTo(path.points.first.point.dx, path.points.first.point.dy);
+
+      for (var i = 1; i < path.points.length; i++) {
+        // Smooth curve
+        if (i < path.points.length - 1) {
+          final current = path.points[i].point;
+          final next = path.points[i + 1].point;
+          final controlPoint = Offset(
+            (current.dx + next.dx) / 2,
+            (current.dy + next.dy) / 2,
+          );
+          drawPath.quadraticBezierTo(
+            current.dx,
+            current.dy,
+            controlPoint.dx,
+            controlPoint.dy,
+          );
+        } else {
+          drawPath.lineTo(path.points[i].point.dx, path.points[i].point.dy);
+        }
+      }
+
+      canvas.drawPath(drawPath, paint);
+    } else if (path.tool == DrawingTool.line && path.points.length >= 2) {
+      canvas.drawLine(path.points.first.point, path.points.last.point, paint);
+    } else if (path.tool == DrawingTool.arrow && path.points.length >= 2) {
+      _drawArrow(canvas, path.points.first.point, path.points.last.point, paint);
+    } else if (path.tool == DrawingTool.rectangle && path.points.length >= 2) {
+      final rect = Rect.fromPoints(path.points.first.point, path.points.last.point);
+      canvas.drawRect(rect, paint);
+    } else if (path.tool == DrawingTool.circle && path.points.length >= 2) {
+      final center = path.points.first.point;
+      final radius = (path.points.last.point - center).distance;
+      canvas.drawCircle(center, radius, paint);
+    }
+  }
+
+  void _drawArrow(Canvas canvas, Offset start, Offset end, Paint paint) {
+    canvas.drawLine(start, end, paint);
+
+    // Arrow head
+    const arrowSize = 15.0;
+    final angle = math.atan2(end.dy - start.dy, end.dx - start.dx);
+    
+    final arrowPath = Path()
+      ..moveTo(end.dx, end.dy)
+      ..lineTo(
+        end.dx - arrowSize * math.cos(angle - math.pi / 6),
+        end.dy - arrowSize * math.sin(angle - math.pi / 6),
+      )
+      ..moveTo(end.dx, end.dy)
+      ..lineTo(
+        end.dx - arrowSize * math.cos(angle + math.pi / 6),
+        end.dy - arrowSize * math.sin(angle + math.pi / 6),
+      );
+
+    canvas.drawPath(arrowPath, paint);
+  }
+
+  void _drawText(Canvas canvas, DrawingPath path) {
+    if (path.text == null || path.points.isEmpty) return;
+
+    final textSpan = TextSpan(
+      text: path.text,
+      style: TextStyle(
+        color: path.points.first.paint.color,
+        fontSize: 16 * (path.points.first.paint.strokeWidth / 3),
+        fontWeight: FontWeight.w500,
+      ),
+    );
+
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    );
+
+    textPainter.layout();
+    textPainter.paint(canvas, path.points.first.point);
+  }
+
+  void _drawSelection(Canvas canvas, DrawingPath path) {
+    if (path.points.isEmpty) return;
+
+    var minX = path.points.first.point.dx;
+    var maxX = path.points.first.point.dx;
+    var minY = path.points.first.point.dy;
+    var maxY = path.points.first.point.dy;
+
+    for (var point in path.points) {
+      minX = math.min(minX, point.point.dx);
+      maxX = math.max(maxX, point.point.dx);
+      minY = math.min(minY, point.point.dy);
+      maxY = math.max(maxY, point.point.dy);
+    }
+
+    final rect = Rect.fromLTRB(minX - 10, minY - 10, maxX + 10, maxY + 10);
+    final paint = Paint()
+      ..color = const Color(0xFF3B82F6).withOpacity(0.3)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    canvas.drawRect(rect, paint);
+  }
+
+  void _drawLockIndicator(Canvas canvas, DrawingPath path) {
+    if (path.points.isEmpty) return;
+
+    final position = path.points.first.point;
+    final icon = Icons.lock;
+    
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          fontSize: 16,
+          fontFamily: icon.fontFamily,
+          color: const Color(0xFFF59E0B),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+
+    textPainter.layout();
+    textPainter.paint(canvas, position - const Offset(20, 20));
+  }
+
+  void _drawUserCursors(Canvas canvas) {
+    for (var user in activeUsers.values) {
+      if (user.cursorPosition != null && user.isActive) {
+        final transformedPos = Offset(
+          user.cursorPosition!.dx * zoom + panOffset.dx,
+          user.cursorPosition!.dy * zoom + panOffset.dy,
+        );
+
+        // Cursor
+        final cursorPaint = Paint()
+          ..color = user.cursorColor
+          ..style = PaintingStyle.fill;
+
+        final cursorPath = Path()
+          ..moveTo(transformedPos.dx, transformedPos.dy)
+          ..lineTo(transformedPos.dx, transformedPos.dy + 20)
+          ..lineTo(transformedPos.dx + 5, transformedPos.dy + 15)
+          ..lineTo(transformedPos.dx + 10, transformedPos.dy + 18)
+          ..lineTo(transformedPos.dx + 12, transformedPos.dy + 13)
+          ..lineTo(transformedPos.dx + 15, transformedPos.dy + 15)
+          ..lineTo(transformedPos.dx + 8, transformedPos.dy + 8)
+          ..close();
+
+        canvas.drawPath(cursorPath, cursorPaint);
+
+        // User name
+        final textSpan = TextSpan(
+          text: user.name,
+          style: TextStyle(
+            color: user.cursorColor,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            backgroundColor: Colors.white.withOpacity(0.9),
+          ),
+        );
+
+        final textPainter = TextPainter(
+          text: textSpan,
+          textDirection: TextDirection.ltr,
+        );
+
+        textPainter.layout();
+        textPainter.paint(canvas, transformedPos + const Offset(15, 5));
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(WhiteboardPainter oldDelegate) => true;
+}
+
+// ==================== UI COMPONENTS ====================
+
+class LiveWhiteboard extends ConsumerStatefulWidget {
+  const LiveWhiteboard({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<LiveWhiteboard> createState() => _LiveWhiteboardState();
+}
+
+class _LiveWhiteboardState extends ConsumerState<LiveWhiteboard> {
+  Offset? _lastPanPosition;
+
+  @override
+  void initState() {
+    super.initState();
+    // Simulate adding current user
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = ref.read(currentUserProvider);
+      ref.read(whiteboardProvider.notifier).addUser(user);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(whiteboardProvider);
+    final notifier = ref.read(whiteboardProvider.notifier);
+    final currentUser = ref.watch(currentUserProvider);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      appBar: _buildAppBar(state, notifier, currentUser),
+      body: Column(
+        children: [
+          _buildToolbar(state, notifier),
+          Expanded(
+            child: _buildCanvas(state, notifier, currentUser),
+          ),
+          _buildBottomBar(state, notifier),
+        ],
+      ),
+      floatingActionButton: _buildFloatingActions(state, notifier),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar(WhiteboardState state, WhiteboardNotifier notifier, User currentUser) {
+    return AppBar(
+      elevation: 0,
+      backgroundColor: Colors.white,
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF3B82F6).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.dashboard, color: Color(0xFF3B82F6), size: 20),
+          ),
+          const SizedBox(width: 12),
+          const Text(
+            'Live Whiteboard',
+            style: TextStyle(
+              color: Color(0xFF1A1A1A),
+              fontWeight: FontWeight.w600,
+              fontSize: 18,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        // Active users
+        Container(
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF10B981).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF10B981),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${state.activeUsers.length} online',
+                style: const TextStyle(
+                  color: Color(0xFF10B981),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Undo/Redo
+        IconButton(
+          icon: Icon(
+            Icons.undo,
+            color: state.paths.isEmpty ? Colors.grey : const Color(0xFF6B7280),
+          ),
+          onPressed: state.paths.isEmpty ? null : notifier.undo,
+          tooltip: 'Undo',
+        ),
+        IconButton(
+          icon: Icon(
+            Icons.redo,
+            color: state.redoStack.isEmpty ? Colors.grey : const Color(0xFF6B7280),
+          ),
+          onPressed: state.redoStack.isEmpty ? null : notifier.redo,
+          tooltip: 'Redo',
+        ),
+        // Export/Import
+        PopupMenuButton(
+          icon: const Icon(Icons.more_vert, color: Color(0xFF6B7280)),
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              child: const Row(
+                children: [
+                  Icon(Icons.save_alt, size: 20),
+                  SizedBox(width: 8),
+                  Text('Export'),
+                ],
+              ),
+              onTap: () => _exportWhiteboard(notifier),
+            ),
+            PopupMenuItem(
+              child: const Row(
+                children: [
+                  Icon(Icons.upload_file, size: 20),
+                  SizedBox(width: 8),
+                  Text('Import'),
+                ],
+              ),
+              onTap: () => _importWhiteboard(notifier),
+            ),
+            const PopupMenuDivider(),
+            PopupMenuItem(
+              child: const Row(
+                children: [
+                  Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Clear All', style: TextStyle(color: Colors.red)),
+                ],
+              ),
+              onTap: () => _showClearDialog(notifier),
+            ),
+          ],
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  Widget _buildToolbar(WhiteboardState state, WhiteboardNotifier notifier) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Drawing tools
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _ToolButton(
+                  icon: Icons.edit,
+                  label: 'Pen',
+                  isSelected: state.currentTool == DrawingTool.pen,
+                  onTap: () => notifier.setTool(DrawingTool.pen),
+                ),
+                _ToolButton(
+                  icon: Icons.highlight,
+                  label: 'Highlight',
+                  isSelected: state.currentTool == DrawingTool.highlighter,
+                  onTap: () => notifier.setTool(DrawingTool.highlighter),
+                ),
+                _ToolButton(
+                  icon: Icons.horizontal_rule,
+                  label: 'Line',
+                  isSelected: state.currentTool == DrawingTool.line,
+                  onTap: () => notifier.setTool(DrawingTool.line),
+                ),
+                _ToolButton(
+                  icon: Icons.arrow_forward,
+                  label: 'Arrow',
+                  isSelected: state.currentTool == DrawingTool.arrow,
+                  onTap: () => notifier.setTool(DrawingTool.arrow),
+                ),
+                _ToolButton(
+                  icon: Icons.crop_square,
+                  label: 'Rectangle',
+                  isSelected: state.currentTool == DrawingTool.rectangle,
+                  onTap: () => notifier.setTool(DrawingTool.rectangle),
+                ),
+                _ToolButton(
+                  icon: Icons.circle_outlined,
+                  label: 'Circle',
+                  isSelected: state.currentTool == DrawingTool.circle,
+                  onTap: () => notifier.setTool(DrawingTool.circle),
+                ),
+                _ToolButton(
+                  icon: Icons.text_fields,
+                  label: 'Text',
+                  isSelected: state.currentTool == DrawingTool.text,
+                  onTap: () => notifier.setTool(DrawingTool.text),
+                ),
+                _ToolButton(
+                  icon: Icons.cleaning_services,
+                  label: 'Eraser',
+                  isSelected: state.currentTool == DrawingTool.eraser,
+                  onTap: () => notifier.setTool(DrawingTool.eraser),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 1,
+                  height: 40,
+                  color: Colors.grey.withOpacity(0.3),
+                ),
+                const SizedBox(width: 8),
+                _ToolButton(
+                  icon: Icons.pan_tool,
+                  label: 'Hand',
+                  isSelected: state.isHandMode,
+                  onTap: notifier.toggleHandMode,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Colors and settings
+          Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Color: ',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ...[
+                        Colors.black,
+                        const Color(0xFF3B82F6),
+                        const Color(0xFF10B981),
+                        const Color(0xFFF59E0B),
+                        const Color(0xFFEF4444),
+                        const Color(0xFF8B5CF6),
+                        const Color(0xFFEC4899),
+                        Colors.white,
+                      ].map((color) => _ColorButton(
+                            color: color,
+                            isSelected: state.currentColor == color,
+                            onTap: () => notifier.setColor(color),
+                          )),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.line_weight, size: 16, color: Color(0xFF6B7280)),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 80,
+                      child: Slider(
+                        value: state.strokeWidth,
+                        min: 1,
+                        max: 20,
+                        activeColor: const Color(0xFF3B82F6),
+                        onChanged: notifier.setStrokeWidth,
+                      ),
+                    ),
+                    Text(
+                      '${state.strokeWidth.toInt()}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCanvas(WhiteboardState state, WhiteboardNotifier notifier, User currentUser) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: GestureDetector(
+          onPanStart: (details) {
+            if (state.isHandMode) {
+              _lastPanPosition = details.localPosition;
+            } else if (state.currentTool == DrawingTool.text) {
+              _showTextDialog(details.localPosition, notifier, currentUser.id);
+            } else {
+              notifier.startDrawing(
+                _transformPoint(details.localPosition, state),
+                currentUser.id,
+                pressure: details.pressure,
+              );
+            }
+          },
+          onPanUpdate: (details) {
+            if (state.isHandMode && _lastPanPosition != null) {
+              final delta = details.localPosition - _lastPanPosition!;
+              notifier.setPanOffset(state.panOffset + delta);
+              _lastPanPosition = details.localPosition;
+            } else if (state.currentTool != DrawingTool.text) {
+              notifier.updateDrawing(
+                _transformPoint(details.localPosition, state),
+                currentUser.id,
+                pressure: details.pressure,
+              );
+              notifier.updateUserCursor(
+                currentUser.id,
+                _transformPoint(details.localPosition, state),
+              );
+            }
+          },
+          onPanEnd: (details) {
+            if (!state.isHandMode) {
+              notifier.endDrawing();
+            }
+            _lastPanPosition = null;
+          },
+          child: Stack(
+            children: [
+              CustomPaint(
+                painter: WhiteboardPainter(
+                  paths: state.paths,
+                  activeUsers: state.activeUsers,
+                  zoom: state.zoom,
+                  panOffset: state.panOffset,
+                  selectedPathId: state.selectedPathId,
+                  isGridVisible: state.isGridVisible,
+                ),
+                child: Container(),
+              ),
+              // Zoom indicator
+              if (state.zoom != 1.0)
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${(state.zoom * 100).toInt()}%',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomBar(WhiteboardState state, WhiteboardNotifier notifier) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Zoom controls
+          Row(
+            children: [
+              _IconButtonWithLabel(
+                icon: Icons.remove,
+                label: 'Zoom Out',
+                onTap: () => notifier.setZoom(state.zoom - 0.1),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${(state.zoom * 100).toInt()}%',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _IconButtonWithLabel(
+                icon: Icons.add,
+                label: 'Zoom In',
+                onTap: () => notifier.setZoom(state.zoom + 0.1),
+              ),
+              const SizedBox(width: 8),
+              _IconButtonWithLabel(
+                icon: Icons.fit_screen,
+                label: 'Reset View',
+                onTap: notifier.resetView,
+              ),
+            ],
+          ),
+          // Grid toggle
+          _IconButtonWithLabel(
+            icon: state.isGridVisible ? Icons.grid_on : Icons.grid_off,
+            label: state.isGridVisible ? 'Hide Grid' : 'Show Grid',
+            onTap: notifier.toggleGrid,
+            isActive: state.isGridVisible,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingActions(WhiteboardState state, WhiteboardNotifier notifier) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        if (state.selectedPathId != null) ...[
+          FloatingActionButton(
+            heroTag: 'delete',
+            mini: true,
+            backgroundColor: const Color(0xFFEF4444),
+            onPressed: () {
+              notifier.deletePath(state.selectedPathId!);
+            },
+            child: const Icon(Icons.delete, size: 20),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            heroTag: 'lock',
+            mini: true,
+            backgroundColor: const Color(0xFFF59E0B),
+            onPressed: () {
+              notifier.lockPath(state.selectedPathId!);
+            },
+            child: const Icon(Icons.lock, size: 20),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
+  Offset _transformPoint(Offset point, WhiteboardState state) {
+    return Offset(
+      (point.dx - state.panOffset.dx) / state.zoom,
+      (point.dy - state.panOffset.dy) / state.zoom,
+    );
+  }
+
+  void _showTextDialog(Offset position, WhiteboardNotifier notifier, String userId) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Text'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Enter text...',
+            border: OutlineInputBorder(),
+          ),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                notifier.addTextPath(position, controller.text, userId);
+              }
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3B82F6),
+            ),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showClearDialog(WhiteboardNotifier notifier) {
+    Future.delayed(Duration.zero, () {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Clear Whiteboard'),
+          content: const Text('Are you sure you want to clear the entire whiteboard? This action cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                notifier.clearBoard();
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+              ),
+              child: const Text('Clear'),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  void _exportWhiteboard(WhiteboardNotifier notifier) {
+    final json = notifier.exportToJson();
+    // In a real app, save to file or clipboard
+    debugPrint('Exported: $json');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Whiteboard exported! Check console for JSON.'),
+        backgroundColor: Color(0xFF10B981),
+      ),
+    );
+  }
+
+  void _importWhiteboard(WhiteboardNotifier notifier) {
+    // In a real app, load from file picker
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Import feature - connect to file picker'),
+        backgroundColor: Color(0xFF3B82F6),
+      ),
+    );
+  }
+}
+
+class _ToolButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ToolButton({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF3B82F6) : const Color(0xFFF3F4F6),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF3B82F6).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isSelected ? Colors.white : const Color(0xFF6B7280),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ColorButton extends StatelessWidget {
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ColorButton({
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isSelected ? const Color(0xFF3B82F6) : Colors.grey.withOpacity(0.3),
+              width: isSelected ? 3 : 1,
+            ),
+            boxShadow: [
+              if (isSelected)
+                BoxShadow(
+                  color: const Color(0xFF3B82F6).withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IconButtonWithLabel extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool isActive;
+
+  const _IconButtonWithLabel({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.isActive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isActive ? const Color(0xFF3B82F6).withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          size: 24,
+          color: isActive ? const Color(0xFF3B82F6) : const Color(0xFF6B7280),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== MAIN APP ====================
+
+void main() {
+  runApp(const ProviderScope(child: MyApp()));
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'LMS Live Whiteboard',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        fontFamily: 'Inter',
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF3B82F6),
+          brightness: Brightness.light,
+        ),
+      ),
+      home: const LiveWhiteboard(),
+    );
+  }
+}

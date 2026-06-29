@@ -1,0 +1,2 @@
+
+class IngressTLS {final List<String>? hosts; final String? secretName; IngressTLS({this.hosts, this.secretName}); factory IngressTLS.fromJson(Map<String, dynamic> json) {return IngressTLS(hosts: json['hosts'] != null ? List<String>.from(json['hosts']) : null, secretName: json['secretName']);} Map<String, dynamic> toJson() {return {if (hosts != null) 'hosts' : hosts, if (secretName != null) 'secretName' : secretName};}}

@@ -1,0 +1,47 @@
+import 'custom_resource_definition_names.dart';
+import 'custom_resource_definition_version.dart';
+import 'custom_resource_conversion.dart';
+
+class CustomResourceDefinitionSpec {
+  final String group;
+  final CustomResourceDefinitionNames names;
+  final String scope;
+  final List<CustomResourceDefinitionVersion> versions;
+  final CustomResourceConversion? conversion;
+  final bool? preserveUnknownFields;
+  CustomResourceDefinitionSpec({
+    required this.group,
+    required this.names,
+    required this.scope,
+    required this.versions,
+    this.conversion,
+    this.preserveUnknownFields,
+  });
+  factory CustomResourceDefinitionSpec.fromJson(Map<String, dynamic> json) {
+    return CustomResourceDefinitionSpec(
+      group: json['group'],
+      names: CustomResourceDefinitionNames.fromJson(json['names']),
+      scope: json['scope'],
+      versions:
+          (json['versions'] as List)
+              .map((e) => CustomResourceDefinitionVersion.fromJson(e))
+              .toList(),
+      conversion:
+          json['conversion'] != null
+              ? CustomResourceConversion.fromJson(json['conversion'])
+              : null,
+      preserveUnknownFields: json['preserveUnknownFields'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'group': group,
+      'names': names.toJson(),
+      'scope': scope,
+      'versions': versions.map((e) => e.toJson()).toList(),
+      if (conversion != null) 'conversion': conversion!.toJson(),
+      if (preserveUnknownFields != null)
+        'preserveUnknownFields': preserveUnknownFields,
+    };
+  }
+}

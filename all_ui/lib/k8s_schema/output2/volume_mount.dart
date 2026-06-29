@@ -1,0 +1,36 @@
+class VolumeMount {
+  final String name;
+  final String mountPath;
+  final bool? readOnly;
+  final String? subPath;
+  final String? subPathExpr;
+  final String? mountPropagation;
+  VolumeMount({
+    required this.name,
+    required this.mountPath,
+    this.readOnly,
+    this.subPath,
+    this.subPathExpr,
+    this.mountPropagation,
+  });
+  factory VolumeMount.fromJson(Map<String, dynamic> json) {
+    return VolumeMount(
+      name: json['name'],
+      mountPath: json['mountPath'],
+      readOnly: json['readOnly'],
+      subPath: json['subPath'],
+      subPathExpr: json['subPathExpr'],
+      mountPropagation: json['mountPropagation'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'mountPath': mountPath,
+      if (readOnly != null) 'readOnly': readOnly,
+      if (subPath != null) 'subPath': subPath,
+      if (subPathExpr != null) 'subPathExpr': subPathExpr,
+      if (mountPropagation != null) 'mountPropagation': mountPropagation,
+    };
+  }
+}

@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/legacy.dart';
 
-import 'target_choice_card.dart';
-import 'personal_target.dart';
-import 'subject_category.dart';
+import '../models/target_choice_card.dart';
 
 class PersonalTargetScreen extends ConsumerWidget {
   const PersonalTargetScreen({super.key});

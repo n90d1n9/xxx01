@@ -1,0 +1,86 @@
+
+package com.estate.faraid
+
+// ============================================================================
+// GLOBAL DECLARATIONS
+// ============================================================================
+
+global Map shares;
+global Map reasons;
+global List executionLog;
+global String calculationMethod;
+global Double totalEstate;
+global Double remainingShare;
+global List residualHeirs;
+
+// ============================================================================
+// SPOUSE RULES (Quran 4:12)
+// ============================================================================
+rule "Son Gets All Inheritance - No Spouse No Daughter"
+    salience 90
+    agenda-group "fixed-shares"
+    no-loop true
+    when
+        \$deceased: FamilyMember(relationName == "deceased")
+        \$son: FamilyMember(relationName == "son", isDeceased == false)
+        not FamilyMember(relationName == "spouse", isDeceased == false)
+        not FamilyMember(relationName == "daughter", isDeceased == false)
+    then
+        print("✅ SON GETS ALL INHERITANCE RULE FIRED!");
+        print("Son: " + \$son.name + ", ID: " + \$son.id);
+        shares.put(\$son.id, 1.0);
+        reasons.put(\$son.id, "Anak laki-laki mendapatkan semua harta sebagai ahli waris tunggal");
+        executionLog.add("Son gets all inheritance: " + \$son.name);
+        print("Share assigned to son: " + shares.get(\$son.id));
+end
+
+rule "Daughter Gets Half"  
+    salience 90
+    agenda-group "fixed-shares"
+    when
+        \$deceased: FamilyMember(relationName == "deceased")
+        \$daughter: FamilyMember(relationName == "daughter", isDeceased == false)
+    then
+        print("DAUGHTER RULE FIRED: " + \$daughter.name);
+        shares.put(\$daughter.id, 0.5);
+        reasons.put(\$daughter.id, "Anak perempuan mendapatkan 1/2 warisan");
+        executionLog.add("Daughter gets half: " + \$daughter.name);
+end
+
+rule "Spouse with Children"
+    salience 80
+    agenda-group "fixed-shares"
+    when
+        \$deceased: FamilyMember(relationName == "deceased")
+        \$spouse: FamilyMember(relationName == "spouse", isDeceased == false)
+        exists FamilyMember(relationName in ("son", "daughter"), isDeceased == false)
+    then
+        print("SPOUSE WITH CHILDREN RULE FIRED: " + \$spouse.name);
+        if (\$deceased.genderName == "male") {
+            shares.put(\$spouse.id, 0.125);
+            reasons.put(\$spouse.id, "Istri mendapatkan 1/8 karena ada anak");
+        } else {
+            shares.put(\$spouse.id, 0.25);
+            reasons.put(\$spouse.id, "Suami mendapatkan 1/4 karena ada anak");
+        }
+        executionLog.add("Spouse with children: " + \$spouse.name);
+end
+
+rule "Spouse without Children"
+    salience 80
+    agenda-group "fixed-shares"
+    when
+        \$deceased: FamilyMember(relationName == "deceased")
+        \$spouse: FamilyMember(relationName == "spouse", isDeceased == false)
+        not exists FamilyMember(relationName in ("son", "daughter"), isDeceased == false)
+    then
+        print("SPOUSE WITHOUT CHILDREN RULE FIRED: " + \$spouse.name);
+        if (\$deceased.genderName == "male") {
+            shares.put(\$spouse.id, 0.25);
+            reasons.put(\$spouse.id, "Istri mendapatkan 1/4 karena tidak ada anak");
+        } else {
+            shares.put(\$spouse.id, 0.5);
+            reasons.put(\$spouse.id, "Suami mendapatkan 1/2 karena tidak ada anak");
+        }
+        executionLog.add("Spouse without children: " + \$spouse.name);
+end

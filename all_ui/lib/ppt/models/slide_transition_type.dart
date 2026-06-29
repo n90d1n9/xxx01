@@ -1,0 +1,18 @@
+enum SlideTransitionType {
+  none,
+  fade,
+  slide,
+  zoom,
+  cube,
+  flip,
+  dissolve,
+  push,
+  cover,
+  reveal,
+  swap,
+  glitch,
+  morphing,
+  ripple,
+  page,
+  rotate3D,
+}

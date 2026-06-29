@@ -1,0 +1,41 @@
+import 'node_selector.dart';
+import 'preferred_scheduling_term.dart';
+
+class NodeAffinity {
+  final NodeSelector? requiredDuringSchedulingIgnoredDuringExecution;
+  final List<PreferredSchedulingTerm>?
+  preferredDuringSchedulingIgnoredDuringExecution;
+  NodeAffinity({
+    this.requiredDuringSchedulingIgnoredDuringExecution,
+    this.preferredDuringSchedulingIgnoredDuringExecution,
+  });
+  factory NodeAffinity.fromJson(Map<String, dynamic> json) {
+    return NodeAffinity(
+      requiredDuringSchedulingIgnoredDuringExecution:
+          json['requiredDuringSchedulingIgnoredDuringExecution'] != null
+              ? NodeSelector.fromJson(
+                json['requiredDuringSchedulingIgnoredDuringExecution'],
+              )
+              : null,
+      preferredDuringSchedulingIgnoredDuringExecution:
+          json['preferredDuringSchedulingIgnoredDuringExecution'] != null
+              ? (json['preferredDuringSchedulingIgnoredDuringExecution']
+                      as List)
+                  .map((e) => PreferredSchedulingTerm.fromJson(e))
+                  .toList()
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (requiredDuringSchedulingIgnoredDuringExecution != null)
+        'requiredDuringSchedulingIgnoredDuringExecution':
+            requiredDuringSchedulingIgnoredDuringExecution!.toJson(),
+      if (preferredDuringSchedulingIgnoredDuringExecution != null)
+        'preferredDuringSchedulingIgnoredDuringExecution':
+            preferredDuringSchedulingIgnoredDuringExecution!
+                .map((e) => e.toJson())
+                .toList(),
+    };
+  }
+}

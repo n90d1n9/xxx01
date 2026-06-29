@@ -1,0 +1,60 @@
+{{> header}}
+<div class="documentation">
+  <h1>{{route.name}}</h1>
+
+  {{#route.hasDescription}}
+  <section class="description">
+    <h2>Description</h2>
+    <p>{{route.description}}</p>
+  </section>
+  {{/route.hasDescription}}
+
+  <section class="overview">
+    <h2>Overview</h2>
+    <ul>
+      <li><strong>Total Nodes:</strong> {{route.nodeCount}}</li>
+      <li><strong>Created:</strong> {{route.createdAt}}</li>
+      {{#route.hasModifiedDate}}
+      <li><strong>Modified:</strong> {{route.modifiedAt}}</li>
+      {{/route.hasModifiedDate}}
+      <li><strong>Generated:</strong> {{generatedAt}}</li>
+    </ul>
+  </section>
+
+  <section class="flow">
+    <h2>Flow Diagram</h2>
+    <pre><code>{{asciiFlow}}</code></pre>
+  </section>
+
+  <section class="components">
+    <h2>Components</h2>
+    {{#route.nodes}}
+    <div class="component">
+      <h3>{{index}}. {{name}} ({{type}})</h3>
+      
+      <h4>Configuration ({{configCount}}):</h4>
+      {{#config}}
+      <ul>
+        <li><code>{{key}}</code>: {{value}}</li>
+      </ul>
+      {{/config}}
+      {{^config}}
+      <p><em>No configuration</em></p>
+      {{/config}}
+
+      {{#hasConnections}}
+      <h4>Connects to ({{connectionCount}}):</h4>
+      <ul>
+        {{#connections}}
+        <li>{{targetName}}</li>
+        {{/connections}}
+      </ul>
+      {{/hasConnections}}
+      {{^hasConnections}}
+      <p><em>No connections</em></p>
+      {{/hasConnections}}
+    </div>
+    {{/route.nodes}}
+  </section>
+</div>
+{{> footer}}

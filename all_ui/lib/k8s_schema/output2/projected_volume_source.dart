@@ -1,0 +1,24 @@
+import 'volume_projection.dart';
+
+class ProjectedVolumeSource {
+  final List<VolumeProjection>? sources;
+  final int? defaultMode;
+  ProjectedVolumeSource({this.sources, this.defaultMode});
+  factory ProjectedVolumeSource.fromJson(Map<String, dynamic> json) {
+    return ProjectedVolumeSource(
+      sources:
+          json['sources'] != null
+              ? (json['sources'] as List)
+                  .map((e) => VolumeProjection.fromJson(e))
+                  .toList()
+              : null,
+      defaultMode: json['defaultMode'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (sources != null) 'sources': sources!.map((e) => e.toJson()).toList(),
+      if (defaultMode != null) 'defaultMode': defaultMode,
+    };
+  }
+}

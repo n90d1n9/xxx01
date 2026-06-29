@@ -1,0 +1,127 @@
+package tech.kayys.construction.domain;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+import io.quarkus.hibernate.reactive.panache.PanacheEntity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "phase_progress_reports")
+public class PhaseProgressReport extends PanacheEntity {
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "phase_id", nullable = false)
+    public ConstructionPhase phase;
+
+    @Column(name = "report_date", nullable = false)
+    public LocalDate reportDate;
+
+    @Column(name = "reporting_period_start")
+    public LocalDate reportingPeriodStart;
+
+    @Column(name = "reporting_period_end")
+    public LocalDate reportingPeriodEnd;
+
+    @Min(0) @Max(100)
+    @Column(name = "physical_progress", precision = 5, scale = 2)
+    public BigDecimal physicalProgress;
+
+    @Min(0) @Max(100)
+    @Column(name = "financial_progress", precision = 5, scale = 2)
+    public BigDecimal financialProgress;
+
+    @Column(name = "work_accomplished", length = 3000)
+    public String workAccomplished;
+
+    @Column(name = "work_planned_next_period", length = 3000)
+    public String workPlannedNextPeriod;
+
+    @Column(name = "issues_encountered", length = 3000)
+    public String issuesEncountered;
+
+    @Column(name = "corrective_actions", length = 3000)
+    public String correctiveActions;
+
+    @Column(name = "resource_status", length = 2000)
+    public String resourceStatus;
+
+    @Column(name = "safety_performance", length = 1000)
+    public String safetyPerformance;
+
+    @Column(name = "quality_performance", length = 1000)
+    public String qualityPerformance;
+
+    @Column(name = "weather_impact", length = 1000)
+    public String weatherImpact;
+
+    @Column(name = "workforce_count")
+    public Integer workforceCount;
+
+    @Column(name = "equipment_on_site")
+    public Integer equipmentOnSite;
+
+    @DecimalMin("0")
+    @Column(name = "period_cost", precision = 15, scale = 2)
+    public BigDecimal periodCost;
+
+    @DecimalMin("0")
+    @Column(name = "cumulative_cost", precision = 15, scale = 2)
+    public BigDecimal cumulativeCost;
+
+    @Column(name = "schedule_variance_days")
+    public Integer scheduleVarianceDays;
+
+    @DecimalMin("0")
+    @Column(name = "cost_variance", precision = 15, scale = 2)
+    public BigDecimal costVariance;
+
+    @Column(name = "productivity_notes", length = 2000)
+    public String productivityNotes;
+
+    @Column(name = "material_deliveries", length = 1500)
+    public String materialDeliveries;
+
+    @Column(name = "prepared_by")
+    public String preparedBy;
+
+    @Column(name = "reviewed_by")
+    public String reviewedBy;
+
+    @Column(name = "approved_by")
+    public String approvedBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    public ReportStatus status = ReportStatus.DRAFT;
+
+    @Column(name = "next_review_date")
+    public LocalDate nextReviewDate;
+
+    public enum ReportStatus {
+        DRAFT,
+        SUBMITTED,
+        REVIEWED,
+        APPROVED,
+        REJECTED
+    }
+
+    @PrePersist
+    public void prePersist() {
+        if (reportDate == null) {
+            reportDate = LocalDate.now();
+        }
+    }
+}

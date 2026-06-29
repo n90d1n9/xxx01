@@ -1,0 +1,1690 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:collection';
+
+// ========== UNDO/REDO SYSTEM ==========
+class HistoryEntry<T> {
+  final T state;
+  final String action;
+  final DateTime timestamp;
+
+  HistoryEntry({
+    required this.state,
+    required this.action,
+    required this.timestamp,
+  });
+}
+
+class UndoRedoManager<T> {
+  final LinkedList<HistoryEntry<T>> _history = LinkedList();
+  int _currentIndex = -1;
+  final int maxHistorySize;
+
+  UndoRedoManager({this.maxHistorySize = 50});
+
+  void push(T state, String action) {
+    // Remove any states after current index (redo stack)
+    while (_currentIndex < _history.length - 1 && _history.isNotEmpty) {
+      _history.removeLast();
+    }
+
+    // Add new state
+    _history.add(HistoryEntry(
+      state: state,
+      action: action,
+      timestamp: DateTime.now(),
+    ));
+    _currentIndex++;
+
+    // Limit history size
+    while (_history.length > maxHistorySize) {
+      _history.removeAt(0);
+      _currentIndex--;
+    }
+  }
+
+  T? undo() {
+    if (!canUndo) return null;
+    _currentIndex--;
+    return _history.elementAt(_currentIndex);
+  }
+
+  T? redo() {
+    if (!canRedo) return null;
+    _currentIndex++;
+    return _history.elementAt(_currentIndex);
+  }
+
+  bool get canUndo => _currentIndex > 0;
+  bool get canRedo => _currentIndex < _history.length - 1;
+
+  T? get current => _currentIndex >= 0 ? _history.elementAt(_currentIndex) : null;
+
+  List<HistoryEntry<T>> get historyList => _history.toList();
+
+  void clear() {
+    _history.clear();
+    _currentIndex = -1;
+  }
+}
+
+// Workflow History State
+class WorkflowHistoryState {
+  final UndoRedoManager<Map<String, dynamic>> manager;
+
+  WorkflowHistoryState() : manager = UndoRedoManager(maxHistorySize: 100);
+}
+
+class WorkflowHistoryNotifier extends StateNotifier<WorkflowHistoryState> {
+  WorkflowHistoryNotifier() : super(WorkflowHistoryState());
+
+  void saveState(Map<String, dynamic> workflowState, String action) {
+    state.manager.push(workflowState, action);
+    state = WorkflowHistoryState()..manager;
+  }
+
+  Map<String, dynamic>? undo() {
+    return state.manager.undo();
+  }
+
+  Map<String, dynamic>? redo() {
+    return state.manager.redo();
+  }
+
+  bool get canUndo => state.manager.canUndo;
+  bool get canRedo => state.manager.canRedo;
+}
+
+final workflowHistoryProvider =
+    StateNotifierProvider<WorkflowHistoryNotifier, WorkflowHistoryState>((ref) {
+  return WorkflowHistoryNotifier();
+});
+
+// ========== TEMPLATE MARKETPLACE ==========
+class AgentTemplate {
+  final String id;
+  final String name;
+  final String description;
+  final String category;
+  final String author;
+  final double rating;
+  final int downloads;
+  final List<String> tags;
+  final Map<String, dynamic> configuration;
+  final String thumbnailUrl;
+  final bool isPremium;
+  final double? price;
+
+  AgentTemplate({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.category,
+    required this.author,
+    this.rating = 0.0,
+    this.downloads = 0,
+    required this.tags,
+    required this.configuration,
+    required this.thumbnailUrl,
+    this.isPremium = false,
+    this.price,
+  });
+}
+
+class TemplateMarketplaceState {
+  final List<AgentTemplate> templates;
+  final String? selectedCategory;
+  final String searchQuery;
+  final List<String> selectedTags;
+
+  TemplateMarketplaceState({
+    this.templates = const [],
+    this.selectedCategory,
+    this.searchQuery = '',
+    this.selectedTags = const [],
+  });
+
+  TemplateMarketplaceState copyWith({
+    List<AgentTemplate>? templates,
+    String? selectedCategory,
+    String? searchQuery,
+    List<String>? selectedTags,
+  }) {
+    return TemplateMarketplaceState(
+      templates: templates ?? this.templates,
+      selectedCategory: selectedCategory ?? this.selectedCategory,
+      searchQuery: searchQuery ?? this.searchQuery,
+      selectedTags: selectedTags ?? this.selectedTags,
+    );
+  }
+
+  List<AgentTemplate> get filteredTemplates {
+    return templates.where((template) {
+      final matchesCategory = selectedCategory == null ||
+          template.category == selectedCategory;
+      final matchesSearch = searchQuery.isEmpty ||
+          template.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
+          template.description.toLowerCase().contains(searchQuery.toLowerCase());
+      final matchesTags = selectedTags.isEmpty ||
+          selectedTags.every((tag) => template.tags.contains(tag));
+
+      return matchesCategory && matchesSearch && matchesTags;
+    }).toList();
+  }
+}
+
+class TemplateMarketplaceNotifier extends StateNotifier<TemplateMarketplaceState> {
+  TemplateMarketplaceNotifier() : super(TemplateMarketplaceState()) {
+    _loadTemplates();
+  }
+
+  void _loadTemplates() {
+    // Sample templates
+    final templates = [
+      AgentTemplate(
+        id: 'temp_1',
+        name: 'Customer Support Bot',
+        description: 'AI-powered customer support agent with sentiment analysis and ticket routing',
+        category: 'Customer Service',
+        author: 'AI Labs',
+        rating: 4.8,
+        downloads: 1523,
+        tags: ['customer-service', 'chatbot', 'nlp'],
+        configuration: {},
+        thumbnailUrl: 'https://via.placeholder.com/300x200',
+      ),
+      AgentTemplate(
+        id: 'temp_2',
+        name: 'Data Analysis Pipeline',
+        description: 'Complete workflow for data ingestion, analysis, and reporting',
+        category: 'Analytics',
+        author: 'DataCorp',
+        rating: 4.6,
+        downloads: 892,
+        tags: ['analytics', 'data', 'reporting'],
+        configuration: {},
+        thumbnailUrl: 'https://via.placeholder.com/300x200',
+        isPremium: true,
+        price: 29.99,
+      ),
+      AgentTemplate(
+        id: 'temp_3',
+        name: 'Content Moderator',
+        description: 'Multi-layer content moderation with toxicity detection and PII filtering',
+        category: 'Safety',
+        author: 'SafeAI',
+        rating: 4.9,
+        downloads: 2341,
+        tags: ['safety', 'moderation', 'compliance'],
+        configuration: {},
+        thumbnailUrl: 'https://via.placeholder.com/300x200',
+      ),
+      AgentTemplate(
+        id: 'temp_4',
+        name: 'Research Assistant',
+        description: 'RAG-powered research agent with citation management',
+        category: 'Research',
+        author: 'AcademicAI',
+        rating: 4.7,
+        downloads: 1156,
+        tags: ['research', 'rag', 'citations'],
+        configuration: {},
+        thumbnailUrl: 'https://via.placeholder.com/300x200',
+      ),
+    ];
+
+    state = state.copyWith(templates: templates);
+  }
+
+  void setCategory(String? category) {
+    state = state.copyWith(selectedCategory: category);
+  }
+
+  void setSearchQuery(String query) {
+    state = state.copyWith(searchQuery: query);
+  }
+
+  void toggleTag(String tag) {
+    final tags = List<String>.from(state.selectedTags);
+    if (tags.contains(tag)) {
+      tags.remove(tag);
+    } else {
+      tags.add(tag);
+    }
+    state = state.copyWith(selectedTags: tags);
+  }
+}
+
+final templateMarketplaceProvider =
+    StateNotifierProvider<TemplateMarketplaceNotifier, TemplateMarketplaceState>((ref) {
+  return TemplateMarketplaceNotifier();
+});
+
+// ========== COST CALCULATOR ==========
+class CostEstimate {
+  final String modelName;
+  final int inputTokens;
+  final int outputTokens;
+  final double inputCostPerToken;
+  final double outputCostPerToken;
+  final int expectedCalls;
+
+  CostEstimate({
+    required this.modelName,
+    required this.inputTokens,
+    required this.outputTokens,
+    required this.inputCostPerToken,
+    required this.outputCostPerToken,
+    this.expectedCalls = 1,
+  });
+
+  double get costPerCall {
+    return (inputTokens * inputCostPerToken) + (outputTokens * outputCostPerToken);
+  }
+
+  double get totalCost => costPerCall * expectedCalls;
+}
+
+class AgentCostConfig {
+  final String agentType;
+  final String model;
+  final int averageInputTokens;
+  final int averageOutputTokens;
+  final int callsPerDay;
+
+  AgentCostConfig({
+    required this.agentType,
+    required this.model,
+    this.averageInputTokens = 500,
+    this.averageOutputTokens = 200,
+    this.callsPerDay = 100,
+  });
+}
+
+class CostCalculatorState {
+  final List<AgentCostConfig> agents;
+  final Map<String, double> modelPricing;
+
+  CostCalculatorState({
+    this.agents = const [],
+    Map<String, double>? modelPricing,
+  }) : modelPricing = modelPricing ?? _defaultModelPricing;
+
+  static final Map<String, double> _defaultModelPricing = {
+    'gpt-4-input': 0.00003,
+    'gpt-4-output': 0.00006,
+    'gpt-3.5-turbo-input': 0.0000015,
+    'gpt-3.5-turbo-output': 0.000002,
+    'claude-3-opus-input': 0.000015,
+    'claude-3-opus-output': 0.000075,
+    'claude-3-sonnet-input': 0.000003,
+    'claude-3-sonnet-output': 0.000015,
+  };
+
+  CostCalculatorState copyWith({
+    List<AgentCostConfig>? agents,
+    Map<String, double>? modelPricing,
+  }) {
+    return CostCalculatorState(
+      agents: agents ?? this.agents,
+      modelPricing: modelPricing ?? this.modelPricing,
+    );
+  }
+
+  double calculateDailyCost() {
+    double total = 0.0;
+    for (final agent in agents) {
+      final inputCost = modelPricing['${agent.model}-input'] ?? 0.0;
+      final outputCost = modelPricing['${agent.model}-output'] ?? 0.0;
+      
+      final costPerCall = (agent.averageInputTokens * inputCost) +
+          (agent.averageOutputTokens * outputCost);
+      
+      total += costPerCall * agent.callsPerDay;
+    }
+    return total;
+  }
+
+  double calculateMonthlyCost() => calculateDailyCost() * 30;
+  double calculateYearlyCost() => calculateDailyCost() * 365;
+}
+
+class CostCalculatorNotifier extends StateNotifier<CostCalculatorState> {
+  CostCalculatorNotifier() : super(CostCalculatorState());
+
+  void addAgent(AgentCostConfig agent) {
+    state = state.copyWith(agents: [...state.agents, agent]);
+  }
+
+  void removeAgent(int index) {
+    final agents = List<AgentCostConfig>.from(state.agents);
+    agents.removeAt(index);
+    state = state.copyWith(agents: agents);
+  }
+
+  void updateAgent(int index, AgentCostConfig agent) {
+    final agents = List<AgentCostConfig>.from(state.agents);
+    agents[index] = agent;
+    state = state.copyWith(agents: agents);
+  }
+}
+
+final costCalculatorProvider =
+    StateNotifierProvider<CostCalculatorNotifier, CostCalculatorState>((ref) {
+  return CostCalculatorNotifier();
+});
+
+// ========== UI COMPONENTS ==========
+
+// Undo/Redo Toolbar
+class UndoRedoToolbar extends ConsumerWidget {
+  const UndoRedoToolbar({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyState = ref.watch(workflowHistoryProvider);
+
+    return Row(
+      children: [
+        IconButton(
+          icon: const Icon(Icons.undo),
+          onPressed: historyState.manager.canUndo
+              ? () {
+                  final previousState = ref.read(workflowHistoryProvider.notifier).undo();
+                  if (previousState != null) {
+                    // Apply previous state to workflow
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Undone')),
+                    );
+                  }
+                }
+              : null,
+          tooltip: 'Undo',
+        ),
+        IconButton(
+          icon: const Icon(Icons.redo),
+          onPressed: historyState.manager.canRedo
+              ? () {
+                  final nextState = ref.read(workflowHistoryProvider.notifier).redo();
+                  if (nextState != null) {
+                    // Apply next state to workflow
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Redone')),
+                    );
+                  }
+                }
+              : null,
+          tooltip: 'Redo',
+        ),
+        const VerticalDivider(),
+        TextButton.icon(
+          onPressed: () => _showHistoryDialog(context, historyState),
+          icon: const Icon(Icons.history),
+          label: const Text('History'),
+        ),
+      ],
+    );
+  }
+
+  void _showHistoryDialog(BuildContext context, WorkflowHistoryState historyState) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Action History'),
+        content: SizedBox(
+          width: 400,
+          height: 500,
+          child: historyState.manager.historyList.isEmpty
+              ? const Center(child: Text('No history available'))
+              : ListView.builder(
+                  itemCount: historyState.manager.historyList.length,
+                  itemBuilder: (context, index) {
+                    final entry = historyState.manager.historyList[index];
+                    return ListTile(
+                      leading: const Icon(Icons.history),
+                      title: Text(entry.action),
+                      subtitle: Text(
+                        '${entry.timestamp.hour}:${entry.timestamp.minute}:${entry.timestamp.second}',
+                      ),
+                      trailing: index == historyState.manager._currentIndex
+                          ? const Icon(Icons.arrow_forward, color: Colors.blue)
+                          : null,
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Template Marketplace Screen
+class TemplateMarketplaceScreen extends ConsumerWidget {
+  const TemplateMarketplaceScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final marketplaceState = ref.watch(templateMarketplaceProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Template Marketplace'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(120),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search templates...',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                  onChanged: (value) {
+                    ref.read(templateMarketplaceProvider.notifier).setSearchQuery(value);
+                  },
+                ),
+              ),
+              _buildCategoryFilter(context, ref, marketplaceState),
+            ],
+          ),
+        ),
+      ),
+      body: GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          childAspectRatio: 0.75,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: marketplaceState.filteredTemplates.length,
+        itemBuilder: (context, index) {
+          return TemplateCard(
+            template: marketplaceState.filteredTemplates[index],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCategoryFilter(
+    BuildContext context,
+    WidgetRef ref,
+    TemplateMarketplaceState state,
+  ) {
+    final categories = [
+      'All',
+      'Customer Service',
+      'Analytics',
+      'Safety',
+      'Research',
+      'Content',
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: categories.map((category) {
+          final isSelected = (category == 'All' && state.selectedCategory == null) ||
+              category == state.selectedCategory;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: Text(category),
+              selected: isSelected,
+              onSelected: (selected) {
+                ref.read(templateMarketplaceProvider.notifier).setCategory(
+                      category == 'All' ? null : category,
+                    );
+              },
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class TemplateCard extends StatelessWidget {
+  final AgentTemplate template;
+
+  const TemplateCard({Key? key, required this.template}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Container(
+              color: Colors.grey[200],
+              child: Stack(
+                children: [
+                  Center(
+                    child: Icon(
+                      Icons.smart_toy,
+                      size: 48,
+                      color: Colors.grey[400],
+                    ),
+                  ),
+                  if (template.isPremium)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star, size: 12, color: Colors.white),
+                            const SizedBox(width: 4),
+                            Text(
+                              '\$${template.price}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    template.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    template.description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.star, size: 14, color: Colors.amber),
+                      const SizedBox(width: 4),
+                      Text(
+                        template.rating.toString(),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      const SizedBox(width: 12),
+                      const Icon(Icons.download, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        template.downloads.toString(),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 4,
+                    children: template.tags.take(2).map((tag) {
+                      return Chip(
+                        label: Text(
+                          tag,
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                      );
+                    }).toList(),
+                  ),
+                  const Spacer(),
+                  ElevatedButton(
+                    onPressed: () {},
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 36),
+                    ),
+                    child: const Text('Use Template'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Cost Calculator Screen
+class CostCalculatorScreen extends ConsumerWidget {
+  const CostCalculatorScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final costState = ref.watch(costCalculatorProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Cost Calculator'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: () => _showPricingInfo(context),
+          ),
+        ],
+      ),
+      body: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: _buildAgentList(context, ref, costState),
+          ),
+          const VerticalDivider(width: 1),
+          Expanded(
+            child: _buildCostSummary(context, costState),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddAgentDialog(context, ref),
+        icon: const Icon(Icons.add),
+        label: const Text('Add Agent'),
+      ),
+    );
+  }
+
+  Widget _buildAgentList(
+    BuildContext context,
+    WidgetRef ref,
+    CostCalculatorState state,
+  ) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: state.agents.length,
+      itemBuilder: (context, index) {
+        return AgentCostCard(
+          agent: state.agents[index],
+          onDelete: () {
+            ref.read(costCalculatorProvider.notifier).removeAgent(index);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCostSummary(BuildContext context, CostCalculatorState state) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Cost Summary',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 24),
+          _buildCostCard(
+            'Daily Cost',
+            state.calculateDailyCost(),
+            Icons.today,
+            Colors.blue,
+          ),
+          const SizedBox(height: 16),
+          _buildCostCard(
+            'Monthly Cost',
+            state.calculateMonthlyCost(),
+            Icons.calendar_month,
+            Colors.orange,
+          ),
+          const SizedBox(height: 16),
+          _buildCostCard(
+            'Yearly Cost',
+            state.calculateYearlyCost(),
+            Icons.calendar_today,
+            Colors.green,
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.amber[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amber),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.lightbulb_outline, color: Colors.amber),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Tip: Use smaller models for simple tasks to reduce costs by up to 90%',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.amber[900],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCostCard(String label, double cost, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 32),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '\$${cost.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddAgentDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Agent for Cost Calculation'),
+        content: const Text('Agent configuration form would go here'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Add agent logic
+              Navigator.pop(context);
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPricingInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Model Pricing'),
+        content: const SizedBox(
+          width: 500,
+          child: Text('Pricing information for various AI models'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AgentCostCard extends StatelessWidget {
+  final AgentCostConfig agent;
+  final VoidCallback onDelete;
+
+  const AgentCostCard({
+    Key? key,
+    required this.agent,
+    required this.onDelete,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    agent.agentType,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  onPressed: onDelete,
+                ),
+              ],
+            ),
+            const Divider(),
+            _buildInfoRow('Model', agent.model),
+            _buildInfoRow('Calls/Day', agent.callsPerDay.toString()),
+            _buildInfoRow('Avg Input Tokens', agent.averageInputTokens.toString()),
+            _buildInfoRow('Avg Output Tokens', agent.averageOutputTokens.toString()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+          ),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ========== MAIN APP ==========
+void main() {
+  runApp(const ProviderScope(child: MyApp()));
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Enhanced Agent Builder Features',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+      ),
+      debugShowCheckedModeBanner: false,
+      home: const MainNavigationScreen(),
+    );
+  }
+}
+
+class MainNavigationScreen extends StatefulWidget {
+  const MainNavigationScreen({Key? key}) : super(key: key);
+
+  @override
+  State<MainNavigationScreen> createState() => _MainNavigationScreenState();
+}
+
+class _MainNavigationScreenState extends State<MainNavigationScreen> {
+  int _selectedIndex = 0;
+
+  final List<Widget> _screens = const [
+    HomeScreen(),
+    TemplateMarketplaceScreen(),
+    CostCalculatorScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _screens[_selectedIndex],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.store_outlined),
+            selectedIcon: Icon(Icons.store),
+            label: 'Templates',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.calculate_outlined),
+            selectedIcon: Icon(Icons.calculate),
+            label: 'Cost Calculator',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class HomeScreen extends ConsumerWidget {
+  const HomeScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('AI Agent Builder'),
+        actions: const [
+          UndoRedoToolbar(),
+          SizedBox(width: 16),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildWelcomeSection(context),
+            const SizedBox(height: 32),
+            _buildQuickActions(context),
+            const SizedBox(height: 32),
+            _buildRecentProjects(context),
+            const SizedBox(height: 32),
+            _buildFeatureShowcase(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWelcomeSection(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue[700]!, Colors.blue[500]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Welcome to AI Agent Builder',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Build, test, and deploy intelligent AI agents with ease',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text('Create New Agent'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.blue[700],
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 32),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.smart_toy,
+                  size: 80,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '12 Agent Types',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+                Text(
+                  'Available',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(BuildContext context) {
+    final actions = [
+      {
+        'title': 'Visual Workflow',
+        'subtitle': 'Build with drag & drop',
+        'icon': Icons.account_tree,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'Test Playground',
+        'subtitle': 'Test your agents',
+        'icon': Icons.play_circle,
+        'color': Colors.green,
+      },
+      {
+        'title': 'Templates',
+        'subtitle': 'Browse marketplace',
+        'icon': Icons.store,
+        'color': Colors.purple,
+      },
+      {
+        'title': 'Cost Calculator',
+        'subtitle': 'Estimate expenses',
+        'icon': Icons.calculate,
+        'color': Colors.orange,
+      },
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Quick Actions',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 16),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            childAspectRatio: 1.5,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+          ),
+          itemCount: actions.length,
+          itemBuilder: (context, index) {
+            final action = actions[index];
+            return Card(
+              child: InkWell(
+                onTap: () {},
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        action['icon'] as IconData,
+                        size: 40,
+                        color: action['color'] as Color,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        action['title'] as String,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        action['subtitle'] as String,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentProjects(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent Projects',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            TextButton(
+              onPressed: () {},
+              child: const Text('View All'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 200,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: 5,
+            itemBuilder: (context, index) {
+              return Container(
+                width: 300,
+                margin: const EdgeInsets.only(right: 16),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: Colors.blue[100],
+                              child: const Icon(
+                                Icons.smart_toy,
+                                color: Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Customer Support Agent ${index + 1}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    'Modified 2 hours ago',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        Row(
+                          children: [
+                            Chip(
+                              label: const Text(
+                                'Planning',
+                                style: TextStyle(fontSize: 10),
+                              ),
+                              padding: EdgeInsets.zero,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            const SizedBox(width: 4),
+                            Chip(
+                              label: const Text(
+                                'Retrieval',
+                                style: TextStyle(fontSize: 10),
+                              ),
+                              padding: EdgeInsets.zero,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {},
+                                child: const Text('Open'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.more_vert),
+                              onPressed: () {},
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeatureShowcase(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Platform Features',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildFeatureCard(
+                'Visual Workflow Builder',
+                'Drag-and-drop interface for creating complex agent workflows',
+                Icons.account_tree,
+                Colors.blue,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildFeatureCard(
+                'Real-time Testing',
+                'Test and debug your agents with live execution monitoring',
+                Icons.bug_report,
+                Colors.green,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildFeatureCard(
+                'Cost Optimization',
+                'Track and optimize your AI agent usage costs',
+                Icons.trending_down,
+                Colors.orange,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeatureCard(
+    String title,
+    String description,
+    IconData icon,
+    Color color,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 32),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ========== AUTO-SAVE FUNCTIONALITY ==========
+class AutoSaveManager {
+  Timer? _saveTimer;
+  final Duration saveInterval;
+  final Function(Map<String, dynamic>) onSave;
+
+  AutoSaveManager({
+    this.saveInterval = const Duration(seconds: 30),
+    required this.onSave,
+  });
+
+  void scheduleAutoSave(Map<String, dynamic> data) {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(saveInterval, () => onSave(data));
+  }
+
+  void forceSave(Map<String, dynamic> data) {
+    _saveTimer?.cancel();
+    onSave(data);
+  }
+
+  void dispose() {
+    _saveTimer?.cancel();
+  }
+}
+
+// ========== VERSION CONTROL ==========
+class ConfigVersion {
+  final String id;
+  final DateTime timestamp;
+  final String author;
+  final String message;
+  final Map<String, dynamic> configuration;
+  final List<String> changes;
+
+  ConfigVersion({
+    required this.id,
+    required this.timestamp,
+    required this.author,
+    required this.message,
+    required this.configuration,
+    this.changes = const [],
+  });
+}
+
+class VersionControlState {
+  final List<ConfigVersion> versions;
+  final String? currentVersionId;
+
+  VersionControlState({
+    this.versions = const [],
+    this.currentVersionId,
+  });
+
+  VersionControlState copyWith({
+    List<ConfigVersion>? versions,
+    String? currentVersionId,
+  }) {
+    return VersionControlState(
+      versions: versions ?? this.versions,
+      currentVersionId: currentVersionId ?? this.currentVersionId,
+    );
+  }
+}
+
+class VersionControlNotifier extends StateNotifier<VersionControlState> {
+  VersionControlNotifier() : super(VersionControlState());
+
+  void commit(Map<String, dynamic> config, String message, String author) {
+    final version = ConfigVersion(
+      id: 'v${DateTime.now().millisecondsSinceEpoch}',
+      timestamp: DateTime.now(),
+      author: author,
+      message: message,
+      configuration: config,
+      changes: _calculateChanges(config),
+    );
+
+    state = state.copyWith(
+      versions: [...state.versions, version],
+      currentVersionId: version.id,
+    );
+  }
+
+  void checkout(String versionId) {
+    state = state.copyWith(currentVersionId: versionId);
+  }
+
+  List<String> _calculateChanges(Map<String, dynamic> config) {
+    // Calculate diff from previous version
+    return ['Configuration updated'];
+  }
+}
+
+final versionControlProvider =
+    StateNotifierProvider<VersionControlNotifier, VersionControlState>((ref) {
+  return VersionControlNotifier();
+});
+
+// ========== COLLABORATION FEATURES ==========
+class CollaboratorPresence {
+  final String userId;
+  final String userName;
+  final Color color;
+  final Offset? cursorPosition;
+  final String? selectedNodeId;
+
+  CollaboratorPresence({
+    required this.userId,
+    required this.userName,
+    required this.color,
+    this.cursorPosition,
+    this.selectedNodeId,
+  });
+}
+
+class CollaborationState {
+  final List<CollaboratorPresence> activeCollaborators;
+  final Map<String, String> comments;
+
+  CollaborationState({
+    this.activeCollaborators = const [],
+    this.comments = const {},
+  });
+}
+
+// ========== ANALYTICS DASHBOARD ==========
+class AnalyticsDashboard extends StatelessWidget {
+  const AnalyticsDashboard({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Analytics Dashboard'),
+      ),
+      body: GridView.count(
+        crossAxisCount: 2,
+        padding: const EdgeInsets.all(16),
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+        children: [
+          _buildMetricCard(
+            'Total Agents',
+            '24',
+            Icons.smart_toy,
+            Colors.blue,
+            '+12% this month',
+          ),
+          _buildMetricCard(
+            'Active Workflows',
+            '8',
+            Icons.account_tree,
+            Colors.green,
+            '3 running now',
+          ),
+          _buildMetricCard(
+            'Total Executions',
+            '1,543',
+            Icons.play_circle,
+            Colors.orange,
+            '+245 today',
+          ),
+          _buildMetricCard(
+            'Avg Success Rate',
+            '94.2%',
+            Icons.check_circle,
+            Colors.purple,
+            '+2.1% vs last week',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+    String subtitle,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Icon(icon, color: color, size: 32),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.green[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

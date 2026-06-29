@@ -1,0 +1,633 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+
+// Models
+class AgendaItem {
+  final String id;
+  final String title;
+  final String description;
+  final DateTime startTime;
+  final DateTime endTime;
+  final Color color;
+  final String category;
+
+  AgendaItem({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.startTime,
+    required this.endTime,
+    required this.color,
+    required this.category,
+  });
+
+  AgendaItem copyWith({
+    String? id,
+    String? title,
+    String? description,
+    DateTime? startTime,
+    DateTime? endTime,
+    Color? color,
+    String? category,
+  }) {
+    return AgendaItem(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      color: color ?? this.color,
+      category: category ?? this.category,
+    );
+  }
+}
+
+enum ViewMode { day, week, month }
+
+// State Providers
+final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
+final viewModeProvider = StateProvider<ViewMode>((ref) => ViewMode.day);
+
+// Agenda Items Provider
+final agendaItemsProvider = StateNotifierProvider<AgendaItemsNotifier, List<AgendaItem>>((ref) {
+  return AgendaItemsNotifier();
+});
+
+class AgendaItemsNotifier extends StateNotifier<List<AgendaItem>> {
+  AgendaItemsNotifier() : super(_initialItems());
+
+  static List<AgendaItem> _initialItems() {
+    final now = DateTime.now();
+    return [
+      AgendaItem(
+        id: '1',
+        title: 'Team Meeting',
+        description: 'Discuss Q4 objectives',
+        startTime: DateTime(now.year, now.month, now.day, 9, 0),
+        endTime: DateTime(now.year, now.month, now.day, 10, 30),
+        color: Colors.blue,
+        category: 'Work',
+      ),
+      AgendaItem(
+        id: '2',
+        title: 'Lunch Break',
+        description: 'Healthy meal',
+        startTime: DateTime(now.year, now.month, now.day, 12, 0),
+        endTime: DateTime(now.year, now.month, now.day, 13, 0),
+        color: Colors.orange,
+        category: 'Personal',
+      ),
+      AgendaItem(
+        id: '3',
+        title: 'Gym Session',
+        description: 'Upper body workout',
+        startTime: DateTime(now.year, now.month, now.day, 18, 0),
+        endTime: DateTime(now.year, now.month, now.day, 19, 30),
+        color: Colors.green,
+        category: 'Health',
+      ),
+      AgendaItem(
+        id: '4',
+        title: 'Project Review',
+        description: 'Review sprint progress',
+        startTime: DateTime(now.year, now.month, now.day + 1, 14, 0),
+        endTime: DateTime(now.year, now.month, now.day + 1, 15, 30),
+        color: Colors.purple,
+        category: 'Work',
+      ),
+    ];
+  }
+
+  void addItem(AgendaItem item) {
+    state = [...state, item];
+  }
+
+  void updateItem(AgendaItem item) {
+    state = [
+      for (final i in state)
+        if (i.id == item.id) item else i,
+    ];
+  }
+
+  void deleteItem(String id) {
+    state = state.where((item) => item.id != id).toList();
+  }
+}
+
+// Main App
+void main() {
+  runApp(const ProviderScope(child: AgendaPlannerApp()));
+}
+
+class AgendaPlannerApp extends StatelessWidget {
+  const AgendaPlannerApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Agenda Planner',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.light,
+        ),
+        fontFamily: 'SF Pro Display',
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.dark,
+        ),
+        fontFamily: 'SF Pro Display',
+      ),
+      home: const AgendaPlannerHome(),
+    );
+  }
+}
+
+class AgendaPlannerHome extends ConsumerWidget {
+  const AgendaPlannerHome({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final viewMode = ref.watch(viewModeProvider);
+    final selectedDate = ref.watch(selectedDateProvider);
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.background,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              DateFormat('MMMM yyyy').format(selectedDate),
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              DateFormat('EEEE, d').format(selectedDate),
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: () => _showAddEventDialog(context, ref),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Column(
+        children: [
+          _buildViewModeSelector(context, ref, viewMode),
+          Expanded(
+            child: _buildViewContent(context, ref, viewMode),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewModeSelector(BuildContext context, WidgetRef ref, ViewMode viewMode) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          _viewModeButton(context, ref, ViewMode.day, 'Day', viewMode),
+          _viewModeButton(context, ref, ViewMode.week, 'Week', viewMode),
+          _viewModeButton(context, ref, ViewMode.month, 'Month', viewMode),
+        ],
+      ),
+    );
+  }
+
+  Widget _viewModeButton(BuildContext context, WidgetRef ref, ViewMode mode, String label, ViewMode currentMode) {
+    final isSelected = mode == currentMode;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => ref.read(viewModeProvider.notifier).state = mode,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : Theme.of(context).colorScheme.onSurface,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewContent(BuildContext context, WidgetRef ref, ViewMode viewMode) {
+    switch (viewMode) {
+      case ViewMode.day:
+        return const DayView();
+      case ViewMode.week:
+        return const WeekView();
+      case ViewMode.month:
+        return const MonthView();
+    }
+  }
+
+  void _showAddEventDialog(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const AddEventSheet(),
+    );
+  }
+}
+
+// Day View
+class DayView extends ConsumerWidget {
+  const DayView({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedDate = ref.watch(selectedDateProvider);
+    final items = ref.watch(agendaItemsProvider);
+    
+    final dayItems = items.where((item) {
+      return item.startTime.year == selectedDate.year &&
+          item.startTime.month == selectedDate.month &&
+          item.startTime.day == selectedDate.day;
+    }).toList()..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+    return Column(
+      children: [
+        _buildDateNavigator(context, ref, selectedDate),
+        Expanded(
+          child: dayItems.isEmpty
+              ? _buildEmptyState(context)
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: dayItems.length,
+                  itemBuilder: (context, index) {
+                    return _buildAgendaCard(context, ref, dayItems[index]);
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateNavigator(BuildContext context, WidgetRef ref, DateTime date) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left),
+            onPressed: () {
+              ref.read(selectedDateProvider.notifier).state =
+                  date.subtract(const Duration(days: 1));
+            },
+          ),
+          TextButton(
+            onPressed: () {
+              ref.read(selectedDateProvider.notifier).state = DateTime.now();
+            },
+            child: const Text('Today'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            onPressed: () {
+              ref.read(selectedDateProvider.notifier).state =
+                  date.add(const Duration(days: 1));
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAgendaCard(BuildContext context, WidgetRef ref, AgendaItem item) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Container(
+              width: 6,
+              decoration: BoxDecoration(
+                color: item.color,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  bottomLeft: Radius.circular(16),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.title,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: item.color.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            item.category,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: item.color,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      item.description,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${DateFormat('HH:mm').format(item.startTime)} - ${DateFormat('HH:mm').format(item.endTime)}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.event_available_outlined,
+            size: 80,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No events scheduled',
+            style: TextStyle(
+              fontSize: 18,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+// Add Event Sheet
+class AddEventSheet extends ConsumerStatefulWidget {
+  const AddEventSheet({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<AddEventSheet> createState() => _AddEventSheetState();
+}
+
+class _AddEventSheetState extends ConsumerState<AddEventSheet> {
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  DateTime _startTime = DateTime.now();
+  DateTime _endTime = DateTime.now().add(const Duration(hours: 1));
+  Color _selectedColor = Colors.blue;
+  String _selectedCategory = 'Work';
+
+  final List<Color> _colors = [
+    Colors.blue,
+    Colors.purple,
+    Colors.green,
+    Colors.orange,
+    Colors.red,
+    Colors.teal,
+  ];
+
+  final List<String> _categories = ['Work', 'Personal', 'Health', 'Study', 'Other'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'New Event',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _titleController,
+                decoration: InputDecoration(
+                  labelText: 'Title',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _descriptionController,
+                decoration: InputDecoration(
+                  labelText: 'Description',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                decoration: InputDecoration(
+                  labelText: 'Category',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                items: _categories.map((cat) {
+                  return DropdownMenuItem(value: cat, child: Text(cat));
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) setState(() => _selectedCategory = value);
+                },
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Color',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                children: _colors.map((color) {
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedColor = color),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: _selectedColor == color
+                            ? Border.all(
+                                color: Theme.of(context).colorScheme.primary,
+                                width: 3,
+                              )
+                            : null,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (_titleController.text.isNotEmpty) {
+                      final item = AgendaItem(
+                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        title: _titleController.text,
+                        description: _descriptionController.text,
+                        startTime: _startTime,
+                        endTime: _endTime,
+                        color: _selectedColor,
+                        category: _selectedCategory,
+                      );
+                      ref.read(agendaItemsProvider.notifier).addItem(item);
+                      Navigator.pop(context);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Create Event',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+}

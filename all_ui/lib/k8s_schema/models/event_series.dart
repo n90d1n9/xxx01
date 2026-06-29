@@ -1,0 +1,2 @@
+
+class EventSeries {final int? count; final DateTime? lastObservedTime; EventSeries({this.count, this.lastObservedTime}); factory EventSeries.fromJson(Map<String, dynamic> json) {return EventSeries(count: json['count'], lastObservedTime: json['lastObservedTime'] != null ? DateTime.parse(json['lastObservedTime']) : null);} Map<String, dynamic> toJson() {return {if (count != null) 'count' : count, if (lastObservedTime != null) 'lastObservedTime' : lastObservedTime!.toIso8601String()};}}

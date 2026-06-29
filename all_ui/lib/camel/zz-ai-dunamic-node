@@ -1,0 +1,711 @@
+// ============================================================================
+// DYNAMIC NODE CONFIGURATION DIALOG
+// ============================================================================
+
+class NodeConfigurationDialog extends StatefulWidget {
+  final NodeCard node;
+  final CamelComponent component;
+
+  const NodeConfigurationDialog({
+    super.key,
+    required this.node,
+    required this.component,
+  });
+
+  @override
+  State<NodeConfigurationDialog> createState() =>
+      _NodeConfigurationDialogState();
+}
+
+class _NodeConfigurationDialogState extends State<NodeConfigurationDialog>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  late Map<String, dynamic> _config;
+  final Map<String, TextEditingController> _controllers = {};
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _config = Map.from(widget.node.config);
+    
+    // Initialize controllers
+    for (final param in widget.component.parameters) {
+      final value = _config[param.name];
+      _controllers[param.name] = TextEditingController(
+        text: value?.toString() ?? param.defaultValue?.toString() ?? '',
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      maxWidth: 800,
+      maxHeight: 700,
+      child: Column(
+        children: [
+          _buildHeader(),
+          _buildTabBar(),
+          Expanded(child: _buildTabView()),
+          _buildFooter(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(widget.component.icon, color: widget.component.color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.component.name,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  widget.component.description,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).disabledColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            onPressed: _showHelp,
+            tooltip: 'Documentation',
+          ),
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabBar() {
+    return TabBar(
+      controller: _tabController,
+      tabs: const [
+        Tab(text: 'Configuration', icon: Icon(Icons.settings, size: 16)),
+        Tab(text: 'Advanced', icon: Icon(Icons.tune, size: 16)),
+        Tab(text: 'Preview', icon: Icon(Icons.visibility, size: 16)),
+      ],
+    );
+  }
+
+  Widget _buildTabView() {
+    return TabBarView(
+      controller: _tabController,
+      children: [
+        _buildConfigurationTab(),
+        _buildAdvancedTab(),
+        _buildPreviewTab(),
+      ],
+    );
+  }
+
+  Widget _buildConfigurationTab() {
+    final requiredParams = widget.component.parameters
+        .where((p) => p.required)
+        .toList();
+    final optionalParams = widget.component.parameters
+        .where((p) => !p.required)
+        .toList();
+
+    return Form(
+      key: _formKey,
+      child: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          if (requiredParams.isNotEmpty) ...[
+            Text(
+              'Required Parameters',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            ...requiredParams.map((param) => _buildParameterField(param)),
+            const SizedBox(height: 24),
+          ],
+          if (optionalParams.isNotEmpty) ...[
+            Text(
+              'Optional Parameters',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            ...optionalParams.map((param) => _buildParameterField(param)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdvancedTab() {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        Text(
+          'Advanced Settings',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 16),
+        _buildAdvancedOption(
+          'Enable Caching',
+          'Cache responses for better performance',
+          _config['cacheEnabled'] ?? false,
+          (value) => setState(() => _config['cacheEnabled'] = value),
+        ),
+        _buildAdvancedOption(
+          'Enable Logging',
+          'Log all messages passing through this component',
+          _config['loggingEnabled'] ?? false,
+          (value) => setState(() => _config['loggingEnabled'] = value),
+        ),
+        _buildAdvancedOption(
+          'Enable Metrics',
+          'Collect metrics for this component',
+          _config['metricsEnabled'] ?? true,
+          (value) => setState(() => _config['metricsEnabled'] = value),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          decoration: const InputDecoration(
+            labelText: 'Component Description',
+            border: OutlineInputBorder(),
+            helperText: 'Optional description for documentation',
+          ),
+          maxLines: 3,
+          onChanged: (value) => _config['description'] = value,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAdvancedOption(
+    String title,
+    String description,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: SwitchListTile(
+        title: Text(title),
+        subtitle: Text(description),
+        value: value,
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _buildPreviewTab() {
+    final uri = widget.component.buildUri(_config);
+    
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        Text(
+          'Generated URI',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey[900],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: SelectableText(
+            uri,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: Colors.white,
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          'Configuration JSON',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey[900],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: SelectableText(
+            _prettyPrintJson(_config),
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: Colors.white,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildParameterField(ComponentParameter param) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                param.name,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              if (param.required) ...[
+                const SizedBox(width: 4),
+                const Text(
+                  '*',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ],
+            ],
+          ),
+          if (param.description != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              param.description!,
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).disabledColor,
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          _buildInputField(param),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputField(ComponentParameter param) {
+    switch (param.type) {
+      case ParameterType.select:
+        return _buildSelectField(param);
+      case ParameterType.boolean:
+        return _buildBooleanField(param);
+      case ParameterType.number:
+        return _buildNumberField(param);
+      case ParameterType.password:
+        return _buildPasswordField(param);
+      case ParameterType.text:
+        return _buildTextAreaField(param);
+      case ParameterType.file:
+        return _buildFileField(param);
+      default:
+        return _buildTextField(param);
+    }
+  }
+
+  Widget _buildTextField(ComponentParameter param) {
+    return TextFormField(
+      controller: _controllers[param.name],
+      decoration: InputDecoration(
+        border: const OutlineInputBorder(),
+        hintText: param.example ?? param.defaultValue?.toString(),
+        suffixIcon: param.example != null
+            ? IconButton(
+                icon: const Icon(Icons.content_paste),
+                onPressed: () {
+                  _controllers[param.name]!.text = param.example!;
+                  _config[param.name] = param.example;
+                },
+                tooltip: 'Use example',
+              )
+            : null,
+      ),
+      validator: param.required
+          ? (value) {
+              if (value == null || value.isEmpty) {
+                return 'This field is required';
+              }
+              return null;
+            }
+          : null,
+      onChanged: (value) => _config[param.name] = value,
+    );
+  }
+
+  Widget _buildNumberField(ComponentParameter param) {
+    return TextFormField(
+      controller: _controllers[param.name],
+      decoration: InputDecoration(
+        border: const OutlineInputBorder(),
+        hintText: param.defaultValue?.toString(),
+      ),
+      keyboardType: TextInputType.number,
+      validator: (value) {
+        if (param.required && (value == null || value.isEmpty)) {
+          return 'This field is required';
+        }
+        if (value != null && value.isNotEmpty) {
+          if (num.tryParse(value) == null) {
+            return 'Must be a valid number';
+          }
+        }
+        return null;
+      },
+      onChanged: (value) {
+        final number = num.tryParse(value);
+        if (number != null) {
+          _config[param.name] = number;
+        }
+      },
+    );
+  }
+
+  Widget _buildSelectField(ComponentParameter param) {
+    return DropdownButtonFormField<String>(
+      value: _config[param.name]?.toString() ?? param.defaultValue?.toString(),
+      decoration: const InputDecoration(
+        border: OutlineInputBorder(),
+      ),
+      items: param.options?.map((option) {
+        return DropdownMenuItem(
+          value: option,
+          child: Text(option),
+        );
+      }).toList(),
+      validator: param.required
+          ? (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please select an option';
+              }
+              return null;
+            }
+          : null,
+      onChanged: (value) {
+        if (value != null) {
+          setState(() => _config[param.name] = value);
+        }
+      },
+    );
+  }
+
+  Widget _buildBooleanField(ComponentParameter param) {
+    return SwitchListTile(
+      title: Text('Enable ${param.name}'),
+      value: _config[param.name] ?? param.defaultValue ?? false,
+      onChanged: (value) {
+        setState(() => _config[param.name] = value);
+      },
+    );
+  }
+
+  Widget _buildPasswordField(ComponentParameter param) {
+    return TextFormField(
+      controller: _controllers[param.name],
+      decoration: const InputDecoration(
+        border: OutlineInputBorder(),
+        suffixIcon: Icon(Icons.visibility),
+      ),
+      obscureText: true,
+      validator: param.required
+          ? (value) {
+              if (value == null || value.isEmpty) {
+                return 'This field is required';
+              }
+              return null;
+            }
+          : null,
+      onChanged: (value) => _config[param.name] = value,
+    );
+  }
+
+  Widget _buildTextAreaField(ComponentParameter param) {
+    return TextFormField(
+      controller: _controllers[param.name],
+      decoration: InputDecoration(
+        border: const OutlineInputBorder(),
+        hintText: param.example,
+      ),
+      maxLines: 5,
+      validator: param.required
+          ? (value) {
+              if (value == null || value.isEmpty) {
+                return 'This field is required';
+              }
+              return null;
+            }
+          : null,
+      onChanged: (value) => _config[param.name] = value,
+    );
+  }
+
+  Widget _buildFileField(ComponentParameter param) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextFormField(
+            controller: _controllers[param.name],
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Select file...',
+            ),
+            readOnly: true,
+            validator: param.required
+                ? (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please select a file';
+                    }
+                    return null;
+                  }
+                : null,
+          ),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton.icon(
+          onPressed: () async {
+            // TODO: Implement file picker
+            // final result = await FilePicker.platform.pickFiles();
+            // if (result != null) {
+            //   _controllers[param.name]!.text = result.files.single.path!;
+            //   _config[param.name] = result.files.single.path;
+            // }
+          },
+          icon: const Icon(Icons.folder_open),
+          label: const Text('Browse'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooter() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          OutlinedButton.icon(
+            onPressed: _testConfiguration,
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Test'),
+          ),
+          Row(
+            children: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: _saveConfiguration,
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _saveConfiguration() {
+    if (_formKey.currentState?.validate() ?? false) {
+      Navigator.pop(context, _config);
+    }
+  }
+
+  void _testConfiguration() {
+    if (_formKey.currentState?.validate() ?? false) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Test Configuration'),
+          content: const Text(
+            'Configuration test feature will be available soon.\n\n'
+            'This will allow you to test the component with sample data.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  void _showHelp() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${widget.component.name} Help'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(widget.component.description),
+              const SizedBox(height: 16),
+              const Text(
+                'URI Pattern:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[900],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  widget.component.uriPattern,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    color: Colors.white,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () {
+                  // TODO: Launch URL
+                  // launchUrl(Uri.parse(widget.component.documentation));
+                },
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Open Documentation'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _prettyPrintJson(Map<String, dynamic> json) {
+    const encoder = JsonEncoder.withIndent('  ');
+    return encoder.convert(json);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+}
+
+// ============================================================================
+// GENERIC NODE CONFIG DIALOG (FALLBACK)
+// ============================================================================
+
+class GenericNodeConfigDialog extends StatefulWidget {
+  final NodeCard node;
+
+  const GenericNodeConfigDialog({super.key, required this.node});
+
+  @override
+  State<GenericNodeConfigDialog> createState() =>
+      _GenericNodeConfigDialogState();
+}
+
+class _GenericNodeConfigDialogState extends State<GenericNodeConfigDialog> {
+  late Map<String, dynamic> _config;
+  late TextEditingController _nameController;
+
+  @override
+  void initState() {
+    super.initState();
+    _config = Map.from(widget.node.config);
+    _nameController = TextEditingController(text: widget.node.name);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(widget.node.icon, color: widget.node.color),
+          const SizedBox(width: 12),
+          const Text('Configure Node'),
+        ],
+      ),
+      content: SizedBox(
+        width: 500,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Node Name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'This component type does not have specific configuration options.\n\n'
+              'Configuration can be added in the Advanced tab.',
+              style: TextStyle(fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context, {
+              'name': _nameController.text,
+              ..._config,
+            });
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+}

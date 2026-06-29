@@ -1,0 +1,2 @@
+#!/bin/bash
+flutter build appbundle --target-platform android-arm,android-arm64,android-x64 --obfuscate --no-tree-shake-icons --release --split-debug-info=../debug

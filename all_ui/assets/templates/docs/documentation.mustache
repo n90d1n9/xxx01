@@ -1,0 +1,45 @@
+# {{route.name}}
+
+{{#route.hasDescription}}
+## Description
+{{route.description}}
+
+{{/route.hasDescription}}
+## Overview
+- **Total Nodes**: {{route.nodeCount}}
+- **Created**: {{route.createdAt}}
+{{#route.hasModifiedDate}}
+- **Modified**: {{route.modifiedAt}}
+{{/route.hasModifiedDate}}
+- **Generated**: {{generatedAt}}
+
+## Flow Diagram
+
+
+## Components
+
+{{#route.nodes}}
+### {{index}}. {{name}} ({{type}})
+
+**Configuration ({{configCount}}):**
+{{#config}}
+- `{{key}}`: {{value}}
+{{/config}}
+{{^config}}
+*No configuration*
+{{/config}}
+
+
+{{asciiFlow}}
+
+{{#hasConnections}}
+**Connects to ({{connectionCount}}):**
+{{#connections}}
+- {{targetName}}
+{{/connections}}
+{{/hasConnections}}
+{{^hasConnections}}
+*No connections*
+{{/hasConnections}}
+
+{{/route.nodes}}

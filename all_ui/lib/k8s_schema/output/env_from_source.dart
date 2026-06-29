@@ -1,0 +1,29 @@
+import 'config_map_env_source.dart';
+import 'secret_env_source.dart';
+
+class EnvFromSource {
+  final String? prefix;
+  final ConfigMapEnvSource? configMapRef;
+  final SecretEnvSource? secretRef;
+  EnvFromSource({this.prefix, this.configMapRef, this.secretRef});
+  factory EnvFromSource.fromJson(Map<String, dynamic> json) {
+    return EnvFromSource(
+      prefix: json['prefix'],
+      configMapRef:
+          json['configMapRef'] != null
+              ? ConfigMapEnvSource.fromJson(json['configMapRef'])
+              : null,
+      secretRef:
+          json['secretRef'] != null
+              ? SecretEnvSource.fromJson(json['secretRef'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (prefix != null) 'prefix': prefix,
+      if (configMapRef != null) 'configMapRef': configMapRef!.toJson(),
+      if (secretRef != null) 'secretRef': secretRef!.toJson(),
+    };
+  }
+}

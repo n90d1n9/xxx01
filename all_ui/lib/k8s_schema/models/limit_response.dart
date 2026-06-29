@@ -1,0 +1,2 @@
+
+class LimitResponse {final String type; final QueuingConfiguration? queuing; LimitResponse({required this.type, this.queuing}); factory LimitResponse.fromJson(Map<String, dynamic> json) {return LimitResponse(type: json['type'], queuing: json['queuing'] != null ? QueuingConfiguration.fromJson(json['queuing']) : null);} Map<String, dynamic> toJson() {return {'type' : type, if (queuing != null) 'queuing' : queuing!.toJson()};}}

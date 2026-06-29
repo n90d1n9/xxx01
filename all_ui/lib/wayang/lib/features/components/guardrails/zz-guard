@@ -1,0 +1,98 @@
+
+
+// Required stub classes
+class NodeDefinition {
+  final String id;
+  final String name;
+  final String type;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final List<PortDefinition> inputs;
+  final List<PortDefinition> outputs;
+  final List<ConfigFieldDefinition> configFields;
+  final List<String> requiredSecrets;
+  final ActionDefinition action;
+  
+  NodeDefinition({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.inputs,
+    required this.outputs,
+    required this.configFields,
+    required this.requiredSecrets,
+    required this.action,
+  });
+}
+
+class PortDefinition {
+  final String id;
+  final String name;
+  final String description;
+  final String dataType;
+  final bool required;
+  
+  PortDefinition({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.dataType,
+    this.required = true,
+  });
+}
+
+class ConfigFieldDefinition {
+  final String key;
+  final String label;
+  
+  ConfigFieldDefinition({required this.key, required this.label});
+}
+
+class ActionDefinition {
+  final String type;
+  ActionDefinition(this.type);
+  Map<String, dynamic> toJson() => {'type': type};
+}
+
+class NodeExecutor {
+  String get nodeType => '';
+  NodeSchema get schema => throw UnimplementedError();
+  Future<NodeExecutionResult> execute(NodeExecutionContext context) async {
+    throw UnimplementedError();
+  }
+}
+
+class NodeSchema {
+  final String name;
+  final String description;
+  final String category;
+  final IconData icon;
+  final Color color;
+  final List<PortSchema> inputs;
+  final List<PortSchema> outputs;
+  
+  NodeSchema({
+    required this.name,
+    required this.description,
+    required this.category,
+    required this.icon,
+    required this.color,
+    required this.inputs,
+    required this.outputs,
+  });
+}
+
+
+
+class NodeExecutionContext {
+  final String nodeId;
+  final Map<String, dynamic> inputs;
+  
+  NodeExecutionContext({required this.nodeId, required this.inputs});
+}
+
+

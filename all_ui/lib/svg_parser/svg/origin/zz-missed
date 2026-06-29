@@ -1,0 +1,659 @@
+import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
+import 'dart:math' as math;
+
+// ============================================================================
+// BASE DEFINITION CLASS
+// ============================================================================
+
+/// Base class for all SVG definitions (gradients, filters, patterns, etc.)
+
+
+// ============================================================================
+// GRADIENT CLASSES
+// ============================================================================
+
+import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
+import 'dart:math' as math;
+
+// ============================================================================
+// BASE DEFINITION CLASS
+// ============================================================================
+
+/// Base class for all SVG definitions (gradients, filters, patterns, etc.)
+abstract class SvgDefinition {
+  final String id;
+  SvgDefinition(this.id);
+}
+
+// ============================================================================
+// GRADIENT CLASSES
+// ============================================================================
+
+/// Represents a gradient stop with color and offset
+class GradientStop {
+  final double offset;
+  final Color color;
+  
+  GradientStop({
+    required this.offset,
+    required this.color,
+  });
+  
+  @override
+  String toString() => 'GradientStop(offset: $offset, color: $color)';
+}
+
+/// Linear gradient definition
+class SvgLinearGradient extends SvgDefinition {
+  final double x1, y1, x2, y2;
+  final List<GradientStop> stops;
+  final String gradientUnits;
+  final Matrix4? gradientTransform;
+  
+  SvgLinearGradient({
+    required String id,
+    required this.x1,
+    required this.y1,
+    required this.x2,
+    required this.y2,
+    required this.stops,
+    this.gradientUnits = 'objectBoundingBox',
+    this.gradientTransform,
+  }) : super(id);
+  
+  /// Creates a Flutter Gradient from this linear gradient
+  Gradient createGradient(Rect bounds) {
+    Offset begin, end;
+    
+    if (gradientUnits == 'objectBoundingBox') {
+      begin = Offset(
+        bounds.left + bounds.width * x1,
+        bounds.top + bounds.height * y1,
+      );
+      end = Offset(
+        bounds.left + bounds.width * x2,
+        bounds.top + bounds.height * y2,
+      );
+    } else {
+      begin = Offset(x1, y1);
+      end = Offset(x2, y2);
+    }
+    
+    return ui.Gradient.linear(
+      begin,
+      end,
+      stops.map((s) => s.color).toList(),
+      stops.map((s) => s.offset).toList(),
+    );
+  }
+  
+  @override
+  String toString() => 'SvgLinearGradient(id: $id, stops: ${stops.length})';
+}
+
+/// Radial gradient definition
+class SvgRadialGradient extends SvgDefinition {
+  final double cx, cy, r;
+  final double? fx, fy;
+  final List<GradientStop> stops;
+  final String gradientUnits;
+  final Matrix4? gradientTransform;
+  
+  SvgRadialGradient({
+    required String id,
+    required this.cx,
+    required this.cy,
+    required this.r,
+    this.fx,
+    this.fy,
+    required this.stops,
+    this.gradientUnits = 'objectBoundingBox',
+    this.gradientTransform,
+  }) : super(id);
+  
+  /// Creates a Flutter Gradient from this radial gradient
+  Gradient createGradient(Rect bounds) {
+    Offset center;
+    double radius;
+    
+    if (gradientUnits == 'objectBoundingBox') {
+      center = Offset(
+        bounds.left + bounds.width * cx,
+        bounds.top + bounds.height * cy,
+      );
+      radius = math.max(bounds.width, bounds.height) * r;
+    } else {
+      center = Offset(cx, cy);
+      radius = r;
+    }
+    
+    final focal = fx != null && fy != null
+        ? Offset(
+            bounds.left + bounds.width * fx!,
+            bounds.top + bounds.height * fy!,
+          )
+        : center;
+    
+    return ui.Gradient.radial(
+      center,
+      radius,
+      stops.map((s) => s.color).toList(),
+      stops.map((s) => s.offset).toList(),
+    );
+  }
+  
+  @override
+  String toString() => 'SvgRadialGradient(id: $id, stops: ${stops.length})';
+}
+
+// ============================================================================
+// PATTERN CLASS
+// ============================================================================
+
+/// Pattern definition for tiled backgrounds
+class SvgPattern extends SvgDefinition {
+  final double x, y, width, height;
+  final String patternUnits;
+  final Matrix4? patternTransform;
+  final List<dynamic> elements; // List of SvgElement
+  
+  SvgPattern({
+    required String id,
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+    this.patternUnits = 'objectBoundingBox',
+    this.patternTransform,
+    required this.elements,
+  }) : super(id);
+  
+  @override
+  String toString() => 'SvgPattern(id: $id, ${width}x$height)';
+}
+
+// ============================================================================
+// CLIP PATH CLASS
+// ============================================================================
+
+
+// ============================================================================
+// MASK CLASS
+// ============================================================================
+
+// ============================================================================
+// SYMBOL CLASS
+// ============================================================================
+
+// ============================================================================
+// MARKER CLASS
+// ============================================================================
+
+/// Marker definition for path endpoints and vertices
+class SvgMarker extends SvgDefinition {
+  final double refX, refY;
+  final double markerWidth, markerHeight;
+  final String orient;
+  final List<dynamic> elements; // List of SvgElement
+  
+  SvgMarker({
+    required String id,
+    required this.refX,
+    required this.refY,
+    required this.markerWidth,
+    required this.markerHeight,
+    this.orient = 'auto',
+    required this.elements,
+  }) : super(id);
+  
+  @override
+  String toString() => 'SvgMarker(id: $id, ${markerWidth}x$markerHeight)';
+}
+
+// ============================================================================
+// FILTER CLASSES
+// ============================================================================
+
+/// Base class for all filter primitives
+abstract class FilterPrimitive {
+  final String? input;
+  final String? result;
+  
+  FilterPrimitive({
+    this.input,
+    this.result,
+  });
+  
+  @override
+  String toString() => '${runtimeType}(in: $input, result: $result)';
+}
+
+/// Gaussian blur filter primitive
+class FeGaussianBlur extends FilterPrimitive {
+  final double stdDeviation;
+  
+  FeGaussianBlur({
+    required this.stdDeviation,
+    String? input,
+    String? result,
+  }) : super(input: input, result: result);
+  
+  @override
+  String toString() => 'FeGaussianBlur(stdDev: $stdDeviation)';
+}
+
+/// Drop shadow filter primitive
+class FeDropShadow extends FilterPrimitive {
+  final double dx, dy, stdDeviation;
+  final Color? floodColor;
+  final double floodOpacity;
+  
+  FeDropShadow({
+    required this.dx,
+    required this.dy,
+    required this.stdDeviation,
+    this.floodColor,
+    this.floodOpacity = 1.0,
+  }) : super();
+  
+  @override
+  String toString() => 'FeDropShadow(dx: $dx, dy: $dy, blur: $stdDeviation)';
+}
+
+/// Offset filter primitive
+class FeOffset extends FilterPrimitive {
+  final double dx, dy;
+  
+  FeOffset({
+    required this.dx,
+    required this.dy,
+    String? input,
+    String? result,
+  }) : super(input: input, result: result);
+  
+  @override
+  String toString() => 'FeOffset(dx: $dx, dy: $dy)';
+}
+
+/// Color matrix filter primitive
+class FeColorMatrix extends FilterPrimitive {
+  final String type;
+  final String? values;
+  
+  FeColorMatrix({
+    required this.type,
+    this.values,
+    String? input,
+    String? result,
+  }) : super(input: input, result: result);
+  
+  @override
+  String toString() => 'FeColorMatrix(type: $type)';
+}
+
+/// Blend filter primitive
+class FeBlend extends FilterPrimitive {
+  final String mode;
+  final String? in1, in2;
+  
+  FeBlend({
+    required this.mode,
+    this.in1,
+    this.in2,
+    String? result,
+  }) : super(result: result);
+  
+  @override
+  String toString() => 'FeBlend(mode: $mode)';
+}
+
+/// Composite filter primitive (Porter-Duff operations)
+class FeComposite extends FilterPrimitive {
+  final String operator;
+  final String? in1, in2;
+  final double? k1, k2, k3, k4;
+  
+  FeComposite({
+    required this.operator,
+    this.in1,
+    this.in2,
+    this.k1,
+    this.k2,
+    this.k3,
+    this.k4,
+    String? result,
+  }) : super(result: result);
+  
+  @override
+  String toString() => 'FeComposite(operator: $operator)';
+}
+
+/// Morphology filter primitive (erode/dilate)
+class FeMorphology extends FilterPrimitive {
+  final String operator;
+  final double radius;
+  
+  FeMorphology({
+    required this.operator,
+    required this.radius,
+    String? input,
+    String? result,
+  }) : super(input: input, result: result);
+  
+  @override
+  String toString() => 'FeMorphology(operator: $operator, radius: $radius)';
+}
+
+/// Turbulence filter primitive (noise generation)
+class FeTurbulence extends FilterPrimitive {
+  final String type;
+  final double baseFrequency;
+  final int numOctaves;
+  final double seed;
+  final bool stitchTiles;
+  
+  FeTurbulence({
+    required this.type,
+    required this.baseFrequency,
+    this.numOctaves = 1,
+    this.seed = 0,
+    this.stitchTiles = false,
+    String? result,
+  }) : super(result: result);
+  
+  @override
+  String toString() => 'FeTurbulence(type: $type, freq: $baseFrequency)';
+}
+
+/// Displacement map filter primitive
+class FeDisplacementMap extends FilterPrimitive {
+  final String? in2;
+  final double scale;
+  final String xChannelSelector;
+  final String yChannelSelector;
+  
+  FeDisplacementMap({
+    String? input,
+    this.in2,
+    required this.scale,
+    this.xChannelSelector = 'A',
+    this.yChannelSelector = 'A',
+    String? result,
+  }) : super(input: input, result: result);
+  
+  @override
+  String toString() => 'FeDisplacementMap(scale: $scale)';
+}
+
+/// Filter definition containing multiple primitives
+class SvgFilter extends SvgDefinition {
+  final List<FilterPrimitive> primitives;
+  
+  SvgFilter({
+    required String id,
+    required this.primitives,
+  }) : super(id);
+  
+  @override
+  String toString() => 'SvgFilter(id: $id, primitives: ${primitives.length})';
+}
+
+// ============================================================================
+// FACTORY CONSTRUCTORS FOR EASY CREATION
+// ============================================================================
+
+extension SvgDefinitionFactory on SvgDefinition {
+  /// Create a linear gradient from simple parameters
+  static SvgLinearGradient linearGradient({
+    required String id,
+    required List<Color> colors,
+    List<double>? stops,
+    Alignment begin = Alignment.centerLeft,
+    Alignment end = Alignment.centerRight,
+  }) {
+    final gradientStops = <GradientStop>[];
+    
+    for (var i = 0; i < colors.length; i++) {
+      final offset = stops != null ? stops[i] : i / (colors.length - 1);
+      gradientStops.add(GradientStop(offset: offset, color: colors[i]));
+    }
+    
+    return SvgLinearGradient(
+      id: id,
+      x1: (begin.x + 1) / 2,
+      y1: (begin.y + 1) / 2,
+      x2: (end.x + 1) / 2,
+      y2: (end.y + 1) / 2,
+      stops: gradientStops,
+    );
+  }
+  
+  /// Create a radial gradient from simple parameters
+  static SvgRadialGradient radialGradient({
+    required String id,
+    required List<Color> colors,
+    List<double>? stops,
+    Alignment center = Alignment.center,
+    double radius = 0.5,
+  }) {
+    final gradientStops = <GradientStop>[];
+    
+    for (var i = 0; i < colors.length; i++) {
+      final offset = stops != null ? stops[i] : i / (colors.length - 1);
+      gradientStops.add(GradientStop(offset: offset, color: colors[i]));
+    }
+    
+    return SvgRadialGradient(
+      id: id,
+      cx: (center.x + 1) / 2,
+      cy: (center.y + 1) / 2,
+      r: radius,
+      stops: gradientStops,
+    );
+  }
+  
+  /// Create a blur filter
+  static SvgFilter blurFilter({
+    required String id,
+    required double amount,
+  }) {
+    return SvgFilter(
+      id: id,
+      primitives: [
+        FeGaussianBlur(stdDeviation: amount),
+      ],
+    );
+  }
+  
+  /// Create a drop shadow filter
+  static SvgFilter dropShadowFilter({
+    required String id,
+    double dx = 2,
+    double dy = 2,
+    double blur = 3,
+    Color color = Colors.black,
+    double opacity = 0.5,
+  }) {
+    return SvgFilter(
+      id: id,
+      primitives: [
+        FeDropShadow(
+          dx: dx,
+          dy: dy,
+          stdDeviation: blur,
+          floodColor: color,
+          floodOpacity: opacity,
+        ),
+      ],
+    );
+  }
+  
+  /// Create a glow filter
+  static SvgFilter glowFilter({
+    required String id,
+    double blur = 5,
+    Color color = Colors.white,
+  }) {
+    return SvgFilter(
+      id: id,
+      primitives: [
+        FeGaussianBlur(stdDeviation: blur),
+        FeColorMatrix(
+          type: 'matrix',
+          values: '0 0 0 0 ${color.red / 255} '
+                  '0 0 0 0 ${color.green / 255} '
+                  '0 0 0 0 ${color.blue / 255} '
+                  '0 0 0 1 0',
+        ),
+        FeBlend(mode: 'screen', in1: 'SourceGraphic'),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// EXAMPLE USAGE
+// ============================================================================
+
+/*
+void main() {
+  // Create a linear gradient
+  final gradient = SvgDefinitionFactory.linearGradient(
+    id: 'myGradient',
+    colors: [Colors.red, Colors.yellow, Colors.blue],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  
+  // Create a radial gradient
+  final radial = SvgDefinitionFactory.radialGradient(
+    id: 'myRadial',
+    colors: [Colors.white, Colors.black],
+    center: Alignment.center,
+    radius: 0.5,
+  );
+  
+  // Create filters
+  final blur = SvgDefinitionFactory.blurFilter(id: 'blur', amount: 5);
+  final shadow = SvgDefinitionFactory.dropShadowFilter(id: 'shadow');
+  final glow = SvgDefinitionFactory.glowFilter(id: 'glow', color: Colors.cyan);
+  
+  // Create custom gradient stops
+  final customGradient = SvgLinearGradient(
+    id: 'custom',
+    x1: 0, y1: 0,
+    x2: 1, y2: 1,
+    stops: [
+      GradientStop(offset: 0.0, color: Colors.red),
+      GradientStop(offset: 0.5, color: Colors.yellow),
+      GradientStop(offset: 1.0, color: Colors.blue),
+    ],
+  );
+  
+  // Create complex filter
+  final complexFilter = SvgFilter(
+    id: 'complex',
+    primitives: [
+      FeTurbulence(
+        type: 'fractalNoise',
+        baseFrequency: 0.05,
+        numOctaves: 3,
+      ),
+      FeDisplacementMap(
+        scale: 20,
+        xChannelSelector: 'R',
+        yChannelSelector: 'G',
+      ),
+      FeGaussianBlur(stdDeviation: 2),
+      FeMorphology(operator: 'dilate', radius: 1),
+    ],
+  );
+  
+  print('Gradient: $gradient');
+  print('Filter: $complexFilter');
+}
+*/
+
+
+// ============================================================================
+// PATTERN CLASS
+// ============================================================================
+
+// ============================================================================
+// MARKER CLASS
+// ============================================================================
+
+// ============================================================================
+// FILTER CLASSES
+// ============================================================================
+
+
+// ============================================================================
+// FACTORY CONSTRUCTORS FOR EASY CREATION
+// ============================================================================
+
+
+// ============================================================================
+// EXAMPLE USAGE
+// ============================================================================
+
+/*
+void main() {
+  // Create a linear gradient
+  final gradient = SvgDefinitionFactory.linearGradient(
+    id: 'myGradient',
+    colors: [Colors.red, Colors.yellow, Colors.blue],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  
+  // Create a radial gradient
+  final radial = SvgDefinitionFactory.radialGradient(
+    id: 'myRadial',
+    colors: [Colors.white, Colors.black],
+    center: Alignment.center,
+    radius: 0.5,
+  );
+  
+  // Create filters
+  final blur = SvgDefinitionFactory.blurFilter(id: 'blur', amount: 5);
+  final shadow = SvgDefinitionFactory.dropShadowFilter(id: 'shadow');
+  final glow = SvgDefinitionFactory.glowFilter(id: 'glow', color: Colors.cyan);
+  
+  // Create custom gradient stops
+  final customGradient = SvgLinearGradient(
+    id: 'custom',
+    x1: 0, y1: 0,
+    x2: 1, y2: 1,
+    stops: [
+      GradientStop(offset: 0.0, color: Colors.red),
+      GradientStop(offset: 0.5, color: Colors.yellow),
+      GradientStop(offset: 1.0, color: Colors.blue),
+    ],
+  );
+  
+  // Create complex filter
+  final complexFilter = SvgFilter(
+    id: 'complex',
+    primitives: [
+      FeTurbulence(
+        type: 'fractalNoise',
+        baseFrequency: 0.05,
+        numOctaves: 3,
+      ),
+      FeDisplacementMap(
+        scale: 20,
+        xChannelSelector: 'R',
+        yChannelSelector: 'G',
+      ),
+      FeGaussianBlur(stdDeviation: 2),
+      FeMorphology(operator: 'dilate', radius: 1),
+    ],
+  );
+  
+  print('Gradient: $gradient');
+  print('Filter: $complexFilter');
+}
+*/

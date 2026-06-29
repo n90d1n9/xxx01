@@ -1,0 +1,1855 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// ============================================================================
+// Main App
+// ============================================================================
+
+void main() {
+  runApp(const ProviderScope(child: KubernetesDashboard()));
+}
+
+class KubernetesDashboard extends StatelessWidget {
+  const KubernetesDashboard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Kubernetes Dashboard',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0066CC),
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0066CC),
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF1A1A1A),
+      ),
+      home: const DashboardScreen(),
+    );
+  }
+}
+
+// ============================================================================
+// State Management - Providers
+// ============================================================================
+
+// Current namespace provider
+final currentNamespaceProvider = StateProvider<String>((ref) => 'default');
+
+// Current view provider
+final currentViewProvider = StateProvider<DashboardView>((ref) => DashboardView.overview);
+
+// Theme mode provider
+final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
+
+// Mock data providers
+final podsProvider = StateProvider<List<PodInfo>>((ref) {
+  return [
+    PodInfo(
+      name: 'nginx-deployment-7d8d9f4c5-abc123',
+      namespace: 'default',
+      status: PodStatus.running,
+      readyContainers: 1,
+      totalContainers: 1,
+      restarts: 0,
+      age: '2d',
+      node: 'node-1',
+    ),
+    PodInfo(
+      name: 'redis-master-0',
+      namespace: 'default',
+      status: PodStatus.running,
+      readyContainers: 1,
+      totalContainers: 1,
+      restarts: 2,
+      age: '5d',
+      node: 'node-2',
+    ),
+    PodInfo(
+      name: 'postgres-db-6f8b9c-xyz789',
+      namespace: 'default',
+      status: PodStatus.pending,
+      readyContainers: 0,
+      totalContainers: 1,
+      restarts: 0,
+      age: '1m',
+      node: 'node-1',
+    ),
+  ];
+});
+
+final deploymentsProvider = StateProvider<List<DeploymentInfo>>((ref) {
+  return [
+    DeploymentInfo(
+      name: 'nginx-deployment',
+      namespace: 'default',
+      ready: '3/3',
+      upToDate: 3,
+      available: 3,
+      age: '5d',
+    ),
+    DeploymentInfo(
+      name: 'api-server',
+      namespace: 'default',
+      ready: '2/5',
+      upToDate: 2,
+      available: 2,
+      age: '3d',
+    ),
+  ];
+});
+
+final servicesProvider = StateProvider<List<ServiceInfo>>((ref) {
+  return [
+    ServiceInfo(
+      name: 'nginx-service',
+      namespace: 'default',
+      type: 'LoadBalancer',
+      clusterIP: '10.96.0.1',
+      externalIP: '203.0.113.1',
+      ports: '80:30080/TCP',
+      age: '5d',
+    ),
+    ServiceInfo(
+      name: 'redis-service',
+      namespace: 'default',
+      type: 'ClusterIP',
+      clusterIP: '10.96.0.2',
+      externalIP: '<none>',
+      ports: '6379/TCP',
+      age: '5d',
+    ),
+  ];
+});
+
+// ============================================================================
+// Models
+// ============================================================================
+
+enum DashboardView {
+  overview,
+  workloads,
+  networking,
+  storage,
+  configuration,
+  rbac,
+  events,
+}
+
+enum PodStatus { running, pending, failed, succeeded, unknown }
+
+class PodInfo {
+  final String name;
+  final String namespace;
+  final PodStatus status;
+  final int readyContainers;
+  final int totalContainers;
+  final int restarts;
+  final String age;
+  final String node;
+
+  PodInfo({
+    required this.name,
+    required this.namespace,
+    required this.status,
+    required this.readyContainers,
+    required this.totalContainers,
+    required this.restarts,
+    required this.age,
+    required this.node,
+  });
+}
+
+class DeploymentInfo {
+  final String name;
+  final String namespace;
+  final String ready;
+  final int upToDate;
+  final int available;
+  final String age;
+
+  DeploymentInfo({
+    required this.name,
+    required this.namespace,
+    required this.ready,
+    required this.upToDate,
+    required this.available,
+    required this.age,
+  });
+}
+
+class ServiceInfo {
+  final String name;
+  final String namespace;
+  final String type;
+  final String clusterIP;
+  final String externalIP;
+  final String ports;
+  final String age;
+
+  ServiceInfo({
+    required this.name,
+    required this.namespace,
+    required this.type,
+    required this.clusterIP,
+    required this.externalIP,
+    required this.ports,
+    required this.age,
+  });
+}
+
+// ============================================================================
+// Main Dashboard Screen
+// ============================================================================
+
+class DashboardScreen extends ConsumerWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentView = ref.watch(currentViewProvider);
+    final currentNamespace = ref.watch(currentNamespaceProvider);
+
+    return Scaffold(
+      body: Row(
+        children: [
+          // Sidebar Navigation
+          const NavigationSidebar(),
+          
+          // Main Content Area
+          Expanded(
+            child: Column(
+              children: [
+                // Top Bar
+                TopBar(
+                  currentNamespace: currentNamespace,
+                  onNamespaceChanged: (ns) =>
+                      ref.read(currentNamespaceProvider.notifier).state = ns,
+                ),
+                
+                // Content
+                Expanded(
+                  child: _buildContent(currentView),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent(DashboardView view) {
+    switch (view) {
+      case DashboardView.overview:
+        return const OverviewView();
+      case DashboardView.workloads:
+        return const WorkloadsView();
+      case DashboardView.networking:
+        return const NetworkingView();
+      case DashboardView.storage:
+        return const StorageView();
+      case DashboardView.configuration:
+        return const ConfigurationView();
+      case DashboardView.rbac:
+        return const RBACView();
+      case DashboardView.events:
+        return const EventsView();
+    }
+  }
+}
+
+// ============================================================================
+// Navigation Sidebar
+// ============================================================================
+
+class NavigationSidebar extends ConsumerWidget {
+  const NavigationSidebar({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentView = ref.watch(currentViewProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      width: 240,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF252525) : Colors.white,
+        border: Border(
+          right: BorderSide(
+            color: isDark ? const Color(0xFF3A3A3A) : const Color(0xFFE0E0E0),
+          ),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Logo
+          Container(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.sailing,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 32,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'K8s Dashboard',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          
+          // Navigation Items
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: [
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.dashboard,
+                  label: 'Overview',
+                  view: DashboardView.overview,
+                  isSelected: currentView == DashboardView.overview,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.workspaces,
+                  label: 'Workloads',
+                  view: DashboardView.workloads,
+                  isSelected: currentView == DashboardView.workloads,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.language,
+                  label: 'Networking',
+                  view: DashboardView.networking,
+                  isSelected: currentView == DashboardView.networking,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.storage,
+                  label: 'Storage',
+                  view: DashboardView.storage,
+                  isSelected: currentView == DashboardView.storage,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.settings,
+                  label: 'Configuration',
+                  view: DashboardView.configuration,
+                  isSelected: currentView == DashboardView.configuration,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.security,
+                  label: 'RBAC',
+                  view: DashboardView.rbac,
+                  isSelected: currentView == DashboardView.rbac,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.event_note,
+                  label: 'Events',
+                  view: DashboardView.events,
+                  isSelected: currentView == DashboardView.events,
+                ),
+              ],
+            ),
+          ),
+          
+          // Bottom Actions
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                _buildActionButton(
+                  context,
+                  icon: Icons.help_outline,
+                  label: 'Documentation',
+                  onTap: () {},
+                ),
+                const SizedBox(height: 8),
+                _buildActionButton(
+                  context,
+                  icon: Icons.settings_outlined,
+                  label: 'Settings',
+                  onTap: () {},
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(
+    BuildContext context,
+    WidgetRef ref, {
+    required IconData icon,
+    required String label,
+    required DashboardView view,
+    required bool isSelected,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: Material(
+        color: isSelected
+            ? Theme.of(context).colorScheme.primaryContainer
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: () => ref.read(currentViewProvider.notifier).state = view,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.onPrimaryContainer
+                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.onPrimaryContainer
+                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+            Text(label, style: const TextStyle(fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Top Bar
+// ============================================================================
+
+class TopBar extends StatelessWidget {
+  final String currentNamespace;
+  final ValueChanged<String> onNamespaceChanged;
+
+  const TopBar({
+    super.key,
+    required this.currentNamespace,
+    required this.onNamespaceChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      height: 64,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF252525) : Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? const Color(0xFF3A3A3A) : const Color(0xFFE0E0E0),
+          ),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        children: [
+          // Namespace Selector
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isDark ? const Color(0xFF3A3A3A) : const Color(0xFFE0E0E0),
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.folder_outlined, size: 18),
+                const SizedBox(width: 8),
+                DropdownButton<String>(
+                  value: currentNamespace,
+                  underline: const SizedBox(),
+                  items: ['default', 'kube-system', 'kube-public', 'production']
+                      .map((ns) => DropdownMenuItem(
+                            value: ns,
+                            child: Text(ns),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) onNamespaceChanged(value);
+                  },
+                ),
+              ],
+            ),
+          ),
+          
+          const Spacer(),
+          
+          // Search
+          Container(
+            width: 300,
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.search,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search resources...',
+                      border: InputBorder.none,
+                      hintStyle: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(width: 16),
+          
+          // Actions
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            tooltip: 'Notifications',
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_circle_outlined),
+            tooltip: 'Account',
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Overview View
+// ============================================================================
+
+class OverviewView extends ConsumerWidget {
+  const OverviewView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pods = ref.watch(podsProvider);
+    final deployments = ref.watch(deploymentsProvider);
+    final services = ref.watch(servicesProvider);
+
+    final runningPods = pods.where((p) => p.status == PodStatus.running).length;
+    final pendingPods = pods.where((p) => p.status == PodStatus.pending).length;
+    final failedPods = pods.where((p) => p.status == PodStatus.failed).length;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Cluster Overview',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Stats Cards
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 4,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 2,
+            children: [
+              _buildStatCard(
+                context,
+                icon: Icons.podcasts,
+                title: 'Pods',
+                value: pods.length.toString(),
+                subtitle: '$runningPods running, $pendingPods pending',
+                color: Colors.blue,
+              ),
+              _buildStatCard(
+                context,
+                icon: Icons.deploy_outlined,
+                title: 'Deployments',
+                value: deployments.length.toString(),
+                subtitle: 'All healthy',
+                color: Colors.green,
+              ),
+              _buildStatCard(
+                context,
+                icon: Icons.dns_outlined,
+                title: 'Services',
+                value: services.length.toString(),
+                subtitle: 'Active endpoints',
+                color: Colors.purple,
+              ),
+              _buildStatCard(
+                context,
+                icon: Icons.error_outline,
+                title: 'Issues',
+                value: failedPods.toString(),
+                subtitle: 'Requires attention',
+                color: Colors.red,
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 32),
+          
+          // Recent Resources
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _buildRecentPodsCard(context, pods),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildRecentDeploymentsCard(context, deployments),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String value,
+    required String subtitle,
+    required Color color,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const Spacer(),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                ),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentPodsCard(BuildContext context, List<PodInfo> pods) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Recent Pods',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () {},
+                  child: const Text('View All'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ...pods.take(5).map((pod) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      _buildStatusIndicator(pod.status),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              pod.name,
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              '${pod.readyContainers}/${pod.totalContainers} ready',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        pod.age,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentDeploymentsCard(
+      BuildContext context, List<DeploymentInfo> deployments) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Recent Deployments',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () {},
+                  child: const Text('View All'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ...deployments.map((deployment) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.rocket_launch, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              deployment.name,
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            Text(
+                              'Ready: ${deployment.ready}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        deployment.age,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusIndicator(PodStatus status) {
+    Color color;
+    IconData icon;
+
+    switch (status) {
+      case PodStatus.running:
+        color = Colors.green;
+        icon = Icons.check_circle;
+        break;
+      case PodStatus.pending:
+        color = Colors.orange;
+        icon = Icons.schedule;
+        break;
+      case PodStatus.failed:
+        color = Colors.red;
+        icon = Icons.error;
+        break;
+      case PodStatus.succeeded:
+        color = Colors.blue;
+        icon = Icons.check_circle_outline;
+        break;
+      case PodStatus.unknown:
+        color = Colors.grey;
+        icon = Icons.help_outline;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, color: color, size: 16),
+    );
+  }
+}
+
+// ============================================================================
+// Workloads View
+// ============================================================================
+
+class WorkloadsView extends ConsumerWidget {
+  const WorkloadsView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return DefaultTabController(
+      length: 5,
+      child: Column(
+        children: [
+          Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: TabBar(
+              isScrollable: true,
+              tabs: const [
+                Tab(text: 'Pods'),
+                Tab(text: 'Deployments'),
+                Tab(text: 'StatefulSets'),
+                Tab(text: 'DaemonSets'),
+                Tab(text: 'Jobs'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                PodsTab(),
+                const Center(child: Text('Deployments')),
+                const Center(child: Text('StatefulSets')),
+                const Center(child: Text('DaemonSets')),
+                const Center(child: Text('Jobs')),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PodsTab extends ConsumerWidget {
+  const PodsTab({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pods = ref.watch(podsProvider);
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              Text(
+                'Pods',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+              OutlinedButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.filter_list, size: 18),
+                label: const Text('Filter'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Create Pod'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Card(
+            margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: SingleChildScrollView(
+              child: DataTable(
+                columnSpacing: 24,
+                headingRowHeight: 56,
+                columns: const [
+                  DataColumn(label: Text('Name')),
+                  DataColumn(label: Text('Status')),
+                  DataColumn(label: Text('Ready')),
+                  DataColumn(label: Text('Restarts')),
+                  DataColumn(label: Text('Node')),
+                  DataColumn(label: Text('Age')),
+                  DataColumn(label: Text('Actions')),
+                ],
+                rows: pods
+                    .map(
+                      (pod) => DataRow(
+                        cells: [
+                          DataCell(
+                            Row(
+                              children: [
+                                const Icon(Icons.podcasts, size: 16),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    pod.name,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          DataCell(_buildStatusChip(pod.status)),
+                          DataCell(Text('${pod.readyContainers}/${pod.totalContainers}')),
+                          DataCell(Text(pod.restarts.toString())),
+                          DataCell(Text(pod.node)),
+                          DataCell(Text(pod.age)),
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.terminal, size: 18),
+                                  tooltip: 'Logs',
+                                  onPressed: () {},
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit, size: 18),
+                                  tooltip: 'Edit',
+                                  onPressed: () {},
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, size: 18),
+                                  tooltip: 'Delete',
+                                  onPressed: () {},
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusChip(PodStatus status) {
+    Color color;
+    String text;
+
+    switch (status) {
+      case PodStatus.running:
+        color = Colors.green;
+        text = 'Running';
+        break;
+      case PodStatus.pending:
+        color = Colors.orange;
+        text = 'Pending';
+        break;
+      case PodStatus.failed:
+        color = Colors.red;
+        text = 'Failed';
+        break;
+      case PodStatus.succeeded:
+        color = Colors.blue;
+        text = 'Succeeded';
+        break;
+      case PodStatus.unknown:
+        color = Colors.grey;
+        text = 'Unknown';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Networking View
+// ============================================================================
+
+class NetworkingView extends ConsumerWidget {
+  const NetworkingView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: const TabBar(
+              tabs: [
+                Tab(text: 'Services'),
+                Tab(text: 'Ingresses'),
+                Tab(text: 'Network Policies'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                const ServicesTab(),
+                const Center(child: Text('Ingresses')),
+                const Center(child: Text('Network Policies')),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ServicesTab extends ConsumerWidget {
+  const ServicesTab({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final services = ref.watch(servicesProvider);
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              Text(
+                'Services',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Create Service'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Card(
+            margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: SingleChildScrollView(
+              child: DataTable(
+                columnSpacing: 24,
+                headingRowHeight: 56,
+                columns: const [
+                  DataColumn(label: Text('Name')),
+                  DataColumn(label: Text('Type')),
+                  DataColumn(label: Text('Cluster IP')),
+                  DataColumn(label: Text('External IP')),
+                  DataColumn(label: Text('Ports')),
+                  DataColumn(label: Text('Age')),
+                  DataColumn(label: Text('Actions')),
+                ],
+                rows: services
+                    .map(
+                      (service) => DataRow(
+                        cells: [
+                          DataCell(
+                            Row(
+                              children: [
+                                const Icon(Icons.dns_outlined, size: 16),
+                                const SizedBox(width: 8),
+                                Text(service.name),
+                              ],
+                            ),
+                          ),
+                          DataCell(_buildTypeChip(service.type)),
+                          DataCell(Text(service.clusterIP)),
+                          DataCell(Text(service.externalIP)),
+                          DataCell(Text(service.ports)),
+                          DataCell(Text(service.age)),
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit, size: 18),
+                                  tooltip: 'Edit',
+                                  onPressed: () {},
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, size: 18),
+                                  tooltip: 'Delete',
+                                  onPressed: () {},
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTypeChip(String type) {
+    Color color;
+    switch (type) {
+      case 'LoadBalancer':
+        color = Colors.blue;
+        break;
+      case 'ClusterIP':
+        color = Colors.green;
+        break;
+      case 'NodePort':
+        color = Colors.orange;
+        break;
+      default:
+        color = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        type,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Storage View
+// ============================================================================
+
+class StorageView extends StatelessWidget {
+  const StorageView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: const TabBar(
+              tabs: [
+                Tab(text: 'Persistent Volumes'),
+                Tab(text: 'Persistent Volume Claims'),
+                Tab(text: 'Storage Classes'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildEmptyState(
+                  context,
+                  icon: Icons.storage,
+                  title: 'No Persistent Volumes',
+                  message: 'Create your first persistent volume to get started',
+                  actionLabel: 'Create PV',
+                ),
+                _buildEmptyState(
+                  context,
+                  icon: Icons.layers,
+                  title: 'No Persistent Volume Claims',
+                  message: 'Create a PVC to request storage for your pods',
+                  actionLabel: 'Create PVC',
+                ),
+                _buildEmptyState(
+                  context,
+                  icon: Icons.class_outlined,
+                  title: 'No Storage Classes',
+                  message: 'Define storage classes for dynamic provisioning',
+                  actionLabel: 'Create Storage Class',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String message,
+    required String actionLabel,
+  }) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            size: 80,
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: () {},
+            icon: const Icon(Icons.add),
+            label: Text(actionLabel),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Configuration View
+// ============================================================================
+
+class ConfigurationView extends StatelessWidget {
+  const ConfigurationView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: const TabBar(
+              tabs: [
+                Tab(text: 'ConfigMaps'),
+                Tab(text: 'Secrets'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildConfigMapsList(context),
+                _buildSecretsList(context),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfigMapsList(BuildContext context) {
+    final configMaps = [
+      {'name': 'app-config', 'keys': 3, 'age': '2d'},
+      {'name': 'database-config', 'keys': 5, 'age': '5d'},
+    ];
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              Text(
+                'ConfigMaps',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Create ConfigMap'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Card(
+            margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: ListView.separated(
+              itemCount: configMaps.length,
+              separatorBuilder: (context, index) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final cm = configMaps[index];
+                return ListTile(
+                  leading: const Icon(Icons.settings_applications),
+                  title: Text(cm['name'] as String),
+                  subtitle: Text('${cm['keys']} keys'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        cm['age'] as String,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        icon: const Icon(Icons.more_vert, size: 18),
+                        onPressed: () {},
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSecretsList(BuildContext context) {
+    final secrets = [
+      {'name': 'db-credentials', 'type': 'Opaque', 'age': '5d'},
+      {'name': 'tls-cert', 'type': 'kubernetes.io/tls', 'age': '10d'},
+    ];
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              Text(
+                'Secrets',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Create Secret'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Card(
+            margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: ListView.separated(
+              itemCount: secrets.length,
+              separatorBuilder: (context, index) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final secret = secrets[index];
+                return ListTile(
+                  leading: const Icon(Icons.lock_outline),
+                  title: Text(secret['name'] as String),
+                  subtitle: Text(secret['type'] as String),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        secret['age'] as String,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        icon: const Icon(Icons.more_vert, size: 18),
+                        onPressed: () {},
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// RBAC View
+// ============================================================================
+
+class RBACView extends StatelessWidget {
+  const RBACView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 4,
+      child: Column(
+        children: [
+          Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: const TabBar(
+              isScrollable: true,
+              tabs: [
+                Tab(text: 'Service Accounts'),
+                Tab(text: 'Roles'),
+                Tab(text: 'Role Bindings'),
+                Tab(text: 'Cluster Roles'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildServiceAccountsList(context),
+                _buildRolesList(context),
+                _buildRoleBindingsList(context),
+                _buildClusterRolesList(context),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildServiceAccountsList(BuildContext context) {
+    final serviceAccounts = [
+      {'name': 'default', 'secrets': 1, 'age': '30d'},
+      {'name': 'deployment-controller', 'secrets': 1, 'age': '30d'},
+    ];
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              Text(
+                'Service Accounts',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Create Service Account'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Card(
+            margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: DataTable(
+              columnSpacing: 24,
+              headingRowHeight: 56,
+              columns: const [
+                DataColumn(label: Text('Name')),
+                DataColumn(label: Text('Secrets')),
+                DataColumn(label: Text('Age')),
+                DataColumn(label: Text('Actions')),
+              ],
+              rows: serviceAccounts
+                  .map(
+                    (sa) => DataRow(
+                      cells: [
+                        DataCell(
+                          Row(
+                            children: [
+                              const Icon(Icons.account_circle_outlined, size: 16),
+                              const SizedBox(width: 8),
+                              Text(sa['name'] as String),
+                            ],
+                          ),
+                        ),
+                        DataCell(Text(sa['secrets'].toString())),
+                        DataCell(Text(sa['age'] as String)),
+                        DataCell(
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit, size: 18),
+                                tooltip: 'Edit',
+                                onPressed: () {},
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, size: 18),
+                                tooltip: 'Delete',
+                                onPressed: () {},
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRolesList(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.admin_panel_settings_outlined,
+            size: 80,
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'No Roles',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Create roles to define permissions for your namespace',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: () {},
+            icon: const Icon(Icons.add),
+            label: const Text('Create Role'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoleBindingsList(BuildContext context) {
+    return Center(
+      child: Text(
+        'Role Bindings',
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
+    );
+  }
+
+  Widget _buildClusterRolesList(BuildContext context) {
+    return Center(
+      child: Text(
+        'Cluster Roles',
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Events View
+// ============================================================================
+
+class EventsView extends ConsumerWidget {
+  const EventsView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final events = [
+      {
+        'type': 'Normal',
+        'reason': 'Scheduled',
+        'message': 'Successfully assigned default/nginx-deployment-7d8d9f4c5-abc123 to node-1',
+        'object': 'Pod/nginx-deployment-7d8d9f4c5-abc123',
+        'time': '2m ago',
+      },
+      {
+        'type': 'Normal',
+        'reason': 'Pulling',
+        'message': 'Pulling image "nginx:latest"',
+        'object': 'Pod/nginx-deployment-7d8d9f4c5-abc123',
+        'time': '2m ago',
+      },
+      {
+        'type': 'Warning',
+        'reason': 'BackOff',
+        'message': 'Back-off restarting failed container',
+        'object': 'Pod/postgres-db-6f8b9c-xyz789',
+        'time': '5m ago',
+      },
+      {
+        'type': 'Normal',
+        'reason': 'ScalingReplicaSet',
+        'message': 'Scaled up replica set nginx-deployment-7d8d9f4c5 to 3',
+        'object': 'Deployment/nginx-deployment',
+        'time': '10m ago',
+      },
+    ];
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              Text(
+                'Cluster Events',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+              OutlinedButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.filter_list, size: 18),
+                label: const Text('Filter'),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Refresh'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Card(
+            margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: ListView.separated(
+              itemCount: events.length,
+              separatorBuilder: (context, index) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final event = events[index];
+                final isWarning = event['type'] == 'Warning';
+
+                return ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isWarning
+                          ? Colors.orange.withOpacity(0.1)
+                          : Colors.blue.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isWarning ? Icons.warning_amber : Icons.info_outline,
+                      color: isWarning ? Colors.orange : Colors.blue,
+                      size: 20,
+                    ),
+                  ),
+                  title: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isWarning
+                              ? Colors.orange.withOpacity(0.1)
+                              : Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          event['reason'] as String,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isWarning ? Colors.orange : Colors.green,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        event['object'] as String,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      event['message'] as String,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  trailing: Text(
+                    event['time'] as String,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

@@ -1,0 +1,1187 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:glassmorphism/glassmorphism.dart';
+
+class RadioPlayerScreen extends StatefulWidget {
+  const RadioPlayerScreen({Key? key}) : super(key: key);
+
+  @override
+  _RadioPlayerScreenState createState() => _RadioPlayerScreenState();
+}
+
+class _RadioPlayerScreenState extends State<RadioPlayerScreen> {
+  bool _isPlaying = false;
+  double _currentVolume = 0.5;
+  List<Map<String, String>> _stations = [
+    {
+      'name': 'Smooth Jazz',
+      'frequency': '92.5 FM',
+      'logo': 'assets/jazz_station_logo.png',
+    },
+    {
+      'name': 'Rock Hits',
+      'frequency': '105.7 FM',
+      'logo': 'assets/rock_station_logo.png',
+    },
+    {
+      'name': 'Top 40',
+      'frequency': '99.9 FM',
+      'logo': 'assets/pop_station_logo.png',
+    },
+  ];
+
+  int _currentStationIndex = 0;
+
+  void _togglePlayPause() {
+    setState(() {
+      _isPlaying = !_isPlaying;
+    });
+  }
+
+  void _changeVolume(double value) {
+    setState(() {
+      _currentVolume = value;
+    });
+  }
+
+  void _nextStation() {
+    setState(() {
+      _currentStationIndex = (_currentStationIndex + 1) % _stations.length;
+    });
+  }
+
+  void _previousStation() {
+    setState(() {
+      _currentStationIndex = (_currentStationIndex - 1 + _stations.length) % _stations.length;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentStation = _stations[_currentStationIndex];
+
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.deepPurple[800]!,
+              Colors.deepPurple[600]!,
+              Colors.deepPurple[400]!,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // App Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.menu, color: Colors.white),
+                      onPressed: () {
+                        // TODO: Implement menu functionality
+                      },
+                    ),
+                    Text(
+                      'Radio Player',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.favorite_border, color: Colors.white),
+                      onPressed: () {
+                        // TODO: Implement favorites functionality
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              // Station Logo
+              GlassmorphicContainer(
+                width: 250,
+                height: 250,
+                borderRadius: 20,
+                blur: 20,
+                alignment: Alignment.center,
+                border: 2,
+                linearGradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFFffffff).withValues(alpha: 0.1),
+                    const Color(0xFFffffff).withValues(alpha: 0.05),
+                  ],
+                ),
+                borderGradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.5),
+                    Colors.white.withValues(alpha: 0.1),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.asset(
+                    currentStation['logo']!,
+                    fit: BoxFit.cover,
+                    width: 220,
+                    height: 220,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Station Info
+              Text(
+                currentStation['name']!,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                currentStation['frequency']!,
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 16,
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              // Playback Controls
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.skip_previous, color: Colors.white, size: 40),
+                    onPressed: _previousStation,
+                  ),
+                  const SizedBox(width: 20),
+                  GestureDetector(
+                    onTap: _togglePlayPause,
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Icon(
+                          _isPlaying ? Icons.pause : Icons.play_arrow,
+                          color: Colors.white,
+                          size: 50,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  IconButton(
+                    icon: const Icon(Icons.skip_next, color: Colors.white, size: 40),
+                    onPressed: _nextStation,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // Volume Slider
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 30.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.volume_down, color: Colors.white),
+                    Expanded(
+                      child: Slider(
+                        value: _currentVolume,
+                        onChanged: _changeVolume,
+                        activeColor: Colors.white,
+                        inactiveColor: Colors.white54,
+                      ),
+                    ),
+                    const Icon(Icons.volume_up, color: Colors.white),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class Station {
+  final String name;
+  final String frequency;
+  final String logoUrl;
+  final String streamUrl;
+
+  Station({
+    required this.name, 
+    required this.frequency, 
+    required this.logoUrl, 
+    required this.streamUrl
+  });
+}
+
+class RadioPlayerScreen extends StatefulWidget {
+  const RadioPlayerScreen({Key? key}) : super(key: key);
+
+  @override
+  _RadioPlayerScreenState createState() => _RadioPlayerScreenState();
+}
+
+class _RadioPlayerScreenState extends State<RadioPlayerScreen> {
+  late AudioPlayer _audioPlayer;
+  late SharedPreferences _prefs;
+
+  List<Station> _stations = [
+    Station(
+      name: 'Smooth Jazz',
+      frequency: '92.5 FM',
+      logoUrl: 'https://example.com/jazz_station_logo.png',
+      streamUrl: 'https://example.com/jazz_stream',
+    ),
+    Station(
+      name: 'Rock Hits',
+      frequency: '105.7 FM',
+      logoUrl: 'https://example.com/rock_station_logo.png',
+      streamUrl: 'https://example.com/rock_stream',
+    ),
+    Station(
+      name: 'Top 40',
+      frequency: '99.9 FM',
+      logoUrl: 'https://example.com/pop_station_logo.png',
+      streamUrl: 'https://example.com/pop_stream',
+    ),
+    Station(
+      name: 'Classical',
+      frequency: '88.3 FM',
+      logoUrl: 'https://example.com/classical_station_logo.png',
+      streamUrl: 'https://example.com/classical_stream',
+    ),
+    Station(
+      name: 'Electronic',
+      frequency: '101.2 FM',
+      logoUrl: 'https://example.com/electronic_station_logo.png',
+      streamUrl: 'https://example.com/electronic_stream',
+    ),
+  ];
+
+  bool _isPlaying = false;
+  double _currentVolume = 0.5;
+  int _currentStationIndex = 0;
+  Set<String> _favoriteStations = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _initializePlayer();
+    _loadFavorites();
+  }
+
+  Future<void> _initializePlayer() async {
+    // Initialize SharedPreferences
+    _prefs = await SharedPreferences.getInstance();
+
+    // Initialize AudioPlayer
+    _audioPlayer = AudioPlayer();
+
+    // Load last played station index
+    int savedStationIndex = _prefs.getInt('lastStationIndex') ?? 0;
+    setState(() {
+      _currentStationIndex = savedStationIndex;
+    });
+
+    // Try to load last volume
+    double savedVolume = _prefs.getDouble('volume') ?? 0.5;
+    setState(() {
+      _currentVolume = savedVolume;
+    });
+
+    // Set initial volume
+    _audioPlayer.setVolume(_currentVolume);
+
+    // Try to play the initial station
+    _playCurrentStation();
+  }
+
+  Future<void> _playCurrentStation() async {
+    try {
+      // Stop any current playback
+      await _audioPlayer.stop();
+
+      // Set the stream URL
+      await _audioPlayer.setUrl(_stations[_currentStationIndex].streamUrl);
+
+      // Play the stream
+      await _audioPlayer.play();
+
+      // Update UI
+      setState(() {
+        _isPlaying = true;
+      });
+
+      // Save the current station index
+      await _prefs.setInt('lastStationIndex', _currentStationIndex);
+    } catch (e) {
+      // Handle stream connection errors
+      print('Error playing stream: $e');
+      setState(() {
+        _isPlaying = false;
+      });
+      
+      // Show error dialog
+      _showStreamErrorDialog();
+    }
+  }
+
+  void _showStreamErrorDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Stream Error'),
+        content: Text('Unable to connect to the radio station. Please check your internet connection.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _togglePlayPause() async {
+    if (_isPlaying) {
+      await _audioPlayer.pause();
+      setState(() {
+        _isPlaying = false;
+      });
+    } else {
+      await _playCurrentStation();
+    }
+  }
+
+  void _changeVolume(double value) async {
+    setState(() {
+      _currentVolume = value;
+    });
+    
+    // Set audio player volume
+    _audioPlayer.setVolume(value);
+
+    // Save volume preference
+    await _prefs.setDouble('volume', value);
+  }
+
+  void _nextStation() {
+    setState(() {
+      _currentStationIndex = (_currentStationIndex + 1) % _stations.length;
+    });
+    _playCurrentStation();
+  }
+
+  void _previousStation() {
+    setState(() {
+      _currentStationIndex = (_currentStationIndex - 1 + _stations.length) % _stations.length;
+    });
+    _playCurrentStation();
+  }
+
+  void _loadFavorites() {
+    // Load favorite stations from SharedPreferences
+    final favoriteList = _prefs.getStringList('favoriteStations') ?? [];
+    setState(() {
+      _favoriteStations = favoriteList.toSet();
+    });
+  }
+
+  Future<void> _toggleFavorite() async {
+    final currentStation = _stations[_currentStationIndex];
+    setState(() {
+      if (_favoriteStations.contains(currentStation.name)) {
+        _favoriteStations.remove(currentStation.name);
+      } else {
+        _favoriteStations.add(currentStation.name);
+      }
+    });
+
+    // Save favorites to SharedPreferences
+    await _prefs.setStringList('favoriteStations', _favoriteStations.toList());
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentStation = _stations[_currentStationIndex];
+
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.deepPurple[800]!,
+              Colors.deepPurple[600]!,
+              Colors.deepPurple[400]!,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // App Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.menu, color: Colors.white),
+                      onPressed: () {
+                        // TODO: Implement menu functionality
+                      },
+                    ),
+                    Text(
+                      'Radio Player',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        _favoriteStations.contains(currentStation.name) 
+                          ? Icons.favorite 
+                          : Icons.favorite_border, 
+                        color: Colors.white,
+                      ),
+                      onPressed: _toggleFavorite,
+                    ),
+                  ],
+                ),
+              ),
+
+              // Station Logo
+              Container(
+                width: 250,
+                height: 250,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      spreadRadius: 2,
+                      blurRadius: 10,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: CachedNetworkImage(
+                    imageUrl: currentStation.logoUrl,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Icon(
+                      Icons.radio,
+                      color: Colors.white,
+                      size: 100,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Station Info
+              Text(
+                currentStation.name,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                currentStation.frequency,
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 16,
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              // Playback Controls
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.skip_previous, color: Colors.white, size: 40),
+                    onPressed: _previousStation,
+                  ),
+                  const SizedBox(width: 20),
+                  GestureDetector(
+                    onTap: _togglePlayPause,
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Icon(
+                          _isPlaying ? Icons.pause : Icons.play_arrow,
+                          color: Colors.white,
+                          size: 50,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  IconButton(
+                    icon: const Icon(Icons.skip_next, color: Colors.white, size: 40),
+                    onPressed: _nextStation,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // Volume Slider
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 30.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.volume_down, color: Colors.white),
+                    Expanded(
+                      child: Slider(
+                        value: _currentVolume,
+                        onChanged: _changeVolume,
+                        activeColor: Colors.white,
+                        inactiveColor: Colors.white54,
+                      ),
+                    ),
+                    const Icon(Icons.volume_up, color: Colors.white),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:just_audio/just_audio.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+
+// Station Repository for Backend Management
+class StationRepository {
+  static const String _baseUrl = 'https://your-backend-api.com/stations';
+  
+  Future<List<Station>> fetchStations() async {
+    try {
+      final response = await http.get(Uri.parse(_baseUrl));
+      
+      if (response.statusCode == 200) {
+        List<dynamic> stationsJson = json.decode(response.body);
+        return stationsJson.map((json) => Station.fromJson(json)).toList();
+      } else {
+        throw Exception('Failed to load stations');
+      }
+    } catch (e) {
+      // Fallback to local stations if network fails
+      return _getLocalFallbackStations();
+    }
+  }
+
+  List<Station> _getLocalFallbackStations() {
+    return [
+      Station(
+        id: '1',
+        name: 'Global News Radio',
+        frequency: '92.5 FM',
+        streamUrl: 'https://fallback-stream1.com',
+        category: 'News',
+        logoUrl: 'https://example.com/news_logo.png',
+      ),
+      // Add more fallback stations
+    ];
+  }
+}
+
+// Advanced Station Model
+class Station {
+  final String id;
+  final String name;
+  final String frequency;
+  final String streamUrl;
+  final String category;
+  final String logoUrl;
+  bool isFavorite;
+
+  Station({
+    required this.id,
+    required this.name,
+    required this.frequency,
+    required this.streamUrl,
+    required this.category,
+    required this.logoUrl,
+    this.isFavorite = false,
+  });
+
+  factory Station.fromJson(Map<String, dynamic> json) {
+    return Station(
+      id: json['id'],
+      name: json['name'],
+      frequency: json['frequency'],
+      streamUrl: json['streamUrl'],
+      category: json['category'],
+      logoUrl: json['logoUrl'],
+    );
+  }
+}
+
+// Offline Database Helper
+class DatabaseHelper {
+  static final DatabaseHelper instance = DatabaseHelper._init();
+  static Database? _database;
+
+  DatabaseHelper._init();
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDB('radio_stations.db');
+    return _database!;
+  }
+
+  Future<Database> _initDB(String filePath) async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, filePath);
+
+    return await openDatabase(
+      path,
+      version: 1,
+      onCreate: _createDB,
+    );
+  }
+
+  Future<void> _createDB(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE favorites (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        frequency TEXT,
+        streamUrl TEXT,
+        category TEXT,
+        logoUrl TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE offline_stations (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        frequency TEXT,
+        streamUrl TEXT,
+        category TEXT,
+        logoUrl TEXT
+      )
+    ''');
+  }
+
+  Future<void> saveFavoriteStation(Station station) async {
+    final db = await database;
+    await db.insert(
+      'favorites', 
+      station.toMap(), 
+      conflictAlgorithm: ConflictAlgorithm.replace
+    );
+  }
+
+  Future<void> removeFavoriteStation(String stationId) async {
+    final db = await database;
+    await db.delete(
+      'favorites', 
+      where: 'id = ?', 
+      whereArgs: [stationId]
+    );
+  }
+
+  Future<List<Station>> getFavoriteStations() async {
+    final db = await database;
+    final maps = await db.query('favorites');
+    return maps.map((map) => Station.fromMap(map)).toList();
+  }
+}
+
+// Advanced Radio Player Screen
+class RadioPlayerScreen extends StatefulWidget {
+  const RadioPlayerScreen({Key? key}) : super(key: key);
+
+  @override
+  _RadioPlayerScreenState createState() => _RadioPlayerScreenState();
+}
+
+class _RadioPlayerScreenState extends State<RadioPlayerScreen> {
+  late AudioPlayer _audioPlayer;
+  late StationRepository _stationRepository;
+  late DatabaseHelper _databaseHelper;
+  
+  List<Station> _stations = [];
+  List<Station> _favoriteStations = [];
+  
+  Station? _currentStation;
+  bool _isPlaying = false;
+  bool _isOfflineMode = false;
+  StreamSubscription? _connectivitySubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeApp();
+    _setupConnectivityListener();
+  }
+
+  Future<void> _initializeApp() async {
+    _audioPlayer = AudioPlayer();
+    _stationRepository = StationRepository();
+    _databaseHelper = DatabaseHelper.instance;
+
+    // Load favorites from local database
+    _favoriteStations = await _databaseHelper.getFavoriteStations();
+
+    // Fetch stations
+    try {
+      _stations = await _stationRepository.fetchStations();
+      
+      // Mark favorites
+      _stations = _stations.map((station) {
+        station.isFavorite = _favoriteStations.any((fav) => fav.id == station.id);
+        return station;
+      }).toList();
+
+      // Set initial station
+      if (_stations.isNotEmpty) {
+        _currentStation = _stations.first;
+      }
+    } catch (e) {
+      _handleOfflineMode();
+    }
+
+    setState(() {});
+  }
+
+  void _setupConnectivityListener() {
+    _connectivitySubscription = Connectivity()
+        .onConnectivityChanged
+        .listen((ConnectivityResult result) {
+      if (result == ConnectivityResult.none) {
+        _handleOfflineMode();
+      } else {
+        _exitOfflineMode();
+      }
+    });
+  }
+
+  void _handleOfflineMode() {
+    setState(() {
+      _isOfflineMode = true;
+    });
+    
+    // TODO: Implement proper offline mode logic
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Offline Mode Activated')),
+    );
+  }
+
+  void _exitOfflineMode() {
+    setState(() {
+      _isOfflineMode = false;
+    });
+    _initializeApp(); // Reload stations
+  }
+
+  Future<void> _toggleFavorite(Station station) async {
+    setState(() {
+      station.isFavorite = !station.isFavorite;
+    });
+
+    if (station.isFavorite) {
+      await _databaseHelper.saveFavoriteStation(station);
+    } else {
+      await _databaseHelper.removeFavoriteStation(station.id);
+    }
+  }
+
+  Future<void> _playStation(Station station) async {
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.setUrl(station.streamUrl);
+      await _audioPlayer.play();
+      
+      setState(() {
+        _currentStation = station;
+        _isPlaying = true;
+      });
+    } catch (e) {
+      _showStreamErrorDialog(station);
+    }
+  }
+
+  void _showStreamErrorDialog(Station station) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Stream Error'),
+        content: Text('Unable to play ${station.name}. Try another stream or check your connection.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('OK'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Try alternative stream if available
+            },
+            child: Text('Try Alternative'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
+
+  // Build methods and UI would follow here...
+}
+
+// Extension methods for additional functionality
+extension StationExtension on Station {
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'frequency': frequency,
+      'streamUrl': streamUrl,
+      'category': category,
+      'logoUrl': logoUrl,
+    };
+  }
+
+  static Station fromMap(Map<String, dynamic> map) {
+    return Station(
+      id: map['id'],
+      name: map['name'],
+      frequency: map['frequency'],
+      streamUrl: map['streamUrl'],
+      category: map['category'],
+      logoUrl: map['logoUrl'],
+    );
+  }
+}
+
+import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// Station Model
+class Station {
+  final String id;
+  final String name;
+  final String frequency;
+  final List<String> streamUrls;
+  final String category;
+  final String logoUrl;
+  bool isFavorite;
+
+  Station({
+    required this.id,
+    required this.name,
+    required this.frequency,
+    required this.streamUrls,
+    required this.category,
+    required this.logoUrl,
+    this.isFavorite = false,
+  });
+}
+
+// Radio Player State Management
+class RadioPlayerProvider extends ChangeNotifier {
+  late AudioPlayer _audioPlayer;
+  Station? _currentStation;
+  bool _isPlaying = false;
+  int _currentStreamIndex = 0;
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  RadioPlayerProvider() {
+    _audioPlayer = AudioPlayer();
+    _setupErrorListeners();
+  }
+
+  Station? get currentStation => _currentStation;
+  bool get isPlaying => _isPlaying;
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+
+  void _setupErrorListeners() {
+    _audioPlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.idle) {
+        _errorMessage = "Stream disconnected. Attempting to reconnect...";
+        notifyListeners();
+        _switchToNextStream();
+      }
+    });
+  }
+
+  Future<void> playStation(Station station) async {
+    try {
+      _currentStation = station;
+      _currentStreamIndex = 0;
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      await _playCurrentStream();
+    } catch (e) {
+      _handlePlaybackError(e);
+    }
+  }
+
+  Future<void> _playCurrentStream() async {
+    if (_currentStation == null) return;
+
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.setUrl(_currentStation!.streamUrls[_currentStreamIndex]);
+      await _audioPlayer.play();
+      
+      _isPlaying = true;
+      _isLoading = false;
+      _errorMessage = null;
+      notifyListeners();
+    } catch (e) {
+      _handlePlaybackError(e);
+    }
+  }
+
+  void _switchToNextStream() {
+    if (_currentStation == null) return;
+
+    _currentStreamIndex = (_currentStreamIndex + 1) % _currentStation!.streamUrls.length;
+    _playCurrentStream();
+  }
+
+  void _handlePlaybackError(dynamic error) {
+    _isLoading = false;
+    _isPlaying = false;
+    _errorMessage = "Error playing stream: ${error.toString()}";
+    
+    // Attempt to switch to next stream
+    _switchToNextStream();
+    
+    notifyListeners();
+  }
+
+  void togglePlayPause() {
+    if (_isPlaying) {
+      _audioPlayer.pause();
+      _isPlaying = false;
+    } else {
+      _audioPlayer.play();
+      _isPlaying = true;
+    }
+    notifyListeners();
+  }
+
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+}
+
+// Settings Provider
+
+
+// Main Radio Player Screen
+class RadioPlayerScreen extends StatelessWidget {
+  final List<Station> stations = [
+    Station(
+      id: '1',
+      name: 'Global News Radio',
+      frequency: '92.5 FM',
+      streamUrls: [
+        'https://stream1.example.com',
+        'https://stream2.example.com',
+        'https://stream3.example.com',
+      ],
+      category: 'News',
+      logoUrl: 'https://example.com/news_logo.png',
+    ),
+    // Add more stations...
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => RadioPlayerProvider()),
+        ChangeNotifierProvider(create: (_) => RadioSettingsProvider()),
+      ],
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Advanced Radio Player'),
+          actions: [
+            IconButton(
+              icon: Icon(Icons.settings),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => RadioSettingsPage()),
+                );
+              },
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            // Current Station Display
+            Consumer<RadioPlayerProvider>(
+              builder: (context, playerProvider, child) {
+                final station = playerProvider.currentStation;
+                
+                if (station == null) {
+                  return Center(child: Text('Select a Station'));
+                }
+
+                return ListTile(
+                  leading: Image.network(station.logoUrl, width: 50, height: 50),
+                  title: Text(station.name),
+                  subtitle: Text(station.frequency),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Play/Pause Button
+                      IconButton(
+                        icon: Icon(
+                          playerProvider.isPlaying 
+                            ? Icons.pause 
+                            : Icons.play_arrow
+                        ),
+                        onPressed: playerProvider.togglePlayPause,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+
+            // Station List
+            Expanded(
+              child: ListView.builder(
+                itemCount: stations.length,
+                itemBuilder: (context, index) {
+                  final station = stations[index];
+                  return ListTile(
+                    title: Text(station.name),
+                    subtitle: Text(station.category),
+                    onTap: () {
+                      Provider.of<RadioPlayerProvider>(context, listen: false)
+                        .playStation(station);
+                    },
+                  );
+                },
+              ),
+            ),
+
+            // Error Handling
+            Consumer<RadioPlayerProvider>(
+              builder: (context, playerProvider, child) {
+                if (playerProvider.errorMessage != null) {
+                  return Container(
+                    color: Colors.red[100],
+                    padding: EdgeInsets.all(8),
+                    child: Text(
+                      playerProvider.errorMessage!,
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  );
+                }
+                return SizedBox.shrink();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+
+// Stream Quality Management
+
+
+// Advanced Offline Mode Manager
+
+
+// Background Sync Service
+
+
+// Station Model with Enhanced Capabilities
+
+
+// Main Radio Player Screen

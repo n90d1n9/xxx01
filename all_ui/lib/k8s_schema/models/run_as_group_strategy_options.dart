@@ -1,0 +1,2 @@
+
+class RunAsGroupStrategyOptions {final String rule; final List<IDRange>? ranges; RunAsGroupStrategyOptions({required this.rule, this.ranges}); factory RunAsGroupStrategyOptions.fromJson(Map<String, dynamic> json) {return RunAsGroupStrategyOptions(rule: json['rule'], ranges: json['ranges'] != null ? (json['ranges'] as List).map((e) => IDRange.fromJson(e)).toList() : null);} Map<String, dynamic> toJson() {return {'rule' : rule, if (ranges != null) 'ranges' : ranges!.map((e) => e.toJson()).toList()};}}

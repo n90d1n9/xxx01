@@ -1,0 +1,269 @@
+
+
+  void _previewChanges(BuildContext context) {
+    final sampleData = [
+      {'text': 'Sample cleaned text 1', 'label': 'positive'},
+      {'text': 'Sample cleaned text 2', 'label': 'neutral'},
+      {'text': 'Sample cleaned text 3', 'label': 'negative'},
+    ];
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Data Preview'),
+            content: SizedBox(
+              width: 600,
+              height: 400,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Preview of processed data (first 3 samples)',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: sampleData.length,
+                      itemBuilder: (context, index) {
+                        final item = sampleData[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Sample ${index + 1}',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(item['text']!),
+                                const SizedBox(height: 4),
+                                Chip(
+                                  label: Text(
+                                    item['label']!,
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+    );
+  }
+
+
+  void _showHelp(BuildContext context) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Data Cleaning Guide'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Basic Cleaning:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const Text(
+                    '• Remove HTML: Strip all HTML tags from text\n'
+                    '• Remove URLs: Replace URLs with [URL] token\n'
+                    '• Remove Emails: Replace with [EMAIL] token\n'
+                    '• Normalize Whitespace: Fix multiple spaces and newlines\n',
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Advanced Options:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const Text(
+                    '• Lowercase: Convert all text to lowercase\n'
+                    '• Remove Punctuation: Strip all punctuation marks\n'
+                    '• Remove Emojis: Remove all emoji characters\n'
+                    '• Expand Contractions: can\'t → cannot\n',
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Privacy Protection:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const Text(
+                    '• Mask PII: Replace sensitive information\n'
+                    '• Compliant with GDPR, HIPAA, CCPA\n'
+                    '• Prevents data leakage in training\n',
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Best Practices:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const Text(
+                    '• Always preview before running\n'
+                    '• Enable PII masking for sensitive data\n'
+                    '• Set appropriate text length filters\n'
+                    '• Use deduplication to avoid overfitting\n',
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+    );
+  }
+
+
+
+
+
+
+    subtitle: const Text('Remove duplicate entries'),
+                      value: deduplication,
+                      onChanged: (v) => setState(() => deduplication = v),
+                    ),
+                    SwitchListTile(
+                      title: const Text('Shuffle Data'),
+                      subtitle: const Text('Randomize sample order'),
+                      value: shuffle,
+                      onChanged: (v) => setState(() => shuffle = v),
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    Text('Train/Test Split', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Training: ${(trainTestSplit * 100).toInt()}%'),
+                              Text('Testing: ${((1 - trainTestSplit) * 100).toInt()}%'),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '${(trainTestSplit * 100).toInt()}%',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                        ),
+                      ],
+                    ),
+                    Slider(
+                      value: trainTestSplit,
+                      min: 0.5,
+                      max: 0.95,
+                      divisions: 45,
+                      onChanged: (v) => setState(() => trainTestSplit = v),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Data Augmentation
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Data Augmentation', style: Theme.of(context).textTheme.titleLarge),
+                        Switch(
+                          value: enableAugmentation,
+                          onChanged: (v) => setState(() => enableAugmentation = v),
+                        ),
+                      ],
+                    ),
+                    if (enableAugmentation) ...[
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ChoiceChip(label: Text('Back Translation'), selected: true, onSelected: (_) {}),
+                          ChoiceChip(label: Text('Paraphrasing'), selected: true, onSelected: (_) {}),
+                          ChoiceChip(label: Text('Synonym Replacement'), selected: false, onSelected: (_) {}),
+                          ChoiceChip(label: Text('Random Insertion'), selected: false, onSelected: (_) {}),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _previewChanges(context),
+                    icon: const Icon(Icons.preview),
+                    label: const Text('Preview Changes'),
+                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _exportDataConfig(context),
+                    icon: const Icon(Icons.download),
+                    label: const Text('Export Config'),
+                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => _runDataPreparation(context),
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Run Preparation'),
+                    style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+//------------
+
+
+
+
+      //--
+
+     

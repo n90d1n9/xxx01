@@ -1,0 +1,2 @@
+
+class APIServiceStatus {final List<APIServiceCondition>? conditions; APIServiceStatus({this.conditions}); factory APIServiceStatus.fromJson(Map<String, dynamic> json) {return APIServiceStatus(conditions: json['conditions'] != null ? (json['conditions'] as List).map((e) => APIServiceCondition.fromJson(e)).toList() : null);} Map<String, dynamic> toJson() {return {if (conditions != null) 'conditions' : conditions!.map((e) => e.toJson()).toList()};}}

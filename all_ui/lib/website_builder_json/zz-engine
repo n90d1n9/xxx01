@@ -1,0 +1,1613 @@
+import 'package:flutter/material.dart';
+import 'dart:convert';
+
+// ==================== Schema Engine Core ====================
+
+/// Main engine that renders JSON schema into Flutter widgets
+class SchemaEngine {
+  final BuildContext context;
+  final Map<String, dynamic> globalState;
+  final Map<String, ComponentRenderer>? customRenderers;
+
+  SchemaEngine({
+    required this.context,
+    Map<String, dynamic>? globalState,
+    this.customRenderers,
+  }) : globalState = globalState ?? {};
+
+  /// Render entire website document
+  Widget renderWebsite(WebsiteDocument website) {
+    return MaterialApp(
+      title: website.metadata.name,
+      theme: _buildTheme(website.globalStyles),
+      home: renderPage(website.pages.first),
+      routes: _buildRoutes(website.pages),
+    );
+  }
+
+  /// Build routes for all pages
+  Map<String, WidgetBuilder> _buildRoutes(List<Page> pages) {
+    return Map.fromEntries(
+      pages.map((page) => MapEntry(
+        page.path,
+        (context) => renderPage(page),
+      )),
+    );
+  }
+
+  /// Build theme from global styles
+  ThemeData _buildTheme(GlobalStyles? globalStyles) {
+    if (globalStyles == null) return ThemeData.light();
+
+    final colorPalette = globalStyles.colorPalette ?? {};
+    
+    return ThemeData(
+      primaryColor: _parseColor(colorPalette['primary'] ?? '#2196F3'),
+      scaffoldBackgroundColor: _parseColor(colorPalette['background'] ?? '#FFFFFF'),
+      textTheme: _buildTextTheme(globalStyles.typography),
+    );
+  }
+
+  TextTheme _buildTextTheme(Map<String, String>? typography) {
+    if (typography == null) return const TextTheme();
+    
+    return TextTheme(
+      displayLarge: TextStyle(fontSize: _parseFontSize(typography['h1'])),
+      displayMedium: TextStyle(fontSize: _parseFontSize(typography['h2'])),
+      bodyLarge: TextStyle(fontSize: _parseFontSize(typography['body'])),
+    );
+  }
+
+  /// Render a single page
+  Widget renderPage(Page page) {
+    return Scaffold(
+      body: _applyPageStyles(
+        SingleChildScrollView(
+          child: Column(
+            children: page.sections.map((section) => renderSection(section)).toList(),
+          ),
+        ),
+        page.styles,
+      ),
+    );
+  }
+
+  Widget _applyPageStyles(Widget child, PageStyles? styles) {
+    if (styles?.body == null) return child;
+    
+    return Container(
+      decoration: _buildBoxDecoration(styles!.body!),
+      child: child,
+    );
+  }
+
+  /// Render a section
+  Widget renderSection(Section section) {
+    Widget content = _buildLayout(
+      section.layout,
+      section.components.map((c) => renderComponent(c)).toList(),
+    );
+
+    // Apply section styles
+    if (section.styles != null) {
+      content = _applyStyles(content, section.styles!);
+    }
+
+    // Apply responsive behavior
+    if (section.responsive != null) {
+      content = _applyResponsive(content, section.responsive!);
+    }
+
+    // Apply conditional rendering
+    if (section.conditions != null && !_evaluateConditions(section.conditions!)) {
+      return const SizedBox.shrink();
+    }
+
+    return content;
+  }
+
+  /// Render a component
+  Widget renderComponent(Component component) {
+    // Check custom renderers first
+    if (customRenderers?.containsKey(component.type) == true) {
+      return customRenderers![component.type]!.render(component, this);
+    }
+
+    // Check conditions
+    if (component.conditions != null && !_evaluateConditions(component.conditions!)) {
+      return const SizedBox.shrink();
+    }
+
+    Widget widget;
+
+    // Built-in component renderers
+    switch (component.type) {
+      case 'text':
+        widget = _renderText(component);
+        break;
+      case 'image':
+        widget = _renderImage(component);
+        break;
+      case 'button':
+        widget = _renderButton(component);
+        break;
+      case 'container':
+        widget = _renderContainer(component);
+        break;
+      case 'input':
+        widget = _renderInput(component);
+        break;
+      case 'icon':
+        widget = _renderIcon(component);
+        break;
+      case 'link':
+        widget = _renderLink(component);
+        break;
+      case 'video':
+        widget = _renderVideo(component);
+        break;
+      case 'divider':
+        widget = _renderDivider(component);
+        break;
+      case 'spacer':
+        widget = _renderSpacer(component);
+        break;
+      default:
+        widget = _renderUnknownComponent(component);
+    }
+
+    // Apply styles
+    if (component.styles != null) {
+      widget = _applyStyles(widget, component.styles!);
+    }
+
+    // Apply animation
+    if (component.animation != null) {
+      widget = _applyAnimation(widget, component.animation!);
+    }
+
+    // Apply events
+    if (component.events != null) {
+      widget = _applyEvents(widget, component.events!);
+    }
+
+    // Apply responsive
+    if (component.responsive != null) {
+      widget = _applyResponsive(widget, component.responsive!);
+    }
+
+    return widget;
+  }
+
+  // ==================== Component Renderers ====================
+
+  Widget _renderText(Component component) {
+    final props = component.props ?? {};
+    final content = props['content'] ?? '';
+    final tag = props['tag'] ?? 'p';
+
+    TextStyle? style;
+    switch (tag) {
+      case 'h1':
+        style = const TextStyle(fontSize: 32, fontWeight: FontWeight.bold);
+        break;
+      case 'h2':
+        style = const TextStyle(fontSize: 24, fontWeight: FontWeight.bold);
+        break;
+      case 'h3':
+        style = const TextStyle(fontSize: 20, fontWeight: FontWeight.bold);
+        break;
+      case 'h4':
+        style = const TextStyle(fontSize: 18, fontWeight: FontWeight.bold);
+        break;
+      default:
+        style = const TextStyle(fontSize: 16);
+    }
+
+    // Apply typography from styles
+    if (component.styles?.typography != null) {
+      style = _applyTypography(style, component.styles!.typography!);
+    }
+
+    return Text(
+      content,
+      style: style,
+      textAlign: _parseTextAlign(component.styles?.typography?.textAlign),
+    );
+  }
+
+  Widget _renderImage(Component component) {
+    final props = component.props ?? {};
+    final src = props['src'] ?? '';
+    final alt = props['alt'] ?? '';
+    final fit = props['fit'] ?? 'cover';
+
+    if (src.isEmpty) return const SizedBox.shrink();
+
+    return Image.network(
+      src,
+      fit: _parseBoxFit(fit),
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          color: Colors.grey[300],
+          child: const Center(child: Icon(Icons.broken_image)),
+        );
+      },
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Center(
+          child: CircularProgressIndicator(
+            value: loadingProgress.expectedTotalBytes != null
+                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                : null,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _renderButton(Component component) {
+    final props = component.props ?? {};
+    final text = props['text'] ?? 'Button';
+    final variant = props['variant'] ?? 'contained';
+
+    Widget button;
+    switch (variant) {
+      case 'outlined':
+        button = OutlinedButton(
+          onPressed: () => _handleEvents(component.events),
+          child: Text(text),
+        );
+        break;
+      case 'text':
+        button = TextButton(
+          onPressed: () => _handleEvents(component.events),
+          child: Text(text),
+        );
+        break;
+      default:
+        button = ElevatedButton(
+          onPressed: () => _handleEvents(component.events),
+          child: Text(text),
+        );
+    }
+
+    return button;
+  }
+
+  Widget _renderContainer(Component component) {
+    final children = component.children?.map((c) => renderComponent(c)).toList() ?? [];
+    
+    if (children.isEmpty) {
+      return Container();
+    }
+
+    if (children.length == 1) {
+      return Container(child: children.first);
+    }
+
+    return Container(
+      child: Column(children: children),
+    );
+  }
+
+  Widget _renderInput(Component component) {
+    final props = component.props ?? {};
+    final placeholder = props['placeholder'] ?? '';
+    final inputType = props['type'] ?? 'text';
+
+    return TextField(
+      decoration: InputDecoration(
+        hintText: placeholder,
+        border: const OutlineInputBorder(),
+      ),
+      keyboardType: _parseKeyboardType(inputType),
+      obscureText: inputType == 'password',
+    );
+  }
+
+  Widget _renderIcon(Component component) {
+    final props = component.props ?? {};
+    final iconName = props['name'] ?? 'star';
+    final size = props['size'] ?? 24.0;
+
+    return Icon(
+      _parseIcon(iconName),
+      size: size.toDouble(),
+    );
+  }
+
+  Widget _renderLink(Component component) {
+    final props = component.props ?? {};
+    final text = props['text'] ?? '';
+    final url = props['url'] ?? '';
+
+    return GestureDetector(
+      onTap: () => _handleEvents(component.events),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.blue,
+          decoration: TextDecoration.underline,
+        ),
+      ),
+    );
+  }
+
+  Widget _renderVideo(Component component) {
+    final props = component.props ?? {};
+    final url = props['url'] ?? '';
+    
+    // For now, show a placeholder - in real app, use video_player package
+    return Container(
+      height: 200,
+      color: Colors.black,
+      child: const Center(
+        child: Icon(Icons.play_circle_outline, color: Colors.white, size: 64),
+      ),
+    );
+  }
+
+  Widget _renderDivider(Component component) {
+    final props = component.props ?? {};
+    final thickness = props['thickness'] ?? 1.0;
+    final color = props['color'];
+
+    return Divider(
+      thickness: thickness.toDouble(),
+      color: color != null ? _parseColor(color) : null,
+    );
+  }
+
+  Widget _renderSpacer(Component component) {
+    final props = component.props ?? {};
+    final height = props['height'] ?? 16.0;
+
+    return SizedBox(height: height.toDouble());
+  }
+
+  Widget _renderUnknownComponent(Component component) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      color: Colors.red[100],
+      child: Text('Unknown component: ${component.type}'),
+    );
+  }
+
+  // ==================== Layout Builder ====================
+
+  Widget _buildLayout(Layout layout, List<Widget> children) {
+    if (children.isEmpty) return const SizedBox.shrink();
+
+    switch (layout.type) {
+      case 'flex':
+        return _buildFlexLayout(layout, children);
+      case 'grid':
+        return _buildGridLayout(layout, children);
+      case 'stack':
+        return _buildStackLayout(layout, children);
+      case 'wrap':
+        return _buildWrapLayout(layout, children);
+      default:
+        return Column(children: children);
+    }
+  }
+
+  Widget _buildFlexLayout(Layout layout, List<Widget> children) {
+    final isRow = layout.direction == 'row' || layout.direction == 'row-reverse';
+    final isReverse = layout.direction?.contains('reverse') ?? false;
+
+    final alignment = _parseMainAxisAlignment(layout.justifyContent ?? layout.alignment);
+    final crossAlignment = _parseCrossAxisAlignment(layout.alignItems);
+
+    if (isRow) {
+      return Row(
+        mainAxisAlignment: alignment,
+        crossAxisAlignment: crossAlignment,
+        textDirection: isReverse ? TextDirection.rtl : TextDirection.ltr,
+        children: _addSpacing(children, layout.spacing, layout.gap, isRow),
+      );
+    } else {
+      return Column(
+        mainAxisAlignment: alignment,
+        crossAxisAlignment: crossAlignment,
+        verticalDirection: isReverse ? VerticalDirection.up : VerticalDirection.down,
+        children: _addSpacing(children, layout.spacing, layout.gap, isRow),
+      );
+    }
+  }
+
+  Widget _buildGridLayout(Layout layout, List<Widget> children) {
+    final columns = layout.columns ?? 2;
+    
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        crossAxisSpacing: _parseSpacing(layout.gap) ?? 8.0,
+        mainAxisSpacing: _parseSpacing(layout.gap) ?? 8.0,
+      ),
+      itemCount: children.length,
+      itemBuilder: (context, index) => children[index],
+    );
+  }
+
+  Widget _buildStackLayout(Layout layout, List<Widget> children) {
+    final alignment = _parseStackAlignment(layout.alignment);
+    
+    return Stack(
+      alignment: alignment,
+      children: children,
+    );
+  }
+
+  Widget _buildWrapLayout(Layout layout, List<Widget> children) {
+    return Wrap(
+      spacing: _parseSpacing(layout.gap) ?? 8.0,
+      runSpacing: _parseSpacing(layout.gap) ?? 8.0,
+      alignment: _parseWrapAlignment(layout.alignment),
+      children: children,
+    );
+  }
+
+  List<Widget> _addSpacing(List<Widget> children, Spacing? spacing, String? gap, bool isRow) {
+    if (children.isEmpty) return children;
+    
+    final spacingValue = _parseSpacing(gap) ?? 0.0;
+    if (spacingValue <= 0) return children;
+
+    final result = <Widget>[];
+    for (int i = 0; i < children.length; i++) {
+      result.add(children[i]);
+      if (i < children.length - 1) {
+        result.add(SizedBox(
+          width: isRow ? spacingValue : 0,
+          height: isRow ? 0 : spacingValue,
+        ));
+      }
+    }
+    return result;
+  }
+
+  // ==================== Style Application ====================
+
+  Widget _applyStyles(Widget child, Styles styles) {
+    // Apply padding
+    if (styles.padding != null) {
+      child = Padding(
+        padding: _buildEdgeInsets(styles.padding!),
+        child: child,
+      );
+    }
+
+    // Apply margin through container
+    EdgeInsets? margin;
+    if (styles.margin != null) {
+      margin = _buildEdgeInsets(styles.margin!);
+    }
+
+    // Build decoration
+    final decoration = _buildBoxDecoration(styles);
+
+    // Apply dimensions and decoration
+    return Container(
+      width: _parseDimension(styles.dimensions?.width),
+      height: _parseDimension(styles.dimensions?.height),
+      margin: margin,
+      decoration: decoration,
+      transform: _buildTransform(styles.transform),
+      child: child,
+    );
+  }
+
+  BoxDecoration _buildBoxDecoration(Styles styles) {
+    return BoxDecoration(
+      color: _parseColor(styles.background?.color),
+      gradient: _buildGradient(styles.background?.gradient),
+      borderRadius: _buildBorderRadius(styles.border?.radius),
+      border: _buildBorder(styles.border),
+      boxShadow: _buildBoxShadow(styles.shadow),
+      image: _buildBackgroundImage(styles.background?.image),
+    );
+  }
+
+  EdgeInsets _buildEdgeInsets(Spacing spacing) {
+    if (spacing.all != null) {
+      return EdgeInsets.all(_parseSpacing(spacing.all) ?? 0);
+    }
+    
+    return EdgeInsets.only(
+      top: _parseSpacing(spacing.top) ?? 0,
+      right: _parseSpacing(spacing.right) ?? 0,
+      bottom: _parseSpacing(spacing.bottom) ?? 0,
+      left: _parseSpacing(spacing.left) ?? 0,
+    );
+  }
+
+  Gradient? _buildGradient(Gradient? gradient) {
+    if (gradient == null) return null;
+
+    final colors = gradient.stops.map((s) => _parseColor(s.color)).toList();
+    final stops = gradient.stops.map((s) => _parsePosition(s.position)).toList();
+
+    switch (gradient.type) {
+      case 'linear':
+        return LinearGradient(
+          colors: colors,
+          stops: stops,
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        );
+      case 'radial':
+        return RadialGradient(
+          colors: colors,
+          stops: stops,
+        );
+      default:
+        return LinearGradient(colors: colors, stops: stops);
+    }
+  }
+
+  BorderRadius? _buildBorderRadius(BorderRadius? radius) {
+    if (radius == null) return null;
+
+    if (radius.all != null) {
+      return BorderRadius.circular(_parseSpacing(radius.all) ?? 0);
+    }
+
+    return BorderRadius.only(
+      topLeft: Radius.circular(_parseSpacing(radius.topLeft) ?? 0),
+      topRight: Radius.circular(_parseSpacing(radius.topRight) ?? 0),
+      bottomLeft: Radius.circular(_parseSpacing(radius.bottomLeft) ?? 0),
+      bottomRight: Radius.circular(_parseSpacing(radius.bottomRight) ?? 0),
+    );
+  }
+
+  Border? _buildBorder(Border? border) {
+    if (border == null) return null;
+
+    return Border.all(
+      color: _parseColor(border.color) ?? Colors.grey,
+      width: _parseSpacing(border.width) ?? 1.0,
+      style: _parseBorderStyle(border.style),
+    );
+  }
+
+  List<BoxShadow>? _buildBoxShadow(Shadow? shadow) {
+    if (shadow?.boxShadow == null) return null;
+
+    return shadow!.boxShadow!.map((s) {
+      return BoxShadow(
+        color: _parseColor(s.color),
+        offset: Offset(
+          _parseSpacing(s.offsetX) ?? 0,
+          _parseSpacing(s.offsetY) ?? 0,
+        ),
+        blurRadius: _parseSpacing(s.blur) ?? 0,
+        spreadRadius: _parseSpacing(s.spread) ?? 0,
+      );
+    }).toList();
+  }
+
+  DecorationImage? _buildBackgroundImage(BackgroundImage? bgImage) {
+    if (bgImage == null) return null;
+
+    return DecorationImage(
+      image: NetworkImage(bgImage.url),
+      fit: _parseBoxFit(bgImage.size ?? 'cover'),
+      alignment: _parseAlignment(bgImage.position),
+      repeat: _parseImageRepeat(bgImage.repeat),
+    );
+  }
+
+  Matrix4? _buildTransform(Transform? transform) {
+    if (transform == null) return null;
+
+    final matrix = Matrix4.identity();
+
+    if (transform.translateX != null || transform.translateY != null) {
+      matrix.translate(
+        _parseSpacing(transform.translateX) ?? 0,
+        _parseSpacing(transform.translateY) ?? 0,
+      );
+    }
+
+    if (transform.scale != null) {
+      final scale = double.tryParse(transform.scale!) ?? 1.0;
+      matrix.scale(scale, scale);
+    }
+
+    if (transform.rotate != null) {
+      final degrees = double.tryParse(transform.rotate!.replaceAll('deg', '')) ?? 0;
+      matrix.rotateZ(degrees * 3.14159 / 180);
+    }
+
+    return matrix;
+  }
+
+  TextStyle _applyTypography(TextStyle base, Typography typography) {
+    return base.copyWith(
+      fontFamily: typography.fontFamily,
+      fontSize: _parseFontSize(typography.fontSize),
+      fontWeight: _parseFontWeight(typography.fontWeight),
+      fontStyle: _parseFontStyle(typography.fontStyle),
+      letterSpacing: _parseSpacing(typography.letterSpacing),
+      height: _parseLineHeight(typography.lineHeight),
+      color: _parseColor(typography.color),
+      decoration: _parseTextDecoration(typography.textDecoration),
+    );
+  }
+
+  // ==================== Animation ====================
+
+  Widget _applyAnimation(Widget child, Animation animation) {
+    switch (animation.type) {
+      case 'hover':
+        if (animation.hoverAnimation != null) {
+          return MouseRegion(
+            onEnter: (_) {
+              // Apply hover styles
+            },
+            onExit: (_) {
+              // Remove hover styles
+            },
+            child: child,
+          );
+        }
+        break;
+      case 'entrance':
+        return TweenAnimationBuilder(
+          duration: Duration(milliseconds: _parseDuration(animation.duration)),
+          tween: Tween<double>(begin: 0, end: 1),
+          builder: (context, double value, child) {
+            return Opacity(
+              opacity: value,
+              child: Transform.translate(
+                offset: Offset(0, 20 * (1 - value)),
+                child: child,
+              ),
+            );
+          },
+          child: child,
+        );
+    }
+    
+    return child;
+  }
+
+  // ==================== Events ====================
+
+  Widget _applyEvents(Widget child, List<Event> events) {
+    Widget result = child;
+
+    for (final event in events) {
+      switch (event.type) {
+        case 'click':
+        case 'tap':
+          result = GestureDetector(
+            onTap: () => _handleActions(event.actions),
+            child: result,
+          );
+          break;
+        case 'hover':
+          result = MouseRegion(
+            onEnter: (_) => _handleActions(event.actions),
+            child: result,
+          );
+          break;
+        case 'longPress':
+          result = GestureDetector(
+            onLongPress: () => _handleActions(event.actions),
+            child: result,
+          );
+          break;
+      }
+    }
+
+    return result;
+  }
+
+  void _handleEvents(List<Event>? events) {
+    if (events == null) return;
+    for (final event in events) {
+      _handleActions(event.actions);
+    }
+  }
+
+  void _handleActions(List<Action> actions) {
+    for (final action in actions) {
+      switch (action.type) {
+        case 'navigate':
+          final route = action.params?['route'];
+          if (route != null) {
+            Navigator.of(context).pushNamed(route);
+          }
+          break;
+        case 'openUrl':
+          final url = action.params?['url'];
+          // Use url_launcher package in real implementation
+          break;
+        case 'setState':
+          final key = action.params?['key'];
+          final value = action.params?['value'];
+          if (key != null) {
+            globalState[key] = value;
+          }
+          break;
+        case 'alert':
+          final message = action.params?['message'] ?? 'Alert';
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              content: Text(message),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+          break;
+      }
+    }
+  }
+
+  // ==================== Responsive ====================
+
+  Widget _applyResponsive(Widget child, Responsive responsive) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        
+        // Find matching breakpoint
+        ResponsiveBreakpoint? matchedBreakpoint;
+        if (responsive.breakpoints != null) {
+          for (final entry in responsive.breakpoints!.entries) {
+            final breakpoint = entry.value;
+            final minWidth = _parseSpacing(breakpoint.minWidth) ?? 0;
+            final maxWidth = breakpoint.maxWidth != null 
+                ? _parseSpacing(breakpoint.maxWidth)
+                : double.infinity;
+            
+            if (width >= minWidth && width <= (maxWidth ?? double.infinity)) {
+              matchedBreakpoint = breakpoint;
+              break;
+            }
+          }
+        }
+
+        if (matchedBreakpoint?.hidden == true) {
+          return const SizedBox.shrink();
+        }
+
+        // Apply responsive styles
+        if (matchedBreakpoint?.styles != null) {
+          return _applyStyles(child, matchedBreakpoint!.styles!);
+        }
+
+        return child;
+      },
+    );
+  }
+
+  // ==================== Conditions ====================
+
+  bool _evaluateConditions(List<Condition> conditions) {
+    for (final condition in conditions) {
+      if (!_evaluateCondition(condition)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _evaluateCondition(Condition condition) {
+    if (condition.field != null && condition.value != null) {
+      final stateValue = globalState[condition.field];
+      
+      switch (condition.operator) {
+        case 'equals':
+          return stateValue == condition.value;
+        case 'notEquals':
+          return stateValue != condition.value;
+        case 'greaterThan':
+          return (stateValue ?? 0) > condition.value;
+        case 'lessThan':
+          return (stateValue ?? 0) < condition.value;
+        case 'contains':
+          return stateValue?.toString().contains(condition.value.toString()) ?? false;
+        default:
+          return true;
+      }
+    }
+    return true;
+  }
+
+  // ==================== Parsing Utilities ====================
+
+  Color _parseColor(String? color) {
+    if (color == null) return Colors.transparent;
+    
+    color = color.trim();
+    if (color.startsWith('#')) {
+      color = color.substring(1);
+      if (color.length == 6) {
+        return Color(int.parse('FF$color', radix: 16));
+      } else if (color.length == 8) {
+        return Color(int.parse(color, radix: 16));
+      }
+    } else if (color.startsWith('rgba')) {
+      // Parse rgba(r, g, b, a)
+      final values = color.substring(5, color.length - 1).split(',');
+      if (values.length == 4) {
+        return Color.fromRGBO(
+          int.parse(values[0].trim()),
+          int.parse(values[1].trim()),
+          int.parse(values[2].trim()),
+          double.parse(values[3].trim()),
+        );
+      }
+    }
+    
+    return Colors.black;
+  }
+
+  double? _parseDimension(String? dimension) {
+    if (dimension == null) return null;
+    
+    dimension = dimension.trim();
+    if (dimension == 'auto' || dimension == '100%') return null;
+    
+    return _parseSpacing(dimension);
+  }
+
+  double? _parseSpacing(String? spacing) {
+    if (spacing == null) return null;
+    
+    spacing = spacing.trim();
+    // Remove units
+    spacing = spacing.replaceAll(RegExp(r'[a-zA-Z%]'), '');
+    
+    return double.tryParse(spacing);
+  }
+
+  double? _parseFontSize(String? size) => _parseSpacing(size);
+
+  FontWeight _parseFontWeight(String? weight) {
+    switch (weight) {
+      case '100': return FontWeight.w100;
+      case '200': return FontWeight.w200;
+      case '300': return FontWeight.w300;
+      case '400': return FontWeight.w400;
+      case '500': return FontWeight.w500;
+      case '600': return FontWeight.w600;
+      case '700': return FontWeight.w700;
+      case '800': return FontWeight.w800;
+      case '900': return FontWeight.w900;
+      case 'bold': return FontWeight.bold;
+      case 'normal': return FontWeight.normal;
+      default: return FontWeight.normal;
+    }
+  }
+
+  FontStyle _parseFontStyle(String? style) {
+    return style == 'italic' ? FontStyle.italic : FontStyle.normal;
+  }
+
+  double? _parseLineHeight(String? lineHeight) => _parseSpacing(lineHeight);
+
+  TextDecoration _parseTextDecoration(String? decoration) {
+    switch (decoration) {
+      case 'underline': return TextDecoration.underline;
+      case 'overline': return TextDecoration.overline;
+      case 'line-through': return TextDecoration.lineThrough;
+      default: return TextDecoration.none;
+    }
+  }
+
+  TextAlign _parseTextAlign(String? align) {
+    switch (align) {
+      case 'left': return TextAlign.left;
+      case 'center': return TextAlign.center;
+      case 'right': return TextAlign.right;
+      case 'justify': return TextAlign.justify;
+      default: return TextAlign.start;
+    }
+  }
+
+  MainAxisAlignment _parseMainAxisAlignment(String? alignment) {
+    switch (alignment) {
+      case 'start': return MainAxisAlignment.start;
+      case 'center': return MainAxisAlignment.center;
+      case 'end': return MainAxisAlignment.end;
+      case 'space-between': return MainAxisAlignment.spaceBetween;
+      case 'space-around': return MainAxisAlignment.spaceAround;
+      case 'space-evenly': return MainAxisAlignment.spaceEvenly;
+      default: return MainAxisAlignment.start;
+    }
+  }
+
+  CrossAxisAlignment _parseCrossAxisAlignment(String? alignment) {
+    switch (alignment) {
+      case 'start': return CrossAxisAlignment.start;
+      case 'center': return CrossAxisAlignment.center;
+      case 'end': return CrossAxisAlignment.end;
+      case 'stretch': return CrossAxisAlignment.stretch;
+      default: return CrossAxisAlignment.start;
+    }
+  }
+
+  AlignmentGeometry _parseStackAlignment(String? alignment) {
+    switch (alignment) {
+      case 'topLeft': return Alignment.topLeft;
+      case 'topCenter': return Alignment.topCenter;
+      case 'topRight': return Alignment.topRight;
+      case 'centerLeft': return Alignment.centerLeft;
+      case 'center': return Alignment.center;
+      case 'centerRight': return Alignment.centerRight;
+      case 'bottomLeft': return Alignment.bottomLeft;
+      case 'bottomCenter': return Alignment.bottomCenter;
+      case 'bottomRight': return Alignment.bottomRight;
+      default: return Alignment.topLeft;
+    }
+  }
+
+  WrapAlignment _parseWrapAlignment(String? alignment) {
+    switch (alignment) {
+      case 'start': return WrapAlignment.start;
+      case 'center': return WrapAlignment.center;
+      case 'end': return WrapAlignment.end;
+      case 'space-between': return WrapAlignment.spaceBetween;
+      case 'space-around': return WrapAlignment.spaceAround;
+      case 'space-evenly': return WrapAlignment.spaceEvenly;
+      default: return WrapAlignment.start;
+    }
+  }
+
+  Alignment _parseAlignment(String? alignment) {
+    switch (alignment) {
+      case 'topLeft': return Alignment.topLeft;
+      case 'topCenter': return Alignment.topCenter;
+      case 'topRight': return Alignment.topRight;
+      case 'centerLeft': return Alignment.centerLeft;
+      case 'center': return Alignment.center;
+      case 'centerRight': return Alignment.centerRight;
+      case 'bottomLeft': return Alignment.bottomLeft;
+      case 'bottomCenter': return Alignment.bottomCenter;
+      case 'bottomRight': return Alignment.bottomRight;
+      default: return Alignment.center;
+    }
+  }
+
+  BoxFit _parseBoxFit(String fit) {
+    switch (fit) {
+      case 'contain': return BoxFit.contain;
+      case 'cover': return BoxFit.cover;
+      case 'fill': return BoxFit.fill;
+      case 'fitWidth': return BoxFit.fitWidth;
+      case 'fitHeight': return BoxFit.fitHeight;
+      case 'none': return BoxFit.none;
+      case 'scaleDown': return BoxFit.scaleDown;
+      default: return BoxFit.cover;
+    }
+  }
+
+  ImageRepeat _parseImageRepeat(String? repeat) {
+    switch (repeat) {
+      case 'repeat': return ImageRepeat.repeat;
+      case 'repeatX': return ImageRepeat.repeatX;
+      case 'repeatY': return ImageRepeat.repeatY;
+      case 'noRepeat': return ImageRepeat.noRepeat;
+      default: return ImageRepeat.noRepeat;
+    }
+  }
+
+  BorderStyle _parseBorderStyle(String? style) {
+    switch (style) {
+      case 'solid': return BorderStyle.solid;
+      case 'none': return BorderStyle.none;
+      default: return BorderStyle.solid;
+    }
+  }
+
+  double _parsePosition(String position) {
+    position = position.trim().replaceAll('%', '');
+    return (double.tryParse(position) ?? 0) / 100;
+  }
+
+  int _parseDuration(String? duration) {
+    if (duration == null) return 300;
+    
+    duration = duration.trim();
+    if (duration.endsWith('ms')) {
+      return int.tryParse(duration.replaceAll('ms', '')) ?? 300;
+    } else if (duration.endsWith('s')) {
+      return (double.tryParse(duration.replaceAll('s', '')) ?? 0.3) * 1000 as int;
+    }
+    
+    return int.tryParse(duration) ?? 300;
+  }
+
+  TextInputType _parseKeyboardType(String type) {
+    switch (type) {
+      case 'email': return TextInputType.emailAddress;
+      case 'number': return TextInputType.number;
+      case 'phone': return TextInputType.phone;
+      case 'url': return TextInputType.url;
+      case 'multiline': return TextInputType.multiline;
+      default: return TextInputType.text;
+    }
+  }
+
+  IconData _parseIcon(String name) {
+    switch (name) {
+      case 'home': return Icons.home;
+      case 'search': return Icons.search;
+      case 'menu': return Icons.menu;
+      case 'close': return Icons.close;
+      case 'arrow_back': return Icons.arrow_back;
+      case 'arrow_forward': return Icons.arrow_forward;
+      case 'star': return Icons.star;
+      case 'favorite': return Icons.favorite;
+      case 'settings': return Icons.settings;
+      case 'person': return Icons.person;
+      case 'email': return Icons.email;
+      case 'phone': return Icons.phone;
+      case 'location': return Icons.location_on;
+      case 'calendar': return Icons.calendar_today;
+      case 'check': return Icons.check;
+      case 'add': return Icons.add;
+      case 'edit': return Icons.edit;
+      case 'delete': return Icons.delete;
+      case 'share': return Icons.share;
+      case 'download': return Icons.download;
+      case 'upload': return Icons.upload;
+      default: return Icons.help_outline;
+    }
+  }
+}
+
+// ==================== Custom Component Renderer Interface ====================
+
+abstract class ComponentRenderer {
+  Widget render(Component component, SchemaEngine engine);
+}
+
+// ==================== Example Custom Renderers ====================
+
+class CarouselRenderer extends ComponentRenderer {
+  @override
+  Widget render(Component component, SchemaEngine engine) {
+    final props = component.props ?? {};
+    final autoPlay = props['autoPlay'] ?? false;
+    final interval = props['interval'] ?? 3000;
+
+    return PageView.builder(
+      itemCount: component.children?.length ?? 0,
+      itemBuilder: (context, index) {
+        return engine.renderComponent(component.children![index]);
+      },
+    );
+  }
+}
+
+class AccordionRenderer extends ComponentRenderer {
+  @override
+  Widget render(Component component, SchemaEngine engine) {
+    return ExpansionTile(
+      title: Text(component.props?['title'] ?? 'Accordion'),
+      children: component.children?.map((c) => engine.renderComponent(c)).toList() ?? [],
+    );
+  }
+}
+
+class TabsRenderer extends ComponentRenderer {
+  @override
+  Widget render(Component component, SchemaEngine engine) {
+    final tabs = component.props?['tabs'] as List? ?? [];
+    
+    return DefaultTabController(
+      length: tabs.length,
+      child: Column(
+        children: [
+          TabBar(
+            tabs: tabs.map((tab) => Tab(text: tab['label'])).toList(),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: tabs.map((tab) {
+                final content = tab['content'] as Component?;
+                return content != null ? engine.renderComponent(content) : const SizedBox();
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class CardRenderer extends ComponentRenderer {
+  @override
+  Widget render(Component component, SchemaEngine engine) {
+    return Card(
+      elevation: component.props?['elevation']?.toDouble() ?? 2.0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: component.children?.map((c) => engine.renderComponent(c)).toList() ?? [],
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== Usage Example ====================
+
+class SchemaBuilderApp extends StatelessWidget {
+  final String jsonSchema;
+
+  const SchemaBuilderApp({Key? key, required this.jsonSchema}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    try {
+      final json = jsonDecode(jsonSchema) as Map<String, dynamic>;
+      final website = WebsiteDocument.fromJson(json);
+      
+      final engine = SchemaEngine(
+        context: context,
+        customRenderers: {
+          'carousel': CarouselRenderer(),
+          'accordion': AccordionRenderer(),
+          'tabs': TabsRenderer(),
+          'card': CardRenderer(),
+        },
+      );
+
+      return engine.renderWebsite(website);
+    } catch (e) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Error parsing schema: $e'),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+  }
+}
+
+// ==================== Example Usage with State Management ====================
+
+class StatefulSchemaBuilder extends StatefulWidget {
+  final WebsiteDocument website;
+  final Map<String, ComponentRenderer>? customRenderers;
+
+  const StatefulSchemaBuilder({
+    Key? key,
+    required this.website,
+    this.customRenderers,
+  }) : super(key: key);
+
+  @override
+  State<StatefulSchemaBuilder> createState() => _StatefulSchemaBuilderState();
+}
+
+class _StatefulSchemaBuilderState extends State<StatefulSchemaBuilder> {
+  late Map<String, dynamic> globalState;
+
+  @override
+  void initState() {
+    super.initState();
+    globalState = {};
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final engine = SchemaEngine(
+      context: context,
+      globalState: globalState,
+      customRenderers: widget.customRenderers,
+    );
+
+    return engine.renderWebsite(widget.website);
+  }
+}
+
+// ==================== Helper Extensions ====================
+
+extension ComponentExtensions on Component {
+  bool get hasChildren => children != null && children!.isNotEmpty;
+  
+  bool get hasEvents => events != null && events!.isNotEmpty;
+  
+  bool get hasStyles => styles != null;
+  
+  bool get isResponsive => responsive != null;
+  
+  bool get isAnimated => animation != null;
+  
+  bool get isConditional => conditions != null && conditions!.isNotEmpty;
+}
+
+extension LayoutExtensions on Layout {
+  bool get isFlexLayout => type == 'flex';
+  
+  bool get isGridLayout => type == 'grid';
+  
+  bool get isStackLayout => type == 'stack';
+  
+  bool get isHorizontal => direction == 'row' || direction == 'row-reverse';
+  
+  bool get isVertical => direction == 'column' || direction == 'column-reverse';
+}
+
+// ==================== Advanced Features ====================
+
+/// Form state management
+class FormStateManager {
+  final Map<String, dynamic> _formData = {};
+  final Map<String, String?> _errors = {};
+
+  dynamic getValue(String key) => _formData[key];
+  
+  void setValue(String key, dynamic value) {
+    _formData[key] = value;
+  }
+
+  void setError(String key, String? error) {
+    _errors[key] = error;
+  }
+
+  String? getError(String key) => _errors[key];
+
+  Map<String, dynamic> getData() => Map.from(_formData);
+
+  bool validate(List<ValidationRule> rules, String fieldName) {
+    final value = _formData[fieldName];
+    
+    for (final rule in rules) {
+      switch (rule.type) {
+        case 'required':
+          if (value == null || value.toString().isEmpty) {
+            setError(fieldName, rule.message ?? 'This field is required');
+            return false;
+          }
+          break;
+        case 'email':
+          if (value != null && !_isValidEmail(value.toString())) {
+            setError(fieldName, rule.message ?? 'Invalid email address');
+            return false;
+          }
+          break;
+        case 'minLength':
+          if (value != null && value.toString().length < (rule.value as int)) {
+            setError(fieldName, rule.message ?? 'Minimum length is ${rule.value}');
+            return false;
+          }
+          break;
+        case 'maxLength':
+          if (value != null && value.toString().length > (rule.value as int)) {
+            setError(fieldName, rule.message ?? 'Maximum length is ${rule.value}');
+            return false;
+          }
+          break;
+      }
+    }
+    
+    setError(fieldName, null);
+    return true;
+  }
+
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}).hasMatch(email);
+  }
+
+  void clear() {
+    _formData.clear();
+    _errors.clear();
+  }
+}
+
+/// Data binding helper
+class DataBinding {
+  static dynamic resolveValue(String path, Map<String, dynamic> data) {
+    final parts = path.split('.');
+    dynamic current = data;
+    
+    for (final part in parts) {
+      if (current is Map) {
+        current = current[part];
+      } else {
+        return null;
+      }
+    }
+    
+    return current;
+  }
+
+  static void setValue(String path, dynamic value, Map<String, dynamic> data) {
+    final parts = path.split('.');
+    Map<String, dynamic> current = data;
+    
+    for (int i = 0; i < parts.length - 1; i++) {
+      if (!current.containsKey(parts[i])) {
+        current[parts[i]] = <String, dynamic>{};
+      }
+      current = current[parts[i]] as Map<String, dynamic>;
+    }
+    
+    current[parts.last] = value;
+  }
+}
+
+/// API client for data sources
+class ApiClient {
+  static Future<Map<String, dynamic>> fetch(ApiConfig config) async {
+    // In real implementation, use http package
+    // This is a placeholder
+    throw UnimplementedError('API client requires http package');
+  }
+}
+
+/// Cache manager for performance
+class CacheManager {
+  static final Map<String, CacheEntry> _cache = {};
+
+  static void set(String key, dynamic data, int ttl) {
+    _cache[key] = CacheEntry(
+      data: data,
+      expiry: DateTime.now().add(Duration(seconds: ttl)),
+    );
+  }
+
+  static dynamic get(String key) {
+    final entry = _cache[key];
+    if (entry == null) return null;
+    
+    if (DateTime.now().isAfter(entry.expiry)) {
+      _cache.remove(key);
+      return null;
+    }
+    
+    return entry.data;
+  }
+
+  static void clear() {
+    _cache.clear();
+  }
+}
+
+class CacheEntry {
+  final dynamic data;
+  final DateTime expiry;
+
+  CacheEntry({required this.data, required this.expiry});
+}
+
+// ==================== Example: Full App Integration ====================
+
+void main() {
+  const jsonSchema = '''
+  {
+    "id": "app-001",
+    "version": "1.0.0",
+    "metadata": {
+      "name": "My App",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    "pages": [
+      {
+        "id": "home",
+        "name": "Home",
+        "path": "/",
+        "sections": [
+          {
+            "id": "hero",
+            "type": "hero",
+            "layout": {
+              "type": "flex",
+              "direction": "column",
+              "alignment": "center"
+            },
+            "components": [
+              {
+                "id": "title",
+                "type": "text",
+                "props": {
+                  "content": "Welcome to My App",
+                  "tag": "h1"
+                },
+                "styles": {
+                  "typography": {
+                    "fontSize": "48px",
+                    "fontWeight": "bold",
+                    "color": "#1F2937"
+                  },
+                  "margin": {
+                    "bottom": "16px"
+                  }
+                }
+              },
+              {
+                "id": "subtitle",
+                "type": "text",
+                "props": {
+                  "content": "Build amazing websites with JSON",
+                  "tag": "p"
+                },
+                "styles": {
+                  "typography": {
+                    "fontSize": "20px",
+                    "color": "#6B7280"
+                  },
+                  "margin": {
+                    "bottom": "32px"
+                  }
+                }
+              },
+              {
+                "id": "cta-button",
+                "type": "button",
+                "props": {
+                  "text": "Get Started",
+                  "variant": "contained"
+                },
+                "styles": {
+                  "background": {
+                    "color": "#4F46E5"
+                  },
+                  "padding": {
+                    "all": "16px"
+                  },
+                  "border": {
+                    "radius": {
+                      "all": "8px"
+                    }
+                  }
+                },
+                "events": [
+                  {
+                    "type": "click",
+                    "actions": [
+                      {
+                        "type": "navigate",
+                        "params": {
+                          "route": "/about"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "styles": {
+              "padding": {
+                "all": "64px"
+              },
+              "background": {
+                "gradient": {
+                  "type": "linear",
+                  "stops": [
+                    {
+                      "color": "#EEF2FF",
+                      "position": "0%"
+                    },
+                    {
+                      "color": "#FFFFFF",
+                      "position": "100%"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+  ''';
+
+  runApp(const SchemaBuilderApp(jsonSchema: jsonSchema));
+}
+
+// ==================== Performance Optimizations ====================
+
+/// Widget cache for reusing rendered components
+class WidgetCache {
+  static final Map<String, Widget> _cache = {};
+
+  static Widget? get(String key) => _cache[key];
+
+  static void set(String key, Widget widget) {
+    _cache[key] = widget;
+  }
+
+  static void clear() {
+    _cache.clear();
+  }
+}
+
+/// Lazy loading for heavy components
+class LazyLoadedComponent extends StatefulWidget {
+  final Component component;
+  final SchemaEngine engine;
+
+  const LazyLoadedComponent({
+    Key? key,
+    required this.component,
+    required this.engine,
+  }) : super(key: key);
+
+  @override
+  State<LazyLoadedComponent> createState() => _LazyLoadedComponentState();
+}
+
+class _LazyLoadedComponentState extends State<LazyLoadedComponent> {
+  bool _isVisible = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return VisibilityDetector(
+      key: Key(widget.component.id),
+      onVisibilityChanged: (info) {
+        if (info.visibleFraction > 0 && !_isVisible) {
+          setState(() => _isVisible = true);
+        }
+      },
+      child: _isVisible
+          ? widget.engine.renderComponent(widget.component)
+          : const SizedBox(height: 200),
+    );
+  }
+}
+
+// Note: VisibilityDetector would need the visibility_detector package
+
+/// Memory-efficient image loading
+class OptimizedImage extends StatelessWidget {
+  final String url;
+  final BoxFit fit;
+  final double? width;
+  final double? height;
+
+  const OptimizedImage({
+    Key? key,
+    required this.url,
+    this.fit = BoxFit.cover,
+    this.width,
+    this.height,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.network(
+      url,
+      fit: fit,
+      width: width,
+      height: height,
+      cacheWidth: width?.toInt(),
+      cacheHeight: height?.toInt(),
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          width: width,
+          height: height,
+          color: Colors.grey[300],
+          child: const Center(child: Icon(Icons.broken_image)),
+        );
+      },
+    );
+  }
+}

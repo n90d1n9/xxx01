@@ -1,0 +1,3 @@
+#!/bin/bash
+# flutter gen-l10n --arb-dir lib/translations
+dart run build_runner build

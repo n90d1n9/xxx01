@@ -1,0 +1,210 @@
+
+
+import 'package:flutter/material.dart';
+import 'package:kafka_dart/kafka_dart.dart';
+import 'package:provider/provider.dart';
+import 'package:rxdart/rxdart.dart';
+
+// Kafka Service for managing connections and operations
+
+// Custom Exceptions for Kafka Operations
+
+
+
+
+
+
+// Enhanced Model Classes
+
+
+
+
+// Enum for cluster status (unchanged from previous implementation)
+
+
+// Enhanced Kafka Management Screen
+
+
+
+import 'package:flutter/material.dart';
+import 'package:kafka/kafka.dart';
+import 'package:provider/provider.dart';
+import 'package:rxdart/rxdart.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+
+// Advanced Kafka Authentication Service
+
+// Advanced Kafka Management Service
+
+
+// Detailed Model Classes
+
+
+
+
+
+
+
+// Custom Exceptions (expanded from previous implementation)
+
+
+// Enum for cluster status (unchanged)
+
+
+
+
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:openid_client/openid_client.dart';
+import 'package:flutter_appauth/flutter_appauth.dart';
+import 'package:provider/provider.dart';
+import 'package:rxdart/rxdart.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:x509/x509.dart';
+import 'package:pointycastle/pointycastle.dart';
+
+// Advanced Identity and Access Management Service
+
+
+  // Advanced SSL/TLS Configuration
+  
+
+  // Advanced Monitoring and Alerting Service
+  
+}
+
+// Kafka Management Integration
+
+
+// Main Application Widget
+
+
+// Authentication Wrapper Widget
+
+// Login Screen
+
+// Kafka Dashboard Screen
+class KafkaDashboardScreen extends StatelessWidget {
+  final IdentityAccessService.UserPermissions userPermissions;
+
+  const KafkaDashboardScreen({Key? key, required this.userPermissions}) 
+      : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Kafka Management Dashboard'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: () => 
+              context.read<IdentityAccessService>().logout(),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Display user information
+          UserInfoCard(userPermissions: userPermissions),
+          
+          // Alerts monitoring
+          AlertMonitorWidget(),
+          
+          // Cluster and Topic Management based on permissions
+          _buildManagementSection(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManagementSection(BuildContext context) {
+    return Column(
+      children: [
+        if (userPermissions.roles.contains('cluster_admin'))
+          ElevatedButton(
+            child: Text('Manage Clusters'),
+            onPressed: () {
+              // Cluster management logic
+            },
+          ),
+        if (userPermissions.canCreateTopic('any'))
+          ElevatedButton(
+            child: Text('Create Topic'),
+            onPressed: () {
+              // Topic creation logic
+            },
+          ),
+      ],
+    );
+  }
+}
+
+// User Info Card
+class UserInfoCard extends StatelessWidget {
+  final IdentityAccessService.UserPermissions userPermissions;
+
+  const UserInfoCard({Key? key, required this.userPermissions}) 
+      : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        title: Text('User: ${userPermissions.attributes['name']}'),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Email: ${userPermissions.attributes['email']}'),
+            Text('Roles: ${userPermissions.roles.join(', ')}'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Alert Monitoring Widget
+class AlertMonitorWidget extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<IdentityAccessService.MonitoringService.Alert>>(
+      stream: context.read<IdentityAccessService.MonitoringService>().alertsStream,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return Text('No active alerts');
+        }
+
+        return ListView.builder(
+          shrinkWrap: true,
+          itemCount: snapshot.data!.length,
+          itemBuilder: (context, index) {
+            final alert = snapshot.data![index];
+            return ListTile(
+              title: Text(alert.message),
+              subtitle: Text('Severity: ${alert.severity}'),
+              leading: _getSeverityIcon(alert.severity),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _getSeverityIcon(int severity) {
+    switch (severity) {
+      case 5:
+        return Icon(Icons.error, color: Colors.red);
+      case 4:
+        return Icon(Icons.warning, color: Colors.orange);
+      case 3:
+        return Icon(Icons.warning_amber, color: Colors.yellow);
+      default:
+        return Icon(Icons.info, color: Colors.blue);
+    }
+  }
+}
+

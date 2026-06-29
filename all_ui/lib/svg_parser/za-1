@@ -1,0 +1,783 @@
+import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:math' as math;
+
+// ============================================================================
+// ANIMATION DEFINITION SCHEMA
+// ============================================================================
+
+/// Complete animation definition that can be serialized/deserialized
+class SvgAnimationDefinition {
+  final String id;
+  final String name;
+  final double duration; // in seconds
+  final bool loop;
+  final double fps;
+  final Size artboardSize;
+  final List<AnimatedLayer> layers;
+  final Map<String, dynamic> metadata;
+  
+  SvgAnimationDefinition({
+    required this.id,
+    required this.name,
+    required this.duration,
+    this.loop = false,
+    this.fps = 60,
+    required this.artboardSize,
+    required this.layers,
+    this.metadata = const {},
+  });
+  
+  Map<String, dynamic> toJson() => {
+    'schema_version': '1.0.0',
+    'id': id,
+    'name': name,
+    'duration': duration,
+    'loop': loop,
+    'fps': fps,
+    'artboard': {
+      'width': artboardSize.width,
+      'height': artboardSize.height,
+    },
+    'layers': layers.map((l) => l.toJson()).toList(),
+    'metadata': metadata,
+  };
+  
+  factory SvgAnimationDefinition.fromJson(Map<String, dynamic> json) {
+    return SvgAnimationDefinition(
+      id: json['id'],
+      name: json['name'],
+      duration: json['duration'],
+      loop: json['loop'] ?? false,
+      fps: json['fps'] ?? 60,
+      artboardSize: Size(
+        json['artboard']['width'],
+        json['artboard']['height'],
+      ),
+      layers: (json['layers'] as List)
+          .map((l) => AnimatedLayer.fromJson(l))
+          .toList(),
+      metadata: json['metadata'] ?? {},
+    );
+  }
+  
+  /// Export to Lottie format
+  Map<String, dynamic> toLottie() {
+    return {
+      'v': '5.9.0', // Lottie version
+      'fr': fps,
+      'ip': 0,
+      'op': duration * fps,
+      'w': artboardSize.width.toInt(),
+      'h': artboardSize.height.toInt(),
+      'nm': name,
+      'ddd': 0,
+      'assets': [],
+      'layers': layers.map((l) => l.toLottie()).toList(),
+    };
+  }
+  
+  /// Export to Rive format (simplified)
+  Map<String, dynamic> toRive() {
+    return {
+      'version': 7,
+      'artboards': [
+        {
+          'name': name,
+          'width': artboardSize.width,
+          'height': artboardSize.height,
+          'animations': [
+            {
+              'name': name,
+              'fps': fps.toInt(),
+              'duration': (duration * fps).toInt(),
+              'loop': loop ? 1 : 0,
+              'keyed_objects': layers.map((l) => l.toRive()).toList(),
+            }
+          ],
+        }
+      ],
+    };
+  }
+}
+
+// ============================================================================
+// ANIMATED LAYER
+// ============================================================================
+
+class AnimatedLayer {
+  final String id;
+  final String name;
+  final String type; // 'shape', 'image', 'group', 'text'
+  final bool visible;
+  final double opacity;
+  final List<AnimatedProperty> properties;
+  final List<AnimatedLayer> children;
+  final Map<String, dynamic> staticData;
+  
+  AnimatedLayer({
+    required this.id,
+    required this.name,
+    required this.type,
+    this.visible = true,
+    this.opacity = 1.0,
+    this.properties = const [],
+    this.children = const [],
+    this.staticData = const {},
+  });
+  
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'type': type,
+    'visible': visible,
+    'opacity': opacity,
+    'properties': properties.map((p) => p.toJson()).toList(),
+    'children': children.map((c) => c.toJson()).toList(),
+    'staticData': staticData,
+  };
+  
+  factory AnimatedLayer.fromJson(Map<String, dynamic> json) {
+    return AnimatedLayer(
+      id: json['id'],
+      name: json['name'],
+      type: json['type'],
+      visible: json['visible'] ?? true,
+      opacity: json['opacity'] ?? 1.0,
+      properties: (json['properties'] as List?)
+          ?.map((p) => AnimatedProperty.fromJson(p))
+          .toList() ?? [],
+      children: (json['children'] as List?)
+          ?.map((c) => AnimatedLayer.fromJson(c))
+          .toList() ?? [],
+      staticData: json['staticData'] ?? {},
+    );
+  }
+  
+  Map<String, dynamic> toLottie() {
+    return {
+      'ddd': 0,
+      'ind': id.hashCode % 10000,
+      'ty': _typeToLottieType(type),
+      'nm': name,
+      'sr': 1,
+      'ks': _propertiesToLottieTransform(),
+      'ao': 0,
+      'shapes': type == 'shape' ? _shapesToLottie() : [],
+      'ip': 0,
+      'op': 300,
+      'st': 0,
+      'bm': 0,
+    };
+  }
+  
+  Map<String, dynamic> toRive() {
+    return {
+      'name': name,
+      'type': type,
+      'keyframes': properties.map((p) => p.toRive()).toList(),
+    };
+  }
+  
+  int _typeToLottieType(String type) {
+    switch (type) {
+      case 'shape': return 4;
+      case 'image': return 2;
+      case 'text': return 5;
+      case 'group': return 3;
+      default: return 4;
+    }
+  }
+  
+  Map<String, dynamic> _propertiesToLottieTransform() {
+    final transform = {
+      'o': {'a': 0, 'k': opacity * 100},
+      'r': {'a': 0, 'k': 0},
+      'p': {'a': 0, 'k': [0, 0, 0]},
+      'a': {'a': 0, 'k': [0, 0, 0]},
+      's': {'a': 0, 'k': [100, 100, 100]},
+    };
+    
+    for (var prop in properties) {
+      if (prop.property == 'transform.position') {
+        transform['p'] = prop.toLottieProperty();
+      } else if (prop.property == 'transform.rotation') {
+        transform['r'] = prop.toLottieProperty();
+      } else if (prop.property == 'transform.scale') {
+        transform['s'] = prop.toLottieProperty();
+      } else if (prop.property == 'opacity') {
+        transform['o'] = prop.toLottieProperty();
+      }
+    }
+    
+    return transform;
+  }
+  
+  List<Map<String, dynamic>> _shapesToLottie() {
+    // Simplified shape conversion
+    return [
+      {
+        'ty': 'rc', // rectangle
+        'nm': name,
+        's': {'a': 0, 'k': [100, 100]},
+        'p': {'a': 0, 'k': [0, 0]},
+        'r': {'a': 0, 'k': 0},
+      }
+    ];
+  }
+}
+
+// ============================================================================
+// ANIMATED PROPERTY
+// ============================================================================
+
+class AnimatedProperty {
+  final String property; // 'transform.position', 'fill.color', etc.
+  final List<Keyframe> keyframes;
+  final String easing;
+  
+  AnimatedProperty({
+    required this.property,
+    required this.keyframes,
+    this.easing = 'linear',
+  });
+  
+  Map<String, dynamic> toJson() => {
+    'property': property,
+    'keyframes': keyframes.map((k) => k.toJson()).toList(),
+    'easing': easing,
+  };
+  
+  factory AnimatedProperty.fromJson(Map<String, dynamic> json) {
+    return AnimatedProperty(
+      property: json['property'],
+      keyframes: (json['keyframes'] as List)
+          .map((k) => Keyframe.fromJson(k))
+          .toList(),
+      easing: json['easing'] ?? 'linear',
+    );
+  }
+  
+  Map<String, dynamic> toLottieProperty() {
+    if (keyframes.length == 1) {
+      // Static property
+      return {
+        'a': 0,
+        'k': keyframes.first.value,
+      };
+    }
+    
+    // Animated property
+    return {
+      'a': 1,
+      'k': keyframes.map((k) => {
+        't': k.time * 60, // Convert to frames
+        's': [k.value],
+        'i': {'x': [0.833], 'y': [0.833]},
+        'o': {'x': [0.167], 'y': [0.167]},
+      }).toList(),
+    };
+  }
+  
+  Map<String, dynamic> toRive() {
+    return {
+      'property': property,
+      'frames': keyframes.map((k) => {
+        'frame': (k.time * 60).toInt(),
+        'value': k.value,
+      }).toList(),
+    };
+  }
+}
+
+// ============================================================================
+// KEYFRAME
+// ============================================================================
+
+class Keyframe {
+  final double time; // in seconds
+  final dynamic value; // Can be number, array, color, etc.
+  final String? interpolation; // 'linear', 'bezier', 'hold'
+  final List<double>? bezierIn; // [x1, y1]
+  final List<double>? bezierOut; // [x2, y2]
+  
+  Keyframe({
+    required this.time,
+    required this.value,
+    this.interpolation = 'linear',
+    this.bezierIn,
+    this.bezierOut,
+  });
+  
+  Map<String, dynamic> toJson() => {
+    'time': time,
+    'value': value,
+    'interpolation': interpolation,
+    'bezierIn': bezierIn,
+    'bezierOut': bezierOut,
+  };
+  
+  factory Keyframe.fromJson(Map<String, dynamic> json) {
+    return Keyframe(
+      time: json['time'],
+      value: json['value'],
+      interpolation: json['interpolation'],
+      bezierIn: json['bezierIn']?.cast<double>(),
+      bezierOut: json['bezierOut']?.cast<double>(),
+    );
+  }
+}
+
+// ============================================================================
+// ANIMATION RUNTIME PLAYER
+// ============================================================================
+
+class SvgAnimationPlayer extends StatefulWidget {
+  final SvgAnimationDefinition animation;
+  final bool autoPlay;
+  final VoidCallback? onComplete;
+  
+  const SvgAnimationPlayer({
+    Key? key,
+    required this.animation,
+    this.autoPlay = true,
+    this.onComplete,
+  }) : super(key: key);
+  
+  @override
+  State<SvgAnimationPlayer> createState() => SvgAnimationPlayerState();
+}
+
+class SvgAnimationPlayerState extends State<SvgAnimationPlayer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: Duration(
+        milliseconds: (widget.animation.duration * 1000).toInt(),
+      ),
+      vsync: this,
+    );
+    
+    if (widget.animation.loop) {
+      _controller.repeat();
+    } else {
+      _controller.addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          widget.onComplete?.call();
+        }
+      });
+    }
+    
+    if (widget.autoPlay) {
+      _controller.forward();
+    }
+  }
+  
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+  
+  void play() => _controller.forward();
+  void pause() => _controller.stop();
+  void reset() => _controller.reset();
+  void seekTo(double progress) => _controller.value = progress;
+  
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: _AnimationPainter(
+            animation: widget.animation,
+            progress: _controller.value,
+          ),
+          size: widget.animation.artboardSize,
+        );
+      },
+    );
+  }
+}
+
+class _AnimationPainter extends CustomPainter {
+  final SvgAnimationDefinition animation;
+  final double progress;
+  
+  _AnimationPainter({
+    required this.animation,
+    required this.progress,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final currentTime = progress * animation.duration;
+    
+    for (var layer in animation.layers) {
+      if (!layer.visible) continue;
+      
+      canvas.save();
+      _paintLayer(canvas, layer, currentTime);
+      canvas.restore();
+    }
+  }
+  
+  void _paintLayer(Canvas canvas, AnimatedLayer layer, double time) {
+    // Apply animated properties
+    for (var prop in layer.properties) {
+      final value = _interpolateProperty(prop, time);
+      _applyProperty(canvas, prop.property, value);
+    }
+    
+    // Paint layer based on type
+    switch (layer.type) {
+      case 'shape':
+        _paintShape(canvas, layer);
+        break;
+      case 'image':
+        _paintImage(canvas, layer);
+        break;
+      case 'text':
+        _paintText(canvas, layer);
+        break;
+    }
+    
+    // Paint children
+    for (var child in layer.children) {
+      canvas.save();
+      _paintLayer(canvas, child, time);
+      canvas.restore();
+    }
+  }
+  
+  dynamic _interpolateProperty(AnimatedProperty prop, double time) {
+    if (prop.keyframes.isEmpty) return null;
+    if (prop.keyframes.length == 1) return prop.keyframes.first.value;
+    
+    // Find surrounding keyframes
+    Keyframe? before, after;
+    for (var i = 0; i < prop.keyframes.length - 1; i++) {
+      if (time >= prop.keyframes[i].time && time <= prop.keyframes[i + 1].time) {
+        before = prop.keyframes[i];
+        after = prop.keyframes[i + 1];
+        break;
+      }
+    }
+    
+    if (before == null || after == null) {
+      return prop.keyframes.last.value;
+    }
+    
+    // Interpolate
+    final t = (time - before.time) / (after.time - before.time);
+    return _lerp(before.value, after.value, t, before.interpolation ?? 'linear');
+  }
+  
+  dynamic _lerp(dynamic a, dynamic b, double t, String interpolation) {
+    if (a is num && b is num) {
+      return a + (b - a) * _applyEasing(t, interpolation);
+    } else if (a is List && b is List) {
+      return List.generate(
+        a.length,
+        (i) => _lerp(a[i], b[i], t, interpolation),
+      );
+    }
+    return t < 0.5 ? a : b;
+  }
+  
+  double _applyEasing(double t, String easing) {
+    switch (easing) {
+      case 'easeIn': return t * t;
+      case 'easeOut': return t * (2 - t);
+      case 'easeInOut': return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      case 'hold': return 0;
+      default: return t; // linear
+    }
+  }
+  
+  void _applyProperty(Canvas canvas, String property, dynamic value) {
+    if (value == null) return;
+    
+    switch (property) {
+      case 'transform.position':
+        if (value is List && value.length >= 2) {
+          canvas.translate(value[0], value[1]);
+        }
+        break;
+      case 'transform.rotation':
+        canvas.rotate(value * math.pi / 180);
+        break;
+      case 'transform.scale':
+        if (value is List && value.length >= 2) {
+          canvas.scale(value[0], value[1]);
+        } else if (value is num) {
+          canvas.scale(value, value);
+        }
+        break;
+    }
+  }
+  
+  void _paintShape(Canvas canvas, AnimatedLayer layer) {
+    final paint = Paint()
+      ..color = Colors.blue.withOpacity(layer.opacity)
+      ..style = PaintingStyle.fill;
+    
+    // Example: draw a simple rectangle
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, 100, 100),
+      paint,
+    );
+  }
+  
+  void _paintImage(Canvas canvas, AnimatedLayer layer) {
+    // Placeholder for image rendering
+    final paint = Paint()
+      ..color = Colors.grey.withOpacity(layer.opacity);
+    canvas.drawRect(Rect.fromLTWH(0, 0, 100, 100), paint);
+  }
+  
+  void _paintText(Canvas canvas, AnimatedLayer layer) {
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: layer.staticData['text'] ?? '',
+        style: TextStyle(
+          color: Colors.black.withOpacity(layer.opacity),
+          fontSize: 16,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, Offset.zero);
+  }
+  
+  @override
+  bool shouldRepaint(_AnimationPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
+// ============================================================================
+// ANIMATION BUILDER/EDITOR
+// ============================================================================
+
+class AnimationBuilder {
+  /// Create a simple fade animation
+  static SvgAnimationDefinition fade({
+    required String id,
+    required String name,
+    double duration = 1.0,
+  }) {
+    return SvgAnimationDefinition(
+      id: id,
+      name: name,
+      duration: duration,
+      artboardSize: Size(200, 200),
+      layers: [
+        AnimatedLayer(
+          id: 'layer1',
+          name: 'Fade Layer',
+          type: 'shape',
+          properties: [
+            AnimatedProperty(
+              property: 'opacity',
+              keyframes: [
+                Keyframe(time: 0, value: 0),
+                Keyframe(time: duration, value: 1),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+  
+  /// Create a slide animation
+  static SvgAnimationDefinition slide({
+    required String id,
+    required String name,
+    double duration = 1.0,
+    Offset from = Offset.zero,
+    Offset to = const Offset(100, 0),
+  }) {
+    return SvgAnimationDefinition(
+      id: id,
+      name: name,
+      duration: duration,
+      artboardSize: Size(200, 200),
+      layers: [
+        AnimatedLayer(
+          id: 'layer1',
+          name: 'Slide Layer',
+          type: 'shape',
+          properties: [
+            AnimatedProperty(
+              property: 'transform.position',
+              keyframes: [
+                Keyframe(time: 0, value: [from.dx, from.dy]),
+                Keyframe(time: duration, value: [to.dx, to.dy]),
+              ],
+              easing: 'easeInOut',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+  
+  /// Create a rotation animation
+  static SvgAnimationDefinition rotate({
+    required String id,
+    required String name,
+    double duration = 2.0,
+    double degrees = 360,
+    bool loop = true,
+  }) {
+    return SvgAnimationDefinition(
+      id: id,
+      name: name,
+      duration: duration,
+      loop: loop,
+      artboardSize: Size(200, 200),
+      layers: [
+        AnimatedLayer(
+          id: 'layer1',
+          name: 'Rotate Layer',
+          type: 'shape',
+          properties: [
+            AnimatedProperty(
+              property: 'transform.rotation',
+              keyframes: [
+                Keyframe(time: 0, value: 0),
+                Keyframe(time: duration, value: degrees),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+  
+  /// Create a scale animation
+  static SvgAnimationDefinition scale({
+    required String id,
+    required String name,
+    double duration = 1.0,
+    double fromScale = 0.0,
+    double toScale = 1.0,
+  }) {
+    return SvgAnimationDefinition(
+      id: id,
+      name: name,
+      duration: duration,
+      artboardSize: Size(200, 200),
+      layers: [
+        AnimatedLayer(
+          id: 'layer1',
+          name: 'Scale Layer',
+          type: 'shape',
+          properties: [
+            AnimatedProperty(
+              property: 'transform.scale',
+              keyframes: [
+                Keyframe(time: 0, value: [fromScale, fromScale]),
+                Keyframe(time: duration, value: [toScale, toScale]),
+              ],
+              easing: 'easeOut',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// EXPORT UTILITIES
+// ============================================================================
+
+class AnimationExporter {
+  /// Export to JSON file
+  static String exportToJson(SvgAnimationDefinition animation) {
+    return jsonEncode(animation.toJson());
+  }
+  
+  /// Export to Lottie JSON
+  static String exportToLottie(SvgAnimationDefinition animation) {
+    return jsonEncode(animation.toLottie());
+  }
+  
+  /// Export to Rive JSON (simplified)
+  static String exportToRive(SvgAnimationDefinition animation) {
+    return jsonEncode(animation.toRive());
+  }
+  
+  /// Import from JSON
+  static SvgAnimationDefinition importFromJson(String jsonString) {
+    final json = jsonDecode(jsonString);
+    return SvgAnimationDefinition.fromJson(json);
+  }
+}
+
+// ============================================================================
+// EXAMPLE USAGE
+// ============================================================================
+
+/*
+void main() {
+  runApp(MaterialApp(
+    home: Scaffold(
+      appBar: AppBar(title: Text('SVG Animation Studio')),
+      body: Column(
+        children: [
+          // Create animations
+          Expanded(
+            child: SvgAnimationPlayer(
+              animation: AnimationBuilder.rotate(
+                id: 'rotate1',
+                name: 'Spinning Logo',
+                duration: 2.0,
+                loop: true,
+              ),
+              autoPlay: true,
+            ),
+          ),
+          
+          // Controls
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                  final animation = AnimationBuilder.fade(
+                    id: 'fade1',
+                    name: 'Fade In',
+                  );
+                  
+                  // Export to Lottie
+                  final lottie = AnimationExporter.exportToLottie(animation);
+                  print('Lottie: $lottie');
+                  
+                  // Export to Rive
+                  final rive = AnimationExporter.exportToRive(animation);
+                  print('Rive: $rive');
+                  
+                  // Export to JSON
+                  final json = AnimationExporter.exportToJson(animation);
+                  print('JSON: $json');
+                },
+                child: Text('Export Animation'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  ));
+}
+*/

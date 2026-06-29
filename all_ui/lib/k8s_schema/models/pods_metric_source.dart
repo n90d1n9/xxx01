@@ -1,0 +1,2 @@
+
+class PodsMetricSource {final MetricIdentifier metric; final MetricTarget target; PodsMetricSource({required this.metric, required this.target}); factory PodsMetricSource.fromJson(Map<String, dynamic> json) {return PodsMetricSource(metric: MetricIdentifier.fromJson(json['metric']), target: MetricTarget.fromJson(json['target']));} Map<String, dynamic> toJson() {return {'metric' : metric.toJson(), 'target' : target.toJson()};}}

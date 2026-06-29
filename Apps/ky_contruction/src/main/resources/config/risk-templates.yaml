@@ -1,0 +1,9 @@
+- code: FIN-BUD-001
+  title: Budget Overrun
+  description: Project costs exceeding approved budget due to scope creep or estimation errors.
+  category: FINANCIAL
+  type: THREAT
+  defaultProbability: MEDIUM
+  defaultImpact: HIGH
+  mitigationSuggestion: Track expenses, enforce change control, use contingency reserves.
+  contingencySuggestion: Reduce scope or renegotiate funding.

@@ -1,0 +1,76 @@
+{
+    "title": "hello world",
+
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "about": "About Apps",
+    "@about": {
+        "description": "About Apps"
+    },
+
+    "please_fill_field": "Please fill column",
+    "data_empty": "Data empty",
+
+    "share": "Share",
+    "search": "Search",
+    "add": "Add",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    
+    "email": "Email",
+    "users": "Users",
+    "user_password": "User Password",
+    "password": "Password",
+    "dont_have_account":"Don't have account? ",
+    "sign_in": "Sign In",
+    "sign_up": "Sign Up",
+    "sign_out": "Sign Out",
+    "forgot_password": "Forgot Password?",
+    "want_sign_out": "Are you sure you want to logout?",
+    "loginEmpty": "Email can't be empty",
+    "loginValidEmail": "Please enter a valid email address",
+    "loginTryEmail": "Email provided isn't valid.Try another email address",
+    "passwordConfirm": "Confirm password can't be empty",
+    "passwordMatch": "Password doesn't match",
+    "passwordEmpty": "Password can't be empty",
+    "passwordLength": "Password must be at-least 6 characters long",
+
+    "errorUsername": "Username and password doesn't match",
+    "errorUnauthorized": "Unauthorized",
+    "errorNetwork": "Something went wrong, please check your network and try again",
+    
+    "@product":{
+        "code": "Code", 
+        "name": "Name", 
+        "sku": "Sku", 
+        "unit": "Unit", 
+        "status": "Status"  
+    },
+    "@status":{
+        "name": "Name"  
+    },
+    "@history":{
+        "payload": "Payload"  
+    },
+    "@order":{
+        "code": "Code", 
+        "staff": "Staff", 
+        "status": "Status"  
+    },
+    "@orderLine":{
+        "product": "Product", 
+        "quantity": "Quantity", 
+        "order": "Order"  
+    },
+    "@order":{
+        "code": "Code", 
+        "staff": "Staff", 
+        "status": "Status"  
+    },
+    "@orderLine":{
+        "product": "Product", 
+        "quantity": "Quantity", 
+        "order": "Order"  
+    }
+}

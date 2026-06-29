@@ -1,0 +1,40 @@
+class ObjectReference {
+  final String? apiVersion;
+  final String? kind;
+  final String? namespace;
+  final String? name;
+  final String? uid;
+  final String? resourceVersion;
+  final String? fieldPath;
+  ObjectReference({
+    this.apiVersion,
+    this.kind,
+    this.namespace,
+    this.name,
+    this.uid,
+    this.resourceVersion,
+    this.fieldPath,
+  });
+  factory ObjectReference.fromJson(Map<String, dynamic> json) {
+    return ObjectReference(
+      apiVersion: json['apiVersion'],
+      kind: json['kind'],
+      namespace: json['namespace'],
+      name: json['name'],
+      uid: json['uid'],
+      resourceVersion: json['resourceVersion'],
+      fieldPath: json['fieldPath'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (apiVersion != null) 'apiVersion': apiVersion,
+      if (kind != null) 'kind': kind,
+      if (namespace != null) 'namespace': namespace,
+      if (name != null) 'name': name,
+      if (uid != null) 'uid': uid,
+      if (resourceVersion != null) 'resourceVersion': resourceVersion,
+      if (fieldPath != null) 'fieldPath': fieldPath,
+    };
+  }
+}

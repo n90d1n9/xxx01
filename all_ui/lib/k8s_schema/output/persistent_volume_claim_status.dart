@@ -1,0 +1,42 @@
+import 'persistent_volume_claim_condition.dart';
+
+class PersistentVolumeClaimStatus {
+  final String? phase;
+  final List<String>? accessModes;
+  final Map<String, String>? capacity;
+  final List<PersistentVolumeClaimCondition>? conditions;
+  PersistentVolumeClaimStatus({
+    this.phase,
+    this.accessModes,
+    this.capacity,
+    this.conditions,
+  });
+  factory PersistentVolumeClaimStatus.fromJson(Map<String, dynamic> json) {
+    return PersistentVolumeClaimStatus(
+      phase: json['phase'],
+      accessModes:
+          json['accessModes'] != null
+              ? List<String>.from(json['accessModes'])
+              : null,
+      capacity:
+          json['capacity'] != null
+              ? Map<String, String>.from(json['capacity'])
+              : null,
+      conditions:
+          json['conditions'] != null
+              ? (json['conditions'] as List)
+                  .map((e) => PersistentVolumeClaimCondition.fromJson(e))
+                  .toList()
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (phase != null) 'phase': phase,
+      if (accessModes != null) 'accessModes': accessModes,
+      if (capacity != null) 'capacity': capacity,
+      if (conditions != null)
+        'conditions': conditions!.map((e) => e.toJson()).toList(),
+    };
+  }
+}

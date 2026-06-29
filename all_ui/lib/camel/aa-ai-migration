@@ -1,0 +1,585 @@
+// ============================================================================
+// MIGRATION HELPER - CONVERT WNODE TO INTEGRATION ROUTE
+// ============================================================================
+
+class MigrationHelper {
+  /// Converts existing WNode routes to IntegrationRoute
+  static IntegrationRoute convertWNodeToIntegrationRoute(WNode wNode) {
+    // Extract connections from NodeCard connections
+    final connections = <Connection>[];
+    final connectionMap = <String, Set<String>>{};
+    
+    for (final node in wNode.nodes) {
+      for (final conn in node.connections) {
+        if (conn.targetNodeId != null) {
+          final connId = 'conn_${node.id}_${conn.targetNodeId}';
+          if (!connectionMap.containsKey(connId)) {
+            connections.add(Connection(
+              id: connId,
+              from: node.id,
+              to: conn.targetNodeId!,
+            ));
+            connectionMap[connId] = {};
+          }
+        }
+      }
+    }
+
+    return IntegrationRoute(
+      id: wNode.id,
+      name: wNode.name,
+      description: wNode.description,
+      nodes: wNode.nodes,
+      connections: connections,
+      transformations: const [],
+      metadata: {},
+    );
+  }
+
+  /// Batch convert all routes
+  static List<IntegrationRoute> convertAllRoutes(List<WNode> wNodes) {
+    return wNodes.map((wNode) => convertWNodeToIntegrationRoute(wNode)).toList();
+  }
+
+  /// Migrate existing route with minimal changes
+  static Future<void> migrateExistingRoutes(WidgetRef ref) async {
+    try {
+      // Get existing routes
+      final existingRoutes = ref.read(routesProvider);
+      
+      // Convert to IntegrationRoute
+      final migratedRoutes = convertAllRoutes(existingRoutes);
+      
+      // Update state
+      ref.read(integrationRoutesProvider.notifier).state = migratedRoutes;
+      
+      // Update selection
+      final selectedId = ref.read(selectedRouteIdProvider);
+      if (selectedId != null) {
+        ref.read(selectedRouteIdProvider.notifier).state = selectedId;
+      }
+      
+      print('✅ Successfully migrated ${migratedRoutes.length} routes');
+    } catch (e) {
+      print('❌ Migration failed: $e');
+      rethrow;
+    }
+  }
+
+  /// Validate migration
+  static bool validateMigration(List<IntegrationRoute> routes) {
+    for (final route in routes) {
+      // Check basic fields
+      if (route.id.isEmpty || route.name.isEmpty) return false;
+      
+      // Check nodes
+      if (route.nodes.isEmpty) continue;
+      
+      // Validate connections reference existing nodes
+      final nodeIds = route.nodes.map((n) => n.id).toSet();
+      for (final conn in route.connections) {
+        if (!nodeIds.contains(conn.from) || !nodeIds.contains(conn.to)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /// Generate migration report
+  static MigrationReport generateReport(
+    List<WNode> oldRoutes,
+    List<IntegrationRoute> newRoutes,
+  ) {
+    final report = MigrationReport();
+    
+    report.totalRoutes = oldRoutes.length;
+    report.migratedRoutes = newRoutes.length;
+    report.totalNodes = oldRoutes.fold(0, (sum, r) => sum + r.nodes.length);
+    report.totalConnections = newRoutes.fold(0, (sum, r) => sum + r.connections.length);
+    
+    // Check for issues
+    for (var i = 0; i < newRoutes.length; i++) {
+      final newRoute = newRoutes[i];
+      
+      // Validate each route
+      final validation = RouteValidator.validateRoute(newRoute);
+      if (!validation.isValid) {
+        report.issuesFound += validation.errors.length;
+        report.routesWithIssues.add(newRoute.id);
+      }
+    }
+    
+    return report;
+  }
+}
+
+class MigrationReport {
+  int totalRoutes = 0;
+  int migratedRoutes = 0;
+  int totalNodes = 0;
+  int totalConnections = 0;
+  int issuesFound = 0;
+  List<String> routesWithIssues = [];
+
+  bool get isSuccessful => migratedRoutes == totalRoutes && issuesFound == 0;
+
+  @override
+  String toString() {
+    return '''
+Migration Report
+================
+Total Routes: $totalRoutes
+Migrated: $migratedRoutes
+Total Nodes: $totalNodes
+Total Connections: $totalConnections
+Issues Found: $issuesFound
+Routes with Issues: ${routesWithIssues.length}
+
+Status: ${isSuccessful ? '✅ SUCCESS' : '⚠️  NEEDS ATTENTION'}
+''';
+  }
+}
+
+// ============================================================================
+// BACKWARD COMPATIBILITY ADAPTER
+// ============================================================================
+
+/// Provides backward compatibility with existing WNode structure
+class BackwardCompatibilityAdapter extends StateNotifier<List<WNode>> {
+  BackwardCompatibilityAdapter(this.ref, this.integrationNotifier) : super([]) {
+    // Listen to IntegrationRoute changes and sync to WNode
+    ref.listen(integrationRoutesProvider, (previous, next) {
+      state = next.map(_toWNode).toList();
+    });
+  }
+
+  final Ref ref;
+  final IntegrationRoutesNotifier integrationNotifier;
+
+  WNode _toWNode(IntegrationRoute route) {
+    // Convert back to WNode for backward compatibility
+    final nodesWithConnections = route.nodes.map((node) {
+      // Find all connections from this node
+      final outgoingConnections = route.connections
+          .where((c) => c.from == node.id)
+          .map((c) => NodeConnection(targetNodeId: c.to))
+          .toList();
+      
+      return node.copyWith(connections: outgoingConnections);
+    }).toList();
+
+    return WNode(
+      id: route.id,
+      name: route.name,
+      description: route.description,
+      nodes: nodesWithConnections,
+    );
+  }
+
+  // Delegate all methods to IntegrationRoutesNotifier
+  @override
+  void addRoute(WNode route) {
+    final integrationRoute = MigrationHelper.convertWNodeToIntegrationRoute(route);
+    integrationNotifier.addRoute(integrationRoute);
+  }
+
+  // Add other delegated methods as needed...
+}
+
+// ============================================================================
+// COMPATIBILITY PROVIDERS
+// ============================================================================
+
+/// Provides WNode interface while using IntegrationRoute underneath
+final compatibleRoutesProvider = 
+    StateNotifierProvider<BackwardCompatibilityAdapter, List<WNode>>((ref) {
+  final integrationNotifier = ref.watch(integrationRoutesProvider.notifier);
+  return BackwardCompatibilityAdapter(ref, integrationNotifier);
+});
+
+// ============================================================================
+// AUTO-UPGRADE SYSTEM
+// ============================================================================
+
+class AutoUpgradeSystem {
+  static void setupAutoUpgrade(WidgetRef ref) {
+    // Run migration on app start
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _checkAndMigrate(ref);
+    });
+  }
+
+  static Future<void> _checkAndMigrate(WidgetRef ref) async {
+    try {
+      // Check if migration needed
+      final existingRoutes = ref.read(routesProvider);
+      final integrationRoutes = ref.read(integrationRoutesProvider);
+      
+      if (existingRoutes.isNotEmpty && integrationRoutes.isEmpty) {
+        print('🔄 Auto-migration detected...');
+        await MigrationHelper.migrateExistingRoutes(ref);
+        print('✅ Auto-migration completed');
+      }
+    } catch (e) {
+      print('⚠️ Auto-migration skipped: $e');
+    }
+  }
+
+  static Future<bool> canAutoMigrate(WidgetRef ref) async {
+    try {
+      final existingRoutes = ref.read(routesProvider);
+      if (existingRoutes.isEmpty) return false;
+      
+      // Try conversion
+      final converted = MigrationHelper.convertAllRoutes(existingRoutes);
+      return MigrationHelper.validateMigration(converted);
+    } catch (e) {
+      return false;
+    }
+  }
+}
+
+// ============================================================================
+// MIGRATION UI DIALOG
+// ============================================================================
+
+class MigrationDialog extends StatefulWidget {
+  final List<WNode> existingRoutes;
+
+  const MigrationDialog({super.key, required this.existingRoutes});
+
+  @override
+  State<MigrationDialog> createState() => _MigrationDialogState();
+}
+
+class _MigrationDialogState extends State<MigrationDialog> {
+  bool _isMigrating = false;
+  MigrationReport? _report;
+  List<IntegrationRoute>? _previewRoutes;
+
+  @override
+  void initState() {
+    super.initState();
+    _generatePreview();
+  }
+
+  void _generatePreview() {
+    setState(() {
+      _previewRoutes = MigrationHelper.convertAllRoutes(widget.existingRoutes);
+      _report = MigrationHelper.generateReport(widget.existingRoutes, _previewRoutes!);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.upgrade),
+          SizedBox(width: 12),
+          Text('Migrate to Enhanced Routes'),
+        ],
+      ),
+      content: SizedBox(
+        width: 600,
+        height: 400,
+        child: _buildContent(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _isMigrating ? null : _performMigration,
+          child: _isMigrating
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Migrate'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContent() {
+    if (_report == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Migration Preview',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 16),
+        _buildReportCard(),
+        const SizedBox(height: 16),
+        Text(
+          'What will be migrated:',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Expanded(child: _buildRoutesList()),
+      ],
+    );
+  }
+
+  Widget _buildReportCard() {
+    return Card(
+      color: _report!.isSuccessful ? Colors.green[50] : Colors.orange[50],
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _report!.isSuccessful ? Icons.check_circle : Icons.warning,
+                  color: _report!.isSuccessful ? Colors.green : Colors.orange,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _report!.isSuccessful ? 'Ready to Migrate' : 'Needs Review',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _buildStatRow('Routes', '${_report!.totalRoutes}'),
+            _buildStatRow('Nodes', '${_report!.totalNodes}'),
+            _buildStatRow('Connections', '${_report!.totalConnections}'),
+            if (_report!.issuesFound > 0)
+              _buildStatRow(
+                'Issues',
+                '${_report!.issuesFound}',
+                isWarning: true,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatRow(String label, String value, {bool isWarning = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isWarning ? Colors.orange : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoutesList() {
+    return ListView.builder(
+      itemCount: _previewRoutes!.length,
+      itemBuilder: (context, index) {
+        final route = _previewRoutes![index];
+        final hasIssues = _report!.routesWithIssues.contains(route.id);
+        
+        return ListTile(
+          leading: Icon(
+            hasIssues ? Icons.warning : Icons.check_circle,
+            color: hasIssues ? Colors.orange : Colors.green,
+          ),
+          title: Text(route.name),
+          subtitle: Text('${route.nodes.length} nodes, ${route.connections.length} connections'),
+          trailing: hasIssues
+              ? const Chip(
+                  label: Text('Needs Review'),
+                  backgroundColor: Colors.orange,
+                )
+              : null,
+        );
+      },
+    );
+  }
+
+  Future<void> _performMigration() async {
+    setState(() => _isMigrating = true);
+    
+    try {
+      // Simulate migration process
+      await Future.delayed(const Duration(seconds: 1));
+      
+      if (mounted) {
+        Navigator.pop(context, _previewRoutes);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Migration failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isMigrating = false);
+      }
+    }
+  }
+}
+
+// ============================================================================
+// MIGRATION EXTENSIONS
+// ============================================================================
+
+extension WNodeMigrationExtensions on WNode {
+  /// Convert this WNode to IntegrationRoute
+  IntegrationRoute toIntegrationRoute() {
+    return MigrationHelper.convertWNodeToIntegrationRoute(this);
+  }
+
+  /// Check if this route can be migrated
+  bool canMigrate() {
+    try {
+      final route = toIntegrationRoute();
+      return MigrationHelper.validateMigration([route]);
+    } catch (e) {
+      return false;
+    }
+  }
+}
+
+extension IntegrationRouteMigrationExtensions on IntegrationRoute {
+  /// Convert back to WNode for compatibility
+  WNode toWNode() {
+    final nodesWithConnections = nodes.map((node) {
+      final outgoingConnections = connections
+          .where((c) => c.from == node.id)
+          .map((c) => NodeConnection(targetNodeId: c.to))
+          .toList();
+      
+      return node.copyWith(connections: outgoingConnections);
+    }).toList();
+
+    return WNode(
+      id: id,
+      name: name,
+      description: description,
+      nodes: nodesWithConnections,
+    );
+  }
+}
+
+// ============================================================================
+// QUICK START HELPER
+// ============================================================================
+
+class QuickStartHelper {
+  /// Initialize with sample route
+  static Future<void> initializeWithSampleRoute(WidgetRef ref) async {
+    final sampleRoute = _createSampleRoute();
+    ref.read(integrationRoutesProvider.notifier).addRoute(sampleRoute);
+    ref.read(selectedRouteIdProvider.notifier).state = sampleRoute.id;
+  }
+
+  static IntegrationRoute _createSampleRoute() {
+    final node1 = NodeCard(
+      id: 'node1',
+      type: 'rest-endpoint',
+      name: 'REST API',
+      icon: Icons.api,
+      color: Colors.blue,
+      position: const Offset(100, 100),
+      config: {
+        'method': 'POST',
+        'path': '/orders',
+        'consumes': 'application/json',
+      },
+    );
+
+    final node2 = NodeCard(
+      id: 'node2',
+      type: 'data-mapper',
+      name: 'Transform Data',
+      icon: Icons.transform,
+      color: Colors.orange,
+      position: const Offset(350, 100),
+      config: {
+        'sourceFormat': 'json',
+        'targetFormat': 'json',
+      },
+    );
+
+    final node3 = NodeCard(
+      id: 'node3',
+      type: 'kafka',
+      name: 'Send to Kafka',
+      icon: Icons.message,
+      color: Colors.green,
+      position: const Offset(600, 100),
+      config: {
+        'topic': 'orders',
+        'brokers': 'localhost:9092',
+      },
+    );
+
+    return IntegrationRoute(
+      id: 'sample_route',
+      name: 'Sample Order Processing',
+      description: 'REST API → Transform → Kafka',
+      nodes: [node1, node2, node3],
+      connections: [
+        Connection(id: 'conn1', from: 'node1', to: 'node2'),
+        Connection(id: 'conn2', from: 'node2', to: 'node3'),
+      ],
+      transformations: const [],
+      metadata: {'template': 'quick-start'},
+    );
+  }
+
+  /// Setup default configuration
+  static void setupDefaults(WidgetRef ref) {
+    // Enable helpful features by default
+    ref.read(snapToGridProvider.notifier).state = true;
+    ref.read(showMiniMapProvider.notifier).state = true;
+  }
+}
+
+// ============================================================================
+// PROVIDER SETUP HELPER
+// ============================================================================
+
+class ProviderSetupHelper {
+  /// Get all required providers for the app
+  static List<Override> getRequiredProviders() {
+    return [
+      // Core providers already exist
+      // Add any overrides here if needed
+    ];
+  }
+
+  /// Initialize all systems
+  static Future<void> initializeSystems(WidgetRef ref) async {
+    // Setup auto-upgrade
+    AutoUpgradeSystem.setupAutoUpgrade(ref);
+    
+    // Setup defaults
+    QuickStartHelper.setupDefaults(ref);
+    
+    // Check for existing routes and offer migration
+    final existingRoutes = ref.read(routesProvider);
+    if (existingRoutes.isNotEmpty) {
+      final canMigrate = await AutoUpgradeSystem.canAutoMigrate(ref);
+      if (canMigrate) {
+        await MigrationHelper.migrateExistingRoutes(ref);
+      }
+    }
+  }
+}

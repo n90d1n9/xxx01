@@ -1,0 +1,1005 @@
+// ==================== Advanced Animation Editor ====================
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+
+// Animation State Provider
+final animationEditorProvider = StateNotifierProvider<AnimationEditorNotifier, AnimationEditorState>((ref) {
+  return AnimationEditorNotifier();
+});
+
+class AnimationEditorState {
+  final String type; // entrance, scroll, hover, keyframe
+  final Duration duration;
+  final String curve;
+  final double delay;
+  final List<KeyframeData> keyframes;
+  final bool isPlaying;
+
+  AnimationEditorState({
+    this.type = 'entrance',
+    this.duration = const Duration(milliseconds: 500),
+    this.curve = 'easeInOut',
+    this.delay = 0,
+    this.keyframes = const [],
+    this.isPlaying = false,
+  });
+
+  AnimationEditorState copyWith({
+    String? type,
+    Duration? duration,
+    String? curve,
+    double? delay,
+    List<KeyframeData>? keyframes,
+    bool? isPlaying,
+  }) {
+    return AnimationEditorState(
+      type: type ?? this.type,
+      duration: duration ?? this.duration,
+      curve: curve ?? this.curve,
+      delay: delay ?? this.delay,
+      keyframes: keyframes ?? this.keyframes,
+      isPlaying: isPlaying ?? this.isPlaying,
+    );
+  }
+}
+
+class KeyframeData {
+  final double position; // 0.0 to 1.0
+  final Map<String, dynamic> properties;
+
+  KeyframeData({required this.position, required this.properties});
+}
+
+class AnimationEditorNotifier extends StateNotifier<AnimationEditorState> {
+  AnimationEditorNotifier() : super(AnimationEditorState());
+
+  void setType(String type) => state = state.copyWith(type: type);
+  void setDuration(Duration duration) => state = state.copyWith(duration: duration);
+  void setCurve(String curve) => state = state.copyWith(curve: curve);
+  void setDelay(double delay) => state = state.copyWith(delay: delay);
+  void togglePlayback() => state = state.copyWith(isPlaying: !state.isPlaying);
+
+  void addKeyframe(KeyframeData keyframe) {
+    state = state.copyWith(keyframes: [...state.keyframes, keyframe]);
+  }
+
+  void removeKeyframe(int index) {
+    final newKeyframes = [...state.keyframes];
+    newKeyframes.removeAt(index);
+    state = state.copyWith(keyframes: newKeyframes);
+  }
+}
+
+class AdvancedAnimationEditor extends ConsumerStatefulWidget {
+  final ComponentData? component;
+
+  const AdvancedAnimationEditor({Key? key, this.component}) : super(key: key);
+
+  @override
+  ConsumerState<AdvancedAnimationEditor> createState() => _AdvancedAnimationEditorState();
+}
+
+class _AdvancedAnimationEditorState extends ConsumerState<AdvancedAnimationEditor>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _previewController;
+
+  @override
+  void initState() {
+    super.initState();
+    _previewController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+  }
+
+  @override
+  void dispose() {
+    _previewController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final animState = ref.watch(animationEditorProvider);
+
+    return Dialog(
+      child: Container(
+        width: 1000,
+        height: 700,
+        child: Row(
+          children: [
+            // Left Panel - Animation Controls
+            Container(
+              width: 300,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                border: Border(right: BorderSide(color: Colors.grey[300]!)),
+              ),
+              child: _buildControlPanel(animState),
+            ),
+
+            // Center - Timeline
+            Expanded(
+              child: Column(
+                children: [
+                  _buildPreviewArea(),
+                  _buildTimeline(animState),
+                ],
+              ),
+            ),
+
+            // Right Panel - Properties
+            Container(
+              width: 250,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                border: Border(left: BorderSide(color: Colors.grey[300]!)),
+              ),
+              child: _buildPropertiesPanel(animState),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlPanel(AnimationEditorState animState) {
+    return ListView(
+      children: [
+        const Text('Animation Type', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        SegmentedButton<String>(
+          segments: const [
+            ButtonSegment(value: 'entrance', label: Text('Entrance')),
+            ButtonSegment(value: 'scroll', label: Text('Scroll')),
+            ButtonSegment(value: 'hover', label: Text('Hover')),
+          ],
+          selected: {animState.type},
+          onSelectionChanged: (selected) {
+            ref.read(animationEditorProvider.notifier).setType(selected.first);
+          },
+        ),
+        const SizedBox(height: 24),
+        const Text('Animation Presets', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        _AnimationPresetCard(
+          title: 'Fade In',
+          icon: Icons.visibility,
+          onTap: () => _applyPreset('fadeIn'),
+        ),
+        _AnimationPresetCard(
+          title: 'Slide Up',
+          icon: Icons.arrow_upward,
+          onTap: () => _applyPreset('slideUp'),
+        ),
+        _AnimationPresetCard(
+          title: 'Scale',
+          icon: Icons.zoom_in,
+          onTap: () => _applyPreset('scale'),
+        ),
+        _AnimationPresetCard(
+          title: 'Bounce',
+          icon: Icons.sports_basketball,
+          onTap: () => _applyPreset('bounce'),
+        ),
+        _AnimationPresetCard(
+          title: 'Rotate',
+          icon: Icons.rotate_right,
+          onTap: () => _applyPreset('rotate'),
+        ),
+        const SizedBox(height: 24),
+        const Text('Duration', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Slider(
+          value: animState.duration.inMilliseconds.toDouble(),
+          min: 100,
+          max: 3000,
+          divisions: 29,
+          label: '${animState.duration.inMilliseconds}ms',
+          onChanged: (value) {
+            ref.read(animationEditorProvider.notifier)
+                .setDuration(Duration(milliseconds: value.toInt()));
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPreviewArea() {
+    return Expanded(
+      child: Container(
+        color: Colors.grey[100],
+        child: Center(
+          child: AnimatedBuilder(
+            animation: _previewController,
+            builder: (context, child) {
+              return Transform.translate(
+                offset: Offset(0, -50 * (1 - _previewController.value)),
+                child: Opacity(
+                  opacity: _previewController.value,
+                  child: Container(
+                    width: 200,
+                    height: 200,
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'Preview',
+                        style: TextStyle(color: Colors.white, fontSize: 24),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimeline(AnimationEditorState animState) {
+    return Container(
+      height: 150,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        border: Border(top: BorderSide(color: Colors.grey[700]!)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: Icon(
+                  animState.isPlaying ? Icons.pause : Icons.play_arrow,
+                  color: Colors.white,
+                ),
+                onPressed: () {
+                  ref.read(animationEditorProvider.notifier).togglePlayback();
+                  if (_previewController.isAnimating) {
+                    _previewController.stop();
+                  } else {
+                    _previewController.repeat();
+                  }
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.stop, color: Colors.white),
+                onPressed: () {
+                  _previewController.reset();
+                  ref.read(animationEditorProvider.notifier).togglePlayback();
+                },
+              ),
+              const Spacer(),
+              Text(
+                '${animState.duration.inMilliseconds}ms',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[800],
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Stack(
+                children: [
+                  // Timeline ruler
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: TimelinePainter(),
+                    ),
+                  ),
+                  // Keyframes
+                  ...animState.keyframes.map((kf) {
+                    return Positioned(
+                      left: kf.position * MediaQuery.of(context).size.width,
+                      top: 20,
+                      child: Container(
+                        width: 10,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPropertiesPanel(AnimationEditorState animState) {
+    return ListView(
+      children: [
+        const Text('Properties', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+        const Text('Easing Curve'),
+        DropdownButton<String>(
+          value: animState.curve,
+          isExpanded: true,
+          items: const [
+            DropdownMenuItem(value: 'linear', child: Text('Linear')),
+            DropdownMenuItem(value: 'easeIn', child: Text('Ease In')),
+            DropdownMenuItem(value: 'easeOut', child: Text('Ease Out')),
+            DropdownMenuItem(value: 'easeInOut', child: Text('Ease In Out')),
+            DropdownMenuItem(value: 'bounceIn', child: Text('Bounce In')),
+            DropdownMenuItem(value: 'elasticOut', child: Text('Elastic Out')),
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              ref.read(animationEditorProvider.notifier).setCurve(value);
+            }
+          },
+        ),
+        const SizedBox(height: 16),
+        const Text('Delay'),
+        Slider(
+          value: animState.delay,
+          min: 0,
+          max: 2000,
+          divisions: 20,
+          label: '${animState.delay.toInt()}ms',
+          onChanged: (value) {
+            ref.read(animationEditorProvider.notifier).setDelay(value);
+          },
+        ),
+        const SizedBox(height: 24),
+        ElevatedButton.icon(
+          onPressed: () {
+            // Apply animation to component
+            Navigator.pop(context);
+          },
+          icon: const Icon(Icons.check),
+          label: const Text('Apply Animation'),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 48),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _applyPreset(String preset) {
+    // Apply animation preset
+    _previewController.reset();
+    _previewController.forward();
+  }
+}
+
+class _AnimationPresetCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _AnimationPresetCard({
+    required this.title,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(icon, size: 24),
+              const SizedBox(width: 12),
+              Text(title),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class TimelinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey[600]!
+      ..strokeWidth = 1;
+
+    // Draw ruler marks
+    for (int i = 0; i <= 10; i++) {
+      final x = (size.width / 10) * i;
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, i % 5 == 0 ? 15 : 8),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ==================== Advanced Form Builder ====================
+
+class AdvancedFormBuilder extends ConsumerStatefulWidget {
+  const AdvancedFormBuilder({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<AdvancedFormBuilder> createState() => _AdvancedFormBuilderState();
+}
+
+class _AdvancedFormBuilderState extends ConsumerState<AdvancedFormBuilder> {
+  final List<FormFieldConfig> _fields = [];
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: 900,
+        height: 700,
+        child: Row(
+          children: [
+            // Left - Field Types
+            Container(
+              width: 250,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(right: BorderSide(color: Colors.grey[300]!)),
+              ),
+              child: _buildFieldTypesList(),
+            ),
+
+            // Center - Form Preview
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Form Builder',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                        Row(
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _clearForm,
+                              icon: const Icon(Icons.clear),
+                              label: const Text('Clear'),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              onPressed: _saveForm,
+                              icon: const Icon(Icons.save),
+                              label: const Text('Save Form'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Expanded(
+                      child: _fields.isEmpty
+                          ? Center(
+                              child: Text(
+                                'Drag fields here to build your form',
+                                style: TextStyle(color: Colors.grey[600]),
+                              ),
+                            )
+                          : ReorderableListView(
+                              onReorder: (oldIndex, newIndex) {
+                                setState(() {
+                                  if (newIndex > oldIndex) newIndex--;
+                                  final field = _fields.removeAt(oldIndex);
+                                  _fields.insert(newIndex, field);
+                                });
+                              },
+                              children: _fields.map((field) {
+                                return _FormFieldCard(
+                                  key: ValueKey(field.id),
+                                  field: field,
+                                  onEdit: () => _editField(field),
+                                  onDelete: () => _deleteField(field),
+                                );
+                              }).toList(),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Right - Field Properties
+            Container(
+              width: 300,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(left: BorderSide(color: Colors.grey[300]!)),
+              ),
+              child: _buildFieldProperties(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFieldTypesList() {
+    return ListView(
+      children: [
+        const Text('Field Types', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+        _FieldTypeCard(
+          icon: Icons.text_fields,
+          title: 'Text Input',
+          onTap: () => _addField('text'),
+        ),
+        _FieldTypeCard(
+          icon: Icons.email,
+          title: 'Email',
+          onTap: () => _addField('email'),
+        ),
+        _FieldTypeCard(
+          icon: Icons.phone,
+          title: 'Phone',
+          onTap: () => _addField('phone'),
+        ),
+        _FieldTypeCard(
+          icon: Icons.numbers,
+          title: 'Number',
+          onTap: () => _addField('number'),
+        ),
+        _FieldTypeCard(
+          icon: Icons.notes,
+          title: 'Text Area',
+          onTap: () => _addField('textarea'),
+        ),
+        _FieldTypeCard(
+          icon: Icons.check_box,
+          title: 'Checkbox',
+          onTap: () => _addField('checkbox'),
+        ),
+        _FieldTypeCard(
+          icon: Icons.radio_button_checked,
+          title: 'Radio',
+          onTap: () => _addField('radio'),
+        ),
+        _FieldTypeCard(
+          icon: Icons.arrow_drop_down_circle,
+          title: 'Select',
+          onTap: () => _addField('select'),
+        ),
+        _FieldTypeCard(
+          icon: Icons.calendar_today,
+          title: 'Date',
+          onTap: () => _addField('date'),
+        ),
+        _FieldTypeCard(
+          icon: Icons.attach_file,
+          title: 'File Upload',
+          onTap: () => _addField('file'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFieldProperties() {
+    return const Center(
+      child: Text('Select a field to edit properties'),
+    );
+  }
+
+  void _addField(String type) {
+    setState(() {
+      _fields.add(FormFieldConfig(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        type: type,
+        label: 'New ${type.capitalize()} Field',
+        required: false,
+      ));
+    });
+  }
+
+  void _editField(FormFieldConfig field) {
+    // Show field editor dialog
+  }
+
+  void _deleteField(FormFieldConfig field) {
+    setState(() {
+      _fields.remove(field);
+    });
+  }
+
+  void _clearForm() {
+    setState(() {
+      _fields.clear();
+    });
+  }
+
+  void _saveForm() {
+    // Save form configuration
+    Navigator.pop(context, _fields);
+  }
+}
+
+class FormFieldConfig {
+  final String id;
+  final String type;
+  final String label;
+  final bool required;
+  final String? placeholder;
+  final List<String>? options;
+  final Map<String, dynamic>? validation;
+
+  FormFieldConfig({
+    required this.id,
+    required this.type,
+    required this.label,
+    required this.required,
+    this.placeholder,
+    this.options,
+    this.validation,
+  });
+}
+
+class _FieldTypeCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  const _FieldTypeCard({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(icon, size: 24),
+              const SizedBox(width: 12),
+              Text(title),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FormFieldCard extends StatelessWidget {
+  final FormFieldConfig field;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _FormFieldCard({
+    Key? key,
+    required this.field,
+    required this.onEdit,
+    required this.onDelete,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: Icon(_getIconForType(field.type)),
+        title: Text(field.label),
+        subtitle: Text(field.type.capitalize()),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (field.required)
+              const Chip(
+                label: Text('Required', style: TextStyle(fontSize: 10)),
+                padding: EdgeInsets.symmetric(horizontal: 4),
+              ),
+            IconButton(
+              icon: const Icon(Icons.edit, size: 20),
+              onPressed: onEdit,
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, size: 20),
+              onPressed: onDelete,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getIconForType(String type) {
+    switch (type) {
+      case 'text':
+        return Icons.text_fields;
+      case 'email':
+        return Icons.email;
+      case 'phone':
+        return Icons.phone;
+      case 'number':
+        return Icons.numbers;
+      case 'textarea':
+        return Icons.notes;
+      case 'checkbox':
+        return Icons.check_box;
+      case 'radio':
+        return Icons.radio_button_checked;
+      case 'select':
+        return Icons.arrow_drop_down_circle;
+      case 'date':
+        return Icons.calendar_today;
+      case 'file':
+        return Icons.attach_file;
+      default:
+        return Icons.input;
+    }
+  }
+}
+
+extension StringExtension on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1)}";
+  }
+}
+
+// ==================== HTML/CSS Exporter ====================
+
+class HTMLExporter {
+  static String generateHTML(BuilderProject project) {
+    final page = project.pages.first;
+    final sections = page.sections.map((s) => _generateSection(s)).join('\n');
+
+    return '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${project.name}</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    $sections
+    <script src="script.js"></script>
+</body>
+</html>
+''';
+  }
+
+  static String _generateSection(SectionData section) {
+    final components = section.components.map((c) => _generateComponent(c)).join('\n        ');
+    return '''
+    <section id="${section.id}" class="section-${section.type}">
+        $components
+    </section>''';
+  }
+
+  static String _generateComponent(ComponentData component) {
+    switch (component.type) {
+      case 'text':
+      case 'heading':
+        final tag = component.props?['tag'] ?? 'p';
+        final content = component.props?['content'] ?? '';
+        return '<$tag>$content</$tag>';
+      case 'button':
+        final text = component.props?['text'] ?? 'Button';
+        return '<button class="btn">${text}</button>';
+      case 'image':
+        final src = component.props?['src'] ?? '';
+        final alt = component.props?['alt'] ?? '';
+        return '<img src="$src" alt="$alt" />';
+      case 'container':
+        final children = component.children.map((c) => _generateComponent(c)).join('\n');
+        return '<div class="container">\n$children\n</div>';
+      default:
+        return '<div class="${component.type}"></div>';
+    }
+  }
+
+  static String generateCSS(BuilderProject project) {
+    return '''
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    line-height: 1.6;
+}
+
+.section-header {
+    padding: 1rem 2rem;
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.section-hero {
+    padding: 4rem 2rem;
+    text-align: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.section-content {
+    padding: 4rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.btn {
+    padding: 0.75rem 2rem;
+    border: none;
+    border-radius: 0.5rem;
+    background: #667eea;
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+@media (max-width: 768px) {
+    .section-hero {
+        padding: 2rem 1rem;
+    }
+    
+    .section-content {
+        padding: 2rem 1rem;
+    }
+}
+''';
+  }
+
+  static String generateJS() {
+    return '''
+// Add interactivity here
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Website loaded');
+    
+    // Smooth scroll for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+    });
+});
+''';
+  }
+}
+
+class AdvancedExportDialog extends StatefulWidget {
+  final BuilderProject project;
+
+  const AdvancedExportDialog({Key? key, required this.project}) : super(key: key);
+
+  @override
+  State<AdvancedExportDialog> createState() => _AdvancedExportDialogState();
+}
+
+class _AdvancedExportDialogState extends State<AdvancedExportDialog> {
+  String _selectedFormat = 'html';
+  bool _includeAssets = true;
+  bool _minify = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: 700,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Export Project',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            const Text('Export Format', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              children: [
+                ChoiceChip(
+                  label: const Text('HTML/CSS'),
+                  selected: _selectedFormat == 'html',
+                  onSelected: (selected) {
+                    if (selected) setState(() => _selectedFormat = 'html');
+                  },
+                ),
+                ChoiceChip(
+                  label: const Text('React'),
+                  selected: _selectedFormat == 'react',
+                  onSelected: (selected) {
+                    if (selected) setState(() => _selectedFormat = 'react');
+                  },
+                ),
+                ChoiceChip(
+                  label: const Text('Vue'),
+                  selected: _selectedFormat == 'vue',
+                  onSelected: (selected) {
+                    if (selected) setState(() => _selectedFormat = 'vue');
+                  },
+                ),
+                ChoiceChip(
+                  label: const Text('JSON'),
+                  selected: _selectedFormat == 'json',
+                  onSelected: (selected) {
+                    if (selected) setState(() => _selectedFormat = 'json');
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            CheckboxListTile(
+              title: const Text('Include Assets'),
+              subtitle: const Text('Export images and media files'),
+              value: _includeAssets,
+              onChanged: (value) => setState(() => _includeAssets = value ?? false),
+            ),
+            CheckboxListTile(
+              title: const Text('Minify Code'),
+              subtitle: const Text('Reduce file size'),
+              value: _minify,
+              onChanged: (value) => setState(() => _minify = value ?? false),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: _exportProject,
+                  icon: const Icon(Icons.download),
+                  label: const Text('Export'),
+                ),

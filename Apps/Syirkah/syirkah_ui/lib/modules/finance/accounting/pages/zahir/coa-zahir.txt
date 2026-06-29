@@ -1,0 +1,326 @@
+
+
+
+
+1111-00-001
+Kas Kecil
+Kas
+Aktif
+
+1111-00-002
+Kas
+Kas
+Aktif
+
+1112-00-001
+Gopay
+Dompet Digital
+Aktif
+
+1112-00-002
+Ovo
+Dompet Digital
+Aktif
+
+1112-00-003
+Linkaja
+Dompet Digital
+Aktif
+
+1112-00-009
+Dompet Digital Lain
+Dompet Digital
+Aktif
+
+1113-00-001
+Bank
+Bank
+Aktif
+
+1120-00-001
+Deposito
+Surat-Surat Berharga
+Aktif
+
+1131-00-001
+Piutang Usaha
+Piutang Usaha
+Aktif
+
+1132-00-001
+Cadangan Kerugian Piutang Usaha
+Cadangan Kerugian Piutang Usaha
+Aktif
+
+1133-00-002
+Piutang Giro
+Piutang Lain
+Aktif
+
+1133-00-003
+Piutang Pihak Ketiga
+Piutang Lain
+Aktif
+
+1133-00-004
+Piutang Karyawan
+Piutang Lain
+Aktif
+
+1133-00-009
+Piutang Lain
+Piutang Lain
+Aktif
+
+1134-00-001
+Cadangan Kerugian Piutang Lain
+Cadangan Kerugian Piutang Lain
+Aktif
+
+1135-00-001
+Pendapatan Yang Akan Diterima
+Pendapatan Yang Akan Diterima
+Aktif
+
+1140-00-001
+Persediaan
+Persediaan
+Aktif
+
+1170-00-001
+Sewa Dibayar Dimuka
+Biaya Dibayar Dimuka
+Aktif
+
+1170-00-002
+Asuransi Dibayar Dimuka
+Biaya Dibayar Dimuka
+Aktif
+
+
+
+1170-00-009
+Biaya Dibayar Dimuka Lain
+Biaya Dibayar Dimuka
+Aktif
+
+1180-00-001
+Investasi Saham
+Investasi
+Aktif
+
+1190-00-001
+Harta Lancar Lain
+Harta Lancar Lain
+Aktif
+
+2110-00-001
+Utang Usaha
+Utang Usaha
+Aktif
+
+2120-00-002
+Utang Giro
+Utang Lain
+Aktif
+
+2120-00-003
+Utang Pihak Ketiga
+Utang Lain
+Aktif
+
+2120-00-004
+Utang Konsinyasi
+Utang Lain
+Aktif
+
+2120-00-006
+Utang Komisi Penjualan
+Utang Lain
+Aktif
+
+2130-00-001
+Biaya Yang Akan Dibayar
+Biaya Yang Akan Dibayar
+Aktif
+
+2140-00-001
+Pendapatan Diterima Dimuka
+Pendapatan Diterima Dimuka
+Aktif
+
+2190-00-001
+Kewajiban Jangka Pendek Lain
+Kewajiban Jangka Pendek Lain
+Aktif
+
+2200-00-001
+Utang Bank
+Utang Jangka Panjang
+Aktif
+
+2200-00-002
+Utang Pembiayaan
+Kewajiban Jangka Panjang
+Aktif
+
+3100-00-010
+Modal Disetor
+Modal
+Aktif
+
+3100-00-020
+Saham Biasa
+Modal
+Aktif
+
+3200-00-010
+Laba ditahan
+Laba
+Aktif
+
+3200-00-020
+Laba Tahun Berjalan
+Laba
+Aktif
+
+4100-00-001
+Pendapatan Jasa
+Pendapatan Jasa
+Aktif
+
+4200-00-001
+Penjualan
+Penjualan Produk
+Aktif
+
+4300-00-001
+Retur Penjualan
+Retur Penjualan
+Aktif
+
+4400-00-040
+Diskon Penjualan
+Diskon Penjualan
+Aktif
+
+4900-00-010
+Pendapatan Lain
+Pendapatan Lain
+Aktif
+
+5100-00-100
+Beban Pembelian
+Beban Pembelian
+Aktif
+
+5300-00-001
+Retur Pembelian
+Retur Pembelian
+Aktif
+
+5400-00-001
+Diskon Pembelian
+Diskon Pembelian
+Aktif
+
+5500-00-001
+Beban Pengiriman
+Beban Atas Pendapatan Lain
+Aktif
+
+5500-00-009
+Beban Pembelian Lain
+Beban Atas Pendapatan Lain
+Aktif
+
+6100-00-002
+Beban Komisi Penjualan
+Beban Pemasaran Dan Penjualan
+Aktif
+
+6100-00-003
+Beban Piutang Tak Tertagih
+Beban Pemasaran Dan Penjualan
+Aktif
+
+6200-00-001
+Beban Gaji & Upah
+Beban Administrasi Dan Umum
+Aktif
+
+6200-00-002
+Beban Staff Ahli & Perizinan
+Beban Administrasi Dan Umum
+Aktif
+
+6200-00-003
+Beban Sistem & Teknologi
+Beban Administrasi Dan Umum
+Aktif
+
+6200-00-004
+Beban Sewa
+Beban Administrasi Dan Umum
+Aktif
+
+6200-00-005
+Beban Listrik
+Beban Administrasi Dan Umum
+Aktif
+
+6200-00-006
+Beban Air
+Beban Administrasi Dan Umum
+Aktif
+
+6200-00-007
+Beban Telepon
+Beban Administrasi Dan Umum
+Aktif
+
+6200-00-008
+Beban Internet
+Beban Administrasi Dan Umum
+Aktif
+
+
+6200-00-009
+Beban Perlengkapan
+Beban Administrasi Dan Umum
+Aktif
+
+6900-00-010
+Beban Operasional Lain
+Beban Operasional Lain
+Aktif
+
+7100-00-001
+Beban Penyusutan
+Beban Penyusutan
+Aktif
+
+8100-00-003
+Pendapatan Bunga / Bagi Hasil
+Pendapatan Luar Usaha
+Aktif
+
+9100-00-001
+Beban Administrasi Bank
+Beban Luar Usaha
+Aktif
+
+9100-00-002
+Beban Bunga / Bagi Hasil
+Beban Luar Usaha
+Aktif
+
+9900-00-010
+Beban Pajak - Kini
+Beban Pajak
+Aktif
+
+9900-00-020
+Beban Pajak - Tangguhan
+Beban Pajak
+Aktif

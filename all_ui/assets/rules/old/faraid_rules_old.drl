@@ -1,0 +1,1004 @@
+// ============================================================================
+// ISLAMIC INHERITANCE RULES (FARAID) - COMPREHENSIVE DRL
+// Based on Quranic verses and major schools of thought
+// ============================================================================
+
+package com.estate.faraid
+
+// ============================================================================
+// GLOBAL DECLARATIONS
+// ============================================================================
+
+global Map shares;
+global Map reasons;
+global List executionLog;
+global String calculationMethod;
+global Double totalEstate;
+global Double remainingShare;
+global List residualHeirs;
+
+// ============================================================================
+// SPOUSE RULES (Quran 4:12)
+// ============================================================================
+rule "Son Gets All Inheritance"
+    salience 90
+    agenda-group "fixed-shares"
+    no-loop true
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $son: FamilyMember(relationName == "son", isDeceased == false)
+        not FamilyMember(relationName == "spouse", isDeceased == false)
+        not FamilyMember(relationName == "daughter", isDeceased == false)
+    then
+        print("✅ SON GETS ALL INHERITANCE RULE FIRED!");
+        print("Son: " + $son.name + ", ID: " + $son.id);
+        shares[$son.id] = 1.0;
+        reasons[$son.id] = "Anak laki-laki mendapatkan semua harta sebagai ahli waris tunggal";
+        executionLog.add("Son gets all inheritance: " + $son.name);
+        print("Share assigned to son: " + shares[$son.id]);
+end
+
+rule "Daughter Gets Half"  
+    salience 90
+    agenda-group "fixed-shares"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $daughter: FamilyMember(relationName == "daughter", isDeceased == false)
+    then
+        print("DAUGHTER RULE FIRED: " + $daughter.name);
+        shares[$daughter.id] = 0.5;
+        reasons[$daughter.id] = "Anak perempuan mendapatkan 1/2 warisan";
+        executionLog.add("Daughter gets half: " + $daughter.name);
+end
+
+rule "Spouse with Children"
+    salience 80
+    agenda-group "fixed-shares"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $spouse: FamilyMember(relationName == "spouse", isDeceased == false)
+        $child: FamilyMember(relationName in ["son", "daughter"], isDeceased == false)
+    then
+        print("SPOUSE WITH CHILDREN RULE FIRED: " + $spouse.name);
+        if ($deceased.genderName == "male") {
+            shares[$spouse.id] = 0.125;
+            reasons[$spouse.id] = "Istri mendapatkan 1/8 karena ada anak";
+        } else {
+            shares[$spouse.id] = 0.25;
+            reasons[$spouse.id] = "Suami mendapatkan 1/4 karena ada anak";
+        }
+        executionLog.add("Spouse with children: " + $spouse.name);
+end
+
+rule "Spouse without Children"
+    salience 80
+    agenda-group "fixed-shares"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $spouse: FamilyMember(relationName == "spouse", isDeceased == false)
+        not FamilyMember(relationName in ["son", "daughter"], isDeceased == false)
+    then
+        print("SPOUSE WITHOUT CHILDREN RULE FIRED: " + $spouse.name);
+        if ($deceased.genderName == "male") {
+            shares[$spouse.id] = 0.25;
+            reasons[$spouse.id] = "Istri mendapatkan 1/4 karena tidak ada anak";
+        } else {
+            shares[$spouse.id] = 0.5;
+            reasons[$spouse.id] = "Suami mendapatkan 1/2 karena tidak ada anak";
+        }
+        executionLog.add("Spouse without children: " + $spouse.name);
+end
+
+rule "Son Gets All Inheritance"
+    salience 90
+    agenda-group "fixed-shares"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $son: FamilyMember(relationName == "son", isDeceased == false)
+        not exists FamilyMember(relationName == "spouse", isDeceased == false)
+        not exists FamilyMember(relationName == "daughter", isDeceased == false)
+    then
+        shares.put($son.id, 1.0);
+        reasons.put($son.id, "Anak laki-laki mendapatkan semua harta sebagai ahli waris tunggal");
+        executionLog.add("Son gets all inheritance");
+end
+
+// ============================================================================
+// MOTHER RULES (Quran 4:11)
+// ============================================================================
+
+rule "Mother Share with Children or Multiple Siblings"
+    salience 95
+    agenda-group "fixed-shares"
+    when
+        $mother: FamilyMember(relationName == "mother", isDeceased == false)
+        (exists FamilyMember(relationName in ("son", "daughter"), isDeceased == false)
+         or 
+         exists (FamilyMember(relationName in ("brother", "sister"), isDeceased == false) 
+                 and $siblings: List(size >= 2) from collect(FamilyMember(relationName in ("brother", "sister"), isDeceased == false)))
+        )
+    then
+        shares.put($mother.id, 0.1666666667); // 1/6
+        reasons.put($mother.id, "Ibu mendapatkan 1/6 (16.67%) karena adanya anak atau dua saudara atau lebih (Quran 4:11)");
+        executionLog.add("Mother share 1/6 allocated (with children or siblings)");
+        modify($mother) { setFaraidShare(shares.get($mother.id)) };
+end
+
+rule "Mother Share without Children or Siblings"
+    salience 95
+    agenda-group "fixed-shares"
+    when
+        $mother: FamilyMember(relationName == "mother", isDeceased == false)
+        not exists FamilyMember(relationName in ("son", "daughter"), isDeceased == false)
+        not exists (FamilyMember(relationName in ("brother", "sister"), isDeceased == false) 
+                   and $siblings: List(size >= 2) from collect(FamilyMember(relationName in ("brother", "sister"), isDeceased == false)))
+    then
+        shares.put($mother.id, 0.3333333333); // 1/3
+        reasons.put($mother.id, "Ibu mendapatkan 1/3 (33.33%) karena tidak ada anak atau saudara (Quran 4:11)");
+        executionLog.add("Mother share 1/3 allocated (no children or siblings)");
+        modify($mother) { setFaraidShare(shares.get($mother.id)) };
+end
+
+// ============================================================================
+// FATHER RULES (Quran 4:11)
+// ============================================================================
+
+rule "Father Share with Children"
+    salience 90
+    agenda-group "fixed-shares"
+    when
+        $father: FamilyMember(relationName == "father", isDeceased == false)
+        exists FamilyMember(relationName in ("son", "daughter"), isDeceased == false)
+    then
+        shares.put($father.id, 0.1666666667); // 1/6
+        reasons.put($father.id, "Ayah mendapatkan 1/6 (16.67%) karena adanya anak (Quran 4:11)");
+        executionLog.add("Father share 1/6 allocated (with children)");
+        modify($father) { setFaraidShare(shares.get($father.id)) };
+end
+
+// ============================================================================
+// DAUGHTER RULES (Quran 4:11)
+// ============================================================================
+
+rule "Single Daughter Share"
+    salience 85
+    agenda-group "fixed-shares"
+    when
+        $daughter: FamilyMember(relationName == "daughter", gender == "female", isDeceased == false)
+        not exists FamilyMember(relationName == "son", isDeceased == false)
+        not exists (FamilyMember(relationName == "daughter", isDeceased == false) and $otherDaughters: List(size > 1) from collect(FamilyMember(relationName == "daughter", isDeceased == false)))
+    then
+        shares.put($daughter.id, 0.5); // 1/2
+        reasons.put($daughter.id, "Anak perempuan tunggal mendapatkan 1/2 (50%) (Quran 4:11)");
+        executionLog.add("Single daughter share 1/2 allocated");
+        modify($daughter) { setFaraidShare(shares.get($daughter.id)) };
+end
+
+rule "Multiple Daughters Share"
+    salience 85
+    agenda-group "fixed-shares"
+    when
+        $daughters: List(size >= 2) from collect(FamilyMember(relationName == "daughter", isDeceased == false))
+        not exists FamilyMember(relationName == "son", isDeceased == false)
+    then
+        Double sharePerDaughter = 2.0 / 3.0 / $daughters.size(); // 2/3 divided equally
+        for (Object daughter : $daughters) {
+            FamilyMember d = (FamilyMember) daughter;
+            shares.put(d.id, sharePerDaughter);
+            reasons.put(d.id, "Anak perempuan (multiple) mendapatkan 2/3 dibagi sama rata (Quran 4:11)");
+            modify(d) { setFaraidShare(sharePerDaughter) };
+        }
+        executionLog.add("Multiple daughters share 2/3 allocated");
+end
+
+// ============================================================================
+// GRANDPARENTS RULES
+// ============================================================================
+
+rule "Paternal Grandfather with Father Absent"
+    salience 80
+    agenda-group "fixed-shares"
+    when
+        $grandfather: FamilyMember(relationName == "paternalGrandfather", isDeceased == false)
+        not exists FamilyMember(relationName == "father", isDeceased == false)
+    then
+        // Paternal grandfather inherits as father when father is absent
+        shares.put($grandfather.id, 0.1666666667); // 1/6
+        reasons.put($grandfather.id, "Kakek paternal mendapatkan 1/6 menggantikan ayah yang tidak ada");
+        executionLog.add("Paternal grandfather share allocated");
+        modify($grandfather) { setFaraidShare(shares.get($grandfather.id)) };
+end
+
+rule "Maternal Grandmother Share"
+    salience 80
+    agenda-group "fixed-shares"
+    when
+        $grandmother: FamilyMember(relationName == "maternalGrandmother", isDeceased == false)
+        not exists FamilyMember(relationName == "mother", isDeceased == false)
+    then
+        shares.put($grandmother.id, 0.1666666667); // 1/6
+        reasons.put($grandmother.id, "Nenek maternal mendapatkan 1/6 menggantikan ibu yang tidak ada");
+        executionLog.add("Maternal grandmother share allocated");
+        modify($grandmother) { setFaraidShare(shares.get($grandmother.id)) };
+end
+
+// ============================================================================
+// SIBLINGS RULES (Quran 4:176)
+// ============================================================================
+
+rule "Full Siblings with No Descendants"
+    salience seventy five
+    agenda-group "siblings-shares"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        not exists FamilyMember(relationName in ("son", "daughter", "grandson", "granddaughter"), isDeceased == false)
+        not exists FamilyMember(relationName == "father", isDeceased == false)
+        not exists FamilyMember(relationName == "mother", isDeceased == false)
+        $siblings: List(size > 0) from collect(FamilyMember(relationName in ("brother", "sister"), isDeceased == false))
+    then
+        // Full siblings inherit when no descendants or parents
+        int brotherCount = 0;
+        int sisterCount = 0;
+        
+        for (Object sibling : $siblings) {
+            FamilyMember s = (FamilyMember) sibling;
+            if (s.gender == "male") brotherCount++;
+            else sisterCount++;
+        }
+        
+        if (brotherCount == 0 && sisterCount == 1) {
+            // Single full sister gets 1/2
+            for (Object sibling : $siblings) {
+                FamilyMember s = (FamilyMember) sibling;
+                if (s.gender == "female") {
+                    shares.put(s.id, 0.5);
+                    reasons.put(s.id, "Saudari kandung tunggal mendapatkan 1/2 (Quran 4:176)");
+                    modify(s) { setFaraidShare(0.5) };
+                }
+            }
+        } else if (sisterCount >= 2 && brotherCount == 0) {
+            // Multiple full sisters get 2/3
+            Double sharePerSister = 2.0 / 3.0 / sisterCount;
+            for (Object sibling : $siblings) {
+                FamilyMember s = (FamilyMember) sibling;
+                if (s.gender == "female") {
+                    shares.put(s.id, sharePerSister);
+                    reasons.put(s.id, "Saudari kandung (multiple) mendapatkan 2/3 dibagi rata (Quran 4:176)");
+                    modify(s) { setFaraidShare(sharePerSister) };
+                }
+            }
+        }
+        executionLog.add("Full siblings shares allocated");
+end
+
+// ============================================================================
+// RESIDUAL SHARES (ASABAH) - MALE RELATIVES
+// ============================================================================
+
+rule "Calculate Residual Share"
+    salience 50
+    agenda-group "residual-calculation"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+    then
+        Double totalFixedShares = 0.0;
+        for (Object share : shares.values()) {
+            totalFixedShares += (Double) share;
+        }
+        remainingShare = 1.0 - totalFixedShares;
+        executionLog.add("Remaining share calculated: " + remainingShare);
+end
+
+rule "Sons Get Residual Share"
+    salience 45
+    agenda-group "residual-distribution"
+    when
+        $sons: List(size > 0) from collect(FamilyMember(relationName == "son", isDeceased == false))
+        $daughters: List() from collect(FamilyMember(relationName == "daughter", isDeceased == false))
+        remainingShare > 0.0
+    then
+        // Sons and daughters get residual in 2:1 ratio
+        int totalUnits = ($sons.size() * 2) + $daughters.size();
+        Double unitValue = remainingShare / totalUnits;
+        
+        for (Object son : $sons) {
+            FamilyMember s = (FamilyMember) son;
+            Double sonShare = unitValue * 2;
+            shares.put(s.id, sonShare);
+            reasons.put(s.id, "Anak laki-laki mendapatkan 2 bagian sisa (Asabah bil-ghayr)");
+            modify(s) { setFaraidShare(sonShare) };
+        }
+        
+        for (Object daughter : $daughters) {
+            FamilyMember d = (FamilyMember) daughter;
+            Double daughterShare = unitValue;
+            // If daughter already has fixed share, add to it
+            Double currentShare = (Double) shares.get(d.id);
+            if (currentShare != null) {
+                daughterShare += currentShare;
+            }
+            shares.put(d.id, daughterShare);
+            reasons.put(d.id, "Anak perempuan mendapatkan 1 bagian sisa (Asabah bil-ghayr)");
+            modify(d) { setFaraidShare(daughterShare) };
+        }
+        executionLog.add("Children residual shares allocated in 2:1 ratio");
+end
+
+rule "Father Gets Residual Share"
+    salience 40
+    agenda-group "residual-distribution"
+    when
+        $father: FamilyMember(relationName == "father", isDeceased == false)
+        not exists FamilyMember(relationName in ("son", "daughter"), isDeceased == false)
+        remainingShare > 0.0
+    then
+        // Father gets all residual when no children
+        Double currentShare = (Double) shares.get($father.id);
+        Double newShare = currentShare != null ? currentShare + remainingShare : remainingShare;
+        shares.put($father.id, newShare);
+        reasons.put($father.id, "Ayah mendapatkan sisa harta sebagai 'Asabah");
+        executionLog.add("Father residual share allocated");
+        modify($father) { setFaraidShare(newShare) };
+end
+
+rule "Brothers Get Residual Share"
+    salience 35
+    agenda-group "residual-distribution"
+    when
+        $brothers: List(size > 0) from collect(FamilyMember(relationName == "brother", isDeceased == false))
+        $sisters: List() from collect(FamilyMember(relationName == "sister", isDeceased == false))
+        not exists FamilyMember(relationName in ("son", "daughter", "father"), isDeceased == false)
+        remainingShare > 0.0
+    then
+        // Brothers and sisters get residual in 2:1 ratio
+        int totalUnits = ($brothers.size() * 2) + $sisters.size();
+        Double unitValue = remainingShare / totalUnits;
+        
+        for (Object brother : $brothers) {
+            FamilyMember b = (FamilyMember) brother;
+            shares.put(b.id, unitValue * 2);
+            reasons.put(b.id, "Saudara laki-laki mendapatkan 2 bagian sisa (Asabah)");
+            modify(b) { setFaraidShare(unitValue * 2) };
+        }
+        
+        for (Object sister : $sisters) {
+            FamilyMember s = (FamilyMember) sister;
+            shares.put(s.id, unitValue);
+            reasons.put(s.id, "Saudara perempuan mendapatkan 1 bagian sisa (Asabah)");
+            modify(s) { setFaraidShare(unitValue) };
+        }
+        executionLog.add("Siblings residual shares allocated");
+end
+
+// ============================================================================
+// SPECIAL CASES AND EXCLUSIONS (HAJIB/MAHJUB)
+// ============================================================================
+
+rule "Exclude Distant Relatives when Close Relatives Exist"
+    salience 30
+    agenda-group "exclusions"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        exists FamilyMember(relationName in ("son", "daughter", "father", "mother", "spouse"), isDeceased == false)
+        $distant: FamilyMember(relationName in ("brother", "sister", "grandfather", "grandmother", "uncle", "aunt"), isDeceased == false)
+    then
+        // Distant relatives are excluded when close relatives exist
+        if (!shares.containsKey($distant.id)) {
+            shares.put($distant.id, 0.0);
+            reasons.put($distant.id, "Terdapat ahli waris yang lebih dekat (terhalang/mahjub)");
+            modify($distant) { setFaraidShare(0.0) };
+        }
+        executionLog.add("Distant relative excluded due to closer relatives");
+end
+
+rule "Mother Blocked by Grandchildren"
+    salience 25
+    agenda-group "exclusions"
+    when
+        $mother: FamilyMember(relationName == "mother", isDeceased == false)
+        exists FamilyMember(relationName in ("grandson", "granddaughter"), isDeceased == false)
+        not exists FamilyMember(relationName in ("son", "daughter"), isDeceased == false)
+    then
+        // In some schools, mother's share reduced by grandchildren
+        if (calculationMethod == "Hanafi") {
+            shares.put($mother.id, 1.0 / 6.0);
+            reasons.put($mother.id, "Ibu mendapatkan 1/6 karena adanya cucu (Hanafi school)");
+            modify($mother) { setFaraidShare(1.0 / 6.0) };
+        }
+        executionLog.add("Mother share adjusted for grandchildren");
+end
+
+// ============================================================================
+// SCHOOL-SPECIFIC RULES
+// ============================================================================
+
+rule "Hanafi School - Grandfather with Brothers"
+    salience 20
+    agenda-group "school-specific"
+    activation-group "hanafi-rules"
+    when
+        calculationMethod == "Hanafi"
+        $grandfather: FamilyMember(relationName == "paternalGrandfather", isDeceased == false)
+        $brothers: List(size > 0) from collect(FamilyMember(relationName == "brother", isDeceased == false))
+        not exists FamilyMember(relationName == "father", isDeceased == false)
+    then
+        // In Hanafi school, grandfather shares with brothers
+        Double share = 1.0 / 3.0;
+        shares.put($grandfather.id, share);
+        reasons.put($grandfather.id, "Kakek paternal mendapatkan 1/3 (Hanafi school dengan saudara)");
+        modify($grandfather) { setFaraidShare(share) };
+        executionLog.add("Hanafi rule: Grandfather with brothers");
+end
+
+rule "Shafii School - Uterine Siblings"
+    salience 20
+    agenda-group "school-specific"
+    activation-group "shafii-rules"
+    when
+        calculationMethod == "Shafii"
+        $uterineSiblings: List(size > 0) from collect(FamilyMember(relationName in ("brother", "sister"), maternal == true, isDeceased == false))
+        not exists FamilyMember(relationName in ("son", "daughter", "father", "grandfather"), isDeceased == false)
+    then
+        // Uterine siblings get 1/3 in Shafii school
+        Double sharePerSibling = 1.0 / 3.0 / $uterineSiblings.size();
+        for (Object sibling : $uterineSiblings) {
+            FamilyMember s = (FamilyMember) sibling;
+            shares.put(s.id, sharePerSibling);
+            reasons.put(s.id, "Saudara seibu mendapatkan 1/3 dibagi rata (Shafii school)");
+            modify(s) { setFaraidShare(sharePerSibling) };
+        }
+        executionLog.add("Shafii rule: Uterine siblings share");
+end
+
+rule "Maliki School - Paternal Aunt"
+    salience 20
+    agenda-group "school-specific"
+    activation-group "maliki-rules"
+    when
+        calculationMethod == "Maliki"
+        $aunt: FamilyMember(relationName == "aunt", paternal == true, isDeceased == false)
+        not exists FamilyMember(relationName in ("son", "daughter", "father", "brother"), isDeceased == false)
+    then
+        // Paternal aunt inherits in Maliki school
+        shares.put($aunt.id, 0.5);
+        reasons.put($aunt.id, "Bibi paternal mendapatkan 1/2 (Maliki school)");
+        modify($aunt) { setFaraidShare(0.5) };
+        executionLog.add("Maliki rule: Paternal aunt share");
+end
+
+// ============================================================================
+// VALIDATION AND ERROR HANDLING
+// ============================================================================
+
+rule "Validate Total Shares"
+    salience 10
+    agenda-group "validation"
+    no-loop true
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+    then
+        Double totalShares = 0.0;
+        for (Object share : shares.values()) {
+            totalShares += (Double) share;
+        }
+        
+        Double difference = Math.abs(1.0 - totalShares);
+        if (difference > 0.001) {
+            executionLog.add("WARNING: Total shares = " + totalShares + " (should be 1.0)");
+            // Adjust shares proportionally if needed
+            if (totalShares > 0) {
+                for (String id : shares.keySet()) {
+                    Double adjustedShare = (Double) shares.get(id) / totalShares;
+                    shares.put(id, adjustedShare);
+                    FamilyMember member = // get member by id;
+                    modify(member) { setFaraidShare(adjustedShare) };
+                }
+                executionLog.add("Shares adjusted proportionally to total 1.0");
+            }
+        } else {
+            executionLog.add("SUCCESS: Total shares = 1.0");
+        }
+end
+
+rule "No Heirs Found"
+    salience 5
+    agenda-group "validation"
+    no-loop true
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        not FamilyMember(relationName != "deceased", isDeceased == false)
+    then
+        executionLog.add("ERROR: No eligible heirs found");
+        reasons.put("baitulmal", "Harta warisan diserahkan ke Baitulmal karena tidak ada ahli waris");
+end
+
+rule "Estate Distribution Complete"
+    salience 0
+    agenda-group "completion"
+    no-loop true
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+    then
+        executionLog.add("Faraid calculation completed successfully");
+end
+
+
+
+// ============================================================================
+## KASUS ANAK-ANAK DARI PERNIKAHAN BEDA (HALF-SIBLINGS)
+// ============================================================================
+
+rule "Anak Laki-laki dari Ibu Berbeda dalam Faraid"
+    salience 95
+    agenda-group "complex-children"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $son1: FamilyMember(relationName == "son", gender == "male", isDeceased == false)
+        $son2: FamilyMember(relationName == "son", gender == "male", isDeceased == false)
+        eval($son1.motherId != $son2.motherId) // Berbeda ibu
+    then
+        // Semua anak laki-laki mendapat bagian sama dalam residu
+        executionLog.add("Anak laki-laki dari ibu berbeda terdeteksi - semua mendapat bagian sama dalam residu");
+        // Tidak perlu aksi khusus, sistem residu akan menanganinya
+end
+
+rule "Anak Perempuan dari Ibu Berbeda dalam Faraid"
+    salience 95
+    agenda-group "complex-children"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $daughter1: FamilyMember(relationName == "daughter", gender == "female", isDeceased == false)
+        $daughter2: FamilyMember(relationName == "daughter", gender == "female", isDeceased == false)
+        eval($daughter1.motherId != $daughter2.motherId) // Berbeda ibu
+        not exists FamilyMember(relationName == "son", isDeceased == false)
+    then
+        // Semua anak perempuan berbagi 2/3 sama rata meski berbeda ibu
+        Double totalDaughters = 0;
+        for (Object daughter : collect(FamilyMember(relationName == "daughter", isDeceased == false))) {
+            totalDaughters++;
+        }
+        Double sharePerDaughter = 2.0 / 3.0 / totalDaughters;
+        for (Object daughter : collect(FamilyMember(relationName == "daughter", isDeceased == false))) {
+            FamilyMember d = (FamilyMember) daughter;
+            shares.put(d.id, sharePerDaughter);
+            reasons.put(d.id, "Anak perempuan (dari ibu berbeda) mendapatkan bagian dari 2/3");
+        }
+        executionLog.add("Anak perempuan dari ibu berbeda - berbagi 2/3 sama rata");
+end
+
+// ============================================================================
+## SAUDARA SEAYAH DAN SEAIBU (CONGENIC SIBLINGS)
+// ============================================================================
+
+rule "Saudara Seibu (Uterine Siblings) dengan Tidak Ada Ahli Waris Utama"
+    salience 90
+    agenda-group "complex-siblings"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        not exists FamilyMember(relationName in ("son", "daughter", "father", "mother"), isDeceased == false)
+        $uterineSiblings: List(size > 0) from collect(FamilyMember(relationName in ("brother", "sister"), maternal == true, paternal == false, isDeceased == false))
+    then
+        // Saudara seibu mendapat 1/3 dibagi rata tanpa memandang gender
+        Double sharePerSibling = 1.0 / 3.0 / $uterineSiblings.size();
+        for (Object sibling : $uterineSiblings) {
+            FamilyMember s = (FamilyMember) sibling;
+            shares.put(s.id, sharePerSibling);
+            reasons.put(s.id, "Saudara seibu mendapatkan 1/3 dibagi rata (QS. An-Nisa:12)");
+        }
+        executionLog.add("Saudara seibu mendapatkan 1/3 dibagi rata");
+end
+
+rule "Saudara Seayah (Consanguine Siblings) dengan Tidak Ada Anak"
+    salience 90
+    agenda-group "complex-siblings"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        not exists FamilyMember(relationName in ("son", "daughter"), isDeceased == false)
+        exists FamilyMember(relationName == "father", isDeceased == false)
+        $consanguineSiblings: List(size > 0) from collect(FamilyMember(relationName in ("brother", "sister"), paternal == true, maternal == false, isDeceased == false))
+    then
+        // Saudara seayah terhalang oleh ayah
+        for (Object sibling : $consanguineSiblings) {
+            FamilyMember s = (FamilyMember) sibling;
+            shares.put(s.id, 0.0);
+            reasons.put(s.id, "Saudara seayah terhalang (mahjub) oleh adanya ayah");
+        }
+        executionLog.add("Saudara seayah terhalang oleh ayah");
+end
+
+rule "Kombinasi Saudara Kandung dan Saudara Seayah"
+    salience 85
+    agenda-group "complex-siblings"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        not exists FamilyMember(relationName in ("son", "daughter", "father", "mother"), isDeceased == false)
+        $fullSiblings: List() from collect(FamilyMember(relationName in ("brother", "sister"), paternal == true, maternal == true, isDeceased == false))
+        $consanguineSiblings: List() from collect(FamilyMember(relationName in ("brother", "sister"), paternal == true, maternal == false, isDeceased == false))
+    then
+        // Saudara kandung menghalangi saudara seayah
+        for (Object sibling : $consanguineSiblings) {
+            FamilyMember s = (FamilyMember) sibling;
+            shares.put(s.id, 0.0);
+            reasons.put(s.id, "Saudara seayah terhalang oleh saudara kandung");
+        }
+        executionLog.add("Saudara seayah terhalang oleh saudara kandung");
+end
+
+// ============================================================================
+## CUCU DAN KETURUNAN (GRANDCHILDREN)
+// ============================================================================
+
+rule "Cucu Laki-laki ketika Anak Laki-laki Meninggal"
+    salience 80
+    agenda-group "grandchildren"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $deceasedSon: FamilyMember(relationName == "son", isDeceased == true)
+        $grandson: FamilyMember(relationName == "grandson", gender == "male", isDeceased == false)
+        eval($grandson.fatherId == $deceasedSon.id)
+    then
+        // Cucu laki-laki mewarisi menggantikan ayahnya yang meninggal
+        executionLog.add("Cucu laki-laki terdeteksi - akan dapat bagian seperti ayahnya dalam residu");
+        // Akan ditangani dalam aturan residu
+end
+
+rule "Cucu Perempuan ketika Tidak Ada Anak Perempuan"
+    salience 80
+    agenda-group "grandchildren"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        not exists FamilyMember(relationName == "daughter", isDeceased == false)
+        $granddaughter: FamilyMember(relationName == "granddaughter", gender == "female", isDeceased == false)
+        exists FamilyMember(relationName == "son", isDeceased == false)
+    then
+        // Cucu perempuan terhalang oleh anak laki-laki
+        shares.put($granddaughter.id, 0.0);
+        reasons.put($granddaughter.id, "Cucu perempuan terhalang oleh adanya anak laki-laki");
+        executionLog.add("Cucu perempuan terhalang oleh anak laki-laki");
+end
+
+rule "Cucu dari Anak Perempuan yang Meninggal"
+    salience 75
+    agenda-group "grandchildren"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $deceasedDaughter: FamilyMember(relationName == "daughter", isDeceased == true)
+        $grandchild: FamilyMember(relationName in ("grandson", "granddaughter"), isDeceased == false)
+        eval($grandchild.motherId == $deceasedDaughter.id)
+        not exists FamilyMember(relationName in ("son", "daughter"), isDeceased == false)
+    then
+        // Dalam beberapa madzhab, cucu dari anak perempuan mendapat bagian
+        if (calculationMethod == "Hanafi") {
+            shares.put($grandchild.id, 1.0 / 6.0);
+            reasons.put($grandchild.id, "Cucu dari anak perempuan mendapatkan 1/6 (Madzhab Hanafi)");
+        } else {
+            shares.put($grandchild.id, 0.0);
+            reasons.put($grandchild.id, "Cucu dari anak perempuan tidak mendapat bagian dalam madzhab ini");
+        }
+        executionLog.add("Cucu dari anak perempuan - aturan madzhab diterapkan");
+end
+
+// ============================================================================
+## PAMAN, BIBI, DAN KEPONAKAN (UNCLES, AUNTS, NEPHEWS/NIECES)
+// ============================================================================
+
+rule "Paman (Saudara Ayah) ketika Tidak Ada Ahli Waris Ashabul Furudh"
+    salience 70
+    agenda-group "extended-relatives"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        not exists FamilyMember(relationName in ("son", "daughter", "father", "mother", "brother", "sister", "grandson", "granddaughter"), isDeceased == false)
+        $uncle: FamilyMember(relationName == "uncle", paternal == true, isDeceased == false)
+    then
+        // Paman dari pihak ayah mendapat semua residu sebagai 'asabah
+        shares.put($uncle.id, 1.0);
+        reasons.put($uncle.id, "Paman paternal mendapatkan semua harta sebagai 'asabah bil-ghair");
+        executionLog.add("Paman paternal mendapat semua harta sebagai 'asabah");
+end
+
+rule "Bibi (Saudara Perempuan Ayah) dalam Faraid"
+    salience 70
+    agenda-group "extended-relatives"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        not exists FamilyMember(relationName in ("son", "daughter", "father", "mother", "brother", "sister", "grandson", "granddaughter", "uncle"), isDeceased == false)
+        $aunt: FamilyMember(relationName == "aunt", paternal == true, isDeceased == false)
+    then
+        // Bibi paternal mendapat 1/2 jika sendirian
+        shares.put($aunt.id, 0.5);
+        reasons.put($aunt.id, "Bibi paternal mendapatkan 1/2 sebagai dzawil arham");
+        executionLog.add("Bibi paternal mendapat 1/2");
+end
+
+// ============================================================================
+## KASUS ANAK ANGKAT DALAM FARAID
+// ============================================================================
+
+rule "Anak Angkat dalam Sistem Faraid"
+    salience 65
+    agenda-group "adoption-faraid"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $adoptedChild: FamilyMember(isAdopted == true, isDeceased == false)
+    then
+        // Anak angkat tidak mendapat warisan dalam Faraid
+        shares.put($adoptedChild.id, 0.0);
+        reasons.put($adoptedChild.id, "Anak angkat tidak mendapat warisan dalam sistem Faraid Islam");
+        executionLog.add("Anak angkat tidak mendapat bagian warisan");
+end
+
+rule "Orang Tua Angkat dalam Faraid"
+    salience 65
+    agenda-group "adoption-faraid"
+    when
+        $deceased: FamilyMember(relationName == "deceased", isAdopted == true)
+        $adoptiveParent: FamilyMember(isAdoptiveParent == true, isDeceased == false)
+    then
+        // Orang tua angkat tidak mendapat warisan dari anak angkat
+        shares.put($adoptiveParent.id, 0.0);
+        reasons.put($adoptiveParent.id, "Orang tua angkat tidak mendapat warisan dari anak angkat dalam Faraid");
+        executionLog.add("Orang tua angkat tidak mendapat warisan");
+end
+
+// ============================================================================
+## KASUS PERNIKAHAN BEDA AGAMA
+// ============================================================================
+
+rule "Pasangan Beda Agama dalam Faraid"
+    salience 60
+    agenda-group "interfaith-cases"
+    when
+        $deceased: FamilyMember(relationName == "deceased", religion == "Islam")
+        $spouse: FamilyMember(relationName == "spouse", religion != "Islam", isDeceased == false)
+    then
+        // Pasangan non-Muslim tidak mendapat warisan
+        shares.put($spouse.id, 0.0);
+        reasons.put($spouse.id, "Pasangan non-Muslim tidak mendapat warisan dari Muslim");
+        executionLog.add("Pasangan non-Muslim tidak mendapat warisan");
+end
+
+rule "Anak Beda Agama dalam Faraid"
+    salience 60
+    agenda-group "interfaith-cases"
+    when
+        $deceased: FamilyMember(relationName == "deceased", religion == "Islam")
+        $child: FamilyMember(relationName in ("son", "daughter"), religion != "Islam", isDeceased == false)
+    then
+        // Anak non-Muslim tidak mendapat warisan
+        shares.put($child.id, 0.0);
+        reasons.put($child.id, "Anak non-Muslim tidak mendapat warisan dari orang tua Muslim");
+        executionLog.add("Anak non-Muslim tidak mendapat warisan");
+end
+
+// ============================================================================
+## KASUS HAMIL DALAM FARAID
+// ============================================================================
+
+rule "Istri Hamil dalam Faraid"
+    salience 55
+    agenda-group "pregnancy-cases"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $pregnantWife: FamilyMember(relationName == "spouse", isPregnant == true, isDeceased == false)
+    then
+        // Tunggu kelahiran bayi sebelum distribusi warisan
+        executionLog.add("Istri hamil terdeteksi - distribusi warisan ditunda hingga kelahiran");
+        // Dalam implementasi, mungkin perlu menandai kasus ini untuk penanganan khusus
+end
+
+rule "Janin dalam Kandungan"
+    salience 55
+    agenda-group "pregnancy-cases"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $pregnantWife: FamilyMember(relationName == "spouse", isPregnant == true, isDeceased == false)
+    then
+        // Sisihkan bagian untuk janin
+        Double reservedForFetus = 0.0;
+        // Perhitungan bagian janin tergantung jenis kelaminnya
+        executionLog.add("Bagian warisan disisihkan untuk janin dalam kandungan");
+end
+
+// ============================================================================
+## KASUS ORANG HILANG (MISSING PERSONS)
+// ============================================================================
+
+rule "Ahli Waris yang Hilang"
+    salience 50
+    agenda-group "missing-persons"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $missingHeir: FamilyMember(isMissing == true, missingSince != null)
+    then
+        // Sisihkan bagian untuk ahli waris yang hilang
+        executionLog.add("Ahli waris hilang terdeteksi - bagian disisihkan");
+        // Dalam implementasi, perlu mekanisme penanganan khusus
+end
+
+// ============================================================================
+## ANAK LUAR NIKAH (ILLEGITIMATE CHILDREN)
+// ============================================================================
+
+rule "Anak di Luar Nikah dalam Faraid"
+    salience 45
+    agenda-group "illegitimate-children"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $illegitimateChild: FamilyMember(isIllegitimate == true, isDeceased == false)
+    then
+        // Anak di luar nikah tidak mendapat warisan dari ayah biologis
+        shares.put($illegitimateChild.id, 0.0);
+        reasons.put($illegitimateChild.id, "Anak di luar nikah tidak mendapat warisan dari ayah biologis");
+        executionLog.add("Anak di luar nikah tidak mendapat warisan");
+end
+
+rule "Anak di Luar Nikah dengan Ibu"
+    salience 45
+    agenda-group "illegitimate-children"
+    when
+        $deceased: FamilyMember(relationName == "deceased", gender == "female")
+        $illegitimateChild: FamilyMember(isIllegitimate == true, isDeceased == false)
+        eval($illegitimateChild.motherId == $deceased.id)
+    then
+        // Anak di luar nikah hanya mewarisi dari ibu
+        executionLog.add("Anak di luar nikah dapat warisan dari ibu");
+        // Akan ditangani dalam aturan normal untuk hubungan ibu-anak
+end
+
+// ============================================================================
+## KASUS TRANSGENDER DALAM FARAID
+// ============================================================================
+
+rule "Ahli Waris Transgender dalam Faraid"
+    salience 40
+    agenda-group "special-cases"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $transgenderHeir: FamilyMember(isTransgender == true, isDeceased == false)
+    then
+        // Dalam Faraid, gender asli (saat lahir) yang digunakan
+        executionLog.add("Ahli waris transgender - menggunakan gender asli untuk perhitungan Faraid");
+        // Implementasi tergantung pendekatan fiqih yang digunakan
+end
+
+// ============================================================================
+## KASUS WARIS BERSAMA (JOINT INHERITANCE)
+// ============================================================================
+
+rule "Beberapa Orang Meninggal Bersamaan"
+    salience 35
+    agenda-group "joint-inheritance"
+    when
+        $deceased1: FamilyMember(relationName == "deceased")
+        $deceased2: FamilyMember(relationName == "deceased")
+        eval($deceased1.deathDate == $deceased2.deathDate && $deceased1.id != $deceased2.id)
+    then
+        // Kasus meninggal bersama (seperti dalam kecelakaan)
+        executionLog.add("Kasus meninggal bersama terdeteksi - perlu penanganan khusus");
+        // Dalam fiqih, ini disebut "al-muwafaqah" atau "al-muharabah"
+end
+
+// ============================================================================
+## ATURAN MADZHAB UNTUK KASUS KOMPLEKS
+// ============================================================================
+
+rule "Madzhab Maliki - Saudara Seibu dengan Ibu"
+    salience 30
+    agenda-group "school-specific"
+    activation-group "maliki-complex"
+    when
+        calculationMethod == "Maliki"
+        $deceased: FamilyMember(relationName == "deceased")
+        $mother: FamilyMember(relationName == "mother", isDeceased == false)
+        $uterineSibling: FamilyMember(relationName in ("brother", "sister"), maternal == true, isDeceased == false)
+    then
+        // Dalam Maliki, saudara seibu terhalang oleh ibu
+        shares.put($uterineSibling.id, 0.0);
+        reasons.put($uterineSibling.id, "Saudara seibu terhalang oleh ibu (Madzhab Maliki)");
+        executionLog.add("Madzhab Maliki: Saudara seibu terhalang oleh ibu");
+end
+
+rule "Madzhab Syafii - Cucu Perempuan dengan Anak Perempuan"
+    salience 30
+    agenda-group "school-specific"
+    activation-group "syafii-complex"
+    when
+        calculationMethod == "Syafii"
+        $deceased: FamilyMember(relationName == "deceased")
+        $daughter: FamilyMember(relationName == "daughter", isDeceased == false)
+        $granddaughter: FamilyMember(relationName == "granddaughter", isDeceased == false)
+    then
+        // Dalam Syafii, cucu perempuan terhalang oleh anak perempuan
+        shares.put($granddaughter.id, 0.0);
+        reasons.put($granddaughter.id, "Cucu perempuan terhalang oleh anak perempuan (Madzhab Syafii)");
+        executionLog.add("Madzhab Syafii: Cucu perempuan terhalang oleh anak perempuan");
+end
+
+rule "Madzhab Hanbali - Paman dengan Saudara"
+    salience 30
+    agenda-group "school-specific"
+    activation-group "hanbali-complex"
+    when
+        calculationMethod == "Hanbali"
+        $deceased: FamilyMember(relationName == "deceased")
+        not exists FamilyMember(relationName in ("son", "daughter", "father", "mother"), isDeceased == false)
+        $sister: FamilyMember(relationName == "sister", isDeceased == false)
+        $uncle: FamilyMember(relationName == "uncle", isDeceased == false)
+    then
+        // Dalam Hanbali, paman dan saudara perempuan berbagi
+        shares.put($sister.id, 0.5);
+        shares.put($uncle.id, 0.5);
+        reasons.put($sister.id, "Saudara perempuan mendapatkan 1/2 (Madzhab Hanbali)");
+        reasons.put($uncle.id, "Paman mendapatkan 1/2 sebagai 'asabah (Madzhab Hanbali)");
+        executionLog.add("Madzhab Hanbali: Saudara perempuan dan paman berbagi sama");
+end
+
+// ============================================================================
+## VALIDASI TAMBAHAN UNTUK KASUS KOMPLEKS
+// ============================================================================
+
+rule "Validasi Keluarga Besar dengan Banyak Ahli Waris"
+    salience 20
+    agenda-group "validation"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $allHeirs: List(size > 10) from collect(FamilyMember(relationName != "deceased", isDeceased == false))
+    then
+        executionLog.add("Keluarga besar terdeteksi dengan " + $allHeirs.size() + " ahli waris");
+        validationErrors.add("Keluarga besar kompleks - disarankan konsultasi dengan ahli Faraid");
+end
+
+rule "Deteksi Konflik Bagian Warisan"
+    salience 15
+    agenda-group "validation"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $totalShares: Double() from accumulate($s: FamilyMember(relationName != "deceased", isDeceased == false), sum($s.faraidShare))
+        eval($totalShares > 1.0)
+    then
+        validationErrors.add("Total bagian warisan melebihi 1.0 (" + $totalShares + ") - perlu penyesuaian");
+        executionLog.add("Konflik bagian warisan terdeteksi: total = " + $totalShares);
+end
+
+// ============================================================================
+## ATURAN PENYESUAIAN UNTUK KASUS KOMPLEKS
+// ============================================================================
+
+rule "Penyesuaian Bagian untuk Kasus 'Awl"
+    salience 10
+    agenda-group "adjustments"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $totalShares: Double() from accumulate($s: FamilyMember(relationName != "deceased", isDeceased == false), sum($s.faraidShare))
+        eval($totalShares > 1.0)
+    then
+        // Lakukan 'awl (pengurangan proporsional)
+        for (Object heir : collect(FamilyMember(relationName != "deceased", isDeceased == false))) {
+            FamilyMember h = (FamilyMember) heir;
+            Double adjustedShare = h.faraidShare / $totalShares;
+            shares.put(h.id, adjustedShare);
+            reasons.put(h.id, "Bagian disesuaikan secara proporsional karena 'awl");
+        }
+        executionLog.add("Penyesuaian 'awl diterapkan: dari " + $totalShares + " menjadi 1.0");
+end
+
+rule "Penyesuaian Bagian untuk Kasus Radd"
+    salience 10
+    agenda-group "adjustments"
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $totalShares: Double() from accumulate($s: FamilyMember(relationName != "deceased", isDeceased == false), sum($s.faraidShare))
+        eval($totalShares < 1.0)
+        not exists FamilyMember(relationName == "son", isDeceased == false)
+        not exists FamilyMember(relationName == "father", isDeceased == false)
+        not exists FamilyMember(relationName == "brother", isDeceased == false)
+    then
+        // Lakukan radd (pengembalian proporsional kepada ahli waris)
+        for (Object heir : collect(FamilyMember(relationName != "deceased", isDeceased == false))) {
+            FamilyMember h = (FamilyMember) heir;
+            Double adjustedShare = h.faraidShare / $totalShares;
+            shares.put(h.id, adjustedShare);
+            reasons.put(h.id, "Bagian ditambah secara proporsional karena radd");
+        }
+        executionLog.add("Penyesuaian radd diterapkan: dari " + $totalShares + " menjadi 1.0");
+end

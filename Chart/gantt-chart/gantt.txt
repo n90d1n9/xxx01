@@ -1,0 +1,4987 @@
+Coto Output
+Generated: 2026-03-03 05:42:39
+Files: 53 | Directories: 15 | Total Size: 127.9 KB
+
+
+================================================================================
+attachment/attachment.dart
+Size: 769 B | Modified: 2024-12-01 07:25:14
+--------------------------------------------------------------------------------
+
+
+class Attachment {
+  final String id;
+  final String name;
+  final String url;
+  final DateTime uploadDate;
+  final DateTime timestamp;
+  
+  Attachment({required this.uploadDate,
+    required this.id,
+    required this.name,
+    required this.url,
+    required this.timestamp,
+  });
+}
+
+
+// Enum for attachment types
+enum AttachmentType { file, link, image }
+
+
+// Model for Task Attachments
+class TaskAttachment {
+  final String? id;
+  final String? name;
+  final AttachmentType? type;
+  final String? url;
+  final DateTime? uploadedAt;
+  final int? size;
+  final String? path;
+
+  TaskAttachment({
+     this.id,
+     this.name,
+     this.type,
+     this.url,
+     this.size,
+     this.path,
+    DateTime? uploadedAt,
+  }) : uploadedAt = uploadedAt ?? DateTime.now();
+}
+================================================================================
+
+================================================================================
+attachment/attachment_list.dart
+Size: 1.8 KB | Modified: 2024-12-02 08:06:37
+--------------------------------------------------------------------------------
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+
+import 'attachment.dart';
+import '../task/task.dart';
+
+class AttachmentList extends StatelessWidget {
+  final List<TaskAttachment> attachments;
+  final Function(TaskAttachment) onAdd;
+  final Function(TaskAttachment) onRemove;
+
+  const AttachmentList({
+    super.key,
+    required this.attachments,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  Future<void> _pickFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles();
+    if (result != null) {
+      final file = result.files.first;
+      final attachment = TaskAttachment(
+        name: file.name,
+        size: file.size,
+        path: file.path ?? '',
+      );
+      onAdd(attachment);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Attachments', style: Theme.of(context).textTheme.titleMedium),
+        ListView.builder(
+          shrinkWrap: true,
+          itemCount: attachments.length + 1,
+          itemBuilder: (context, index) {
+            if (index == attachments.length) {
+              return TextButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text('Add Attachment'),
+                onPressed: _pickFile,
+              );
+            }
+            
+            final attachment = attachments[index];
+            return ListTile(
+              leading: const Icon(Icons.attachment),
+              title: Text(attachment.name!),
+              subtitle: Text('${(attachment.size! / 1024).round()} KB'),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete),
+                onPressed: () => onRemove(attachment),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+================================================================================
+
+================================================================================
+board/board_controller.dart
+Size: 1.2 KB | Modified: 2024-12-02 10:23:10
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+class BoardController extends ChangeNotifier {
+  // Define the tasks in each column
+  final Map<String, List<String>> _tasks = {
+    "To Do": [],
+    "In Progress": [],
+    "Done": [],
+  };
+
+  // Get tasks for a specific column
+  List<String> getTasks(String column) => _tasks[column] ?? [];
+
+
+/*   void addTask(String column, String task) {
+    _tasks[column]?.add(task);
+    notifyListeners();
+  } */
+
+/*   void moveTask(String fromColumn, String toColumn, String task) {
+    _tasks[fromColumn]?.remove(task);
+    _tasks[toColumn]?.add(task);
+    notifyListeners();
+  } */
+
+  String getTaskColumn(String task) {
+    return _tasks.entries.firstWhere((entry) => entry.value.contains(task)).key;
+  }
+
+  // Add a task to a column
+  void addTask(String column, String task) {
+    _tasks[column]?.add(task);
+    notifyListeners(); // Notify UI to update
+  }
+
+  // Move a task from one column to another
+  void moveTask(String fromColumn, String toColumn, String task) {
+    _tasks[fromColumn]?.remove(task);
+    _tasks[toColumn]?.add(task);
+    notifyListeners();
+  }
+
+  // Remove a task from a column
+  void removeTask(String column, String task) {
+    _tasks[column]?.remove(task);
+    notifyListeners();
+  }
+}
+
+================================================================================
+
+================================================================================
+board/board_screen.dart
+Size: 4.2 KB | Modified: 2024-12-02 09:45:33
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../task/task.dart';
+import 'task_column.dart';
+import 'task_provider.dart';
+/* 
+class ScrumBoardScreen extends ConsumerWidget {
+  const ScrumBoardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tasks = ref.watch(taskListProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scrum Board'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () => context.push('/new-task'),
+          ),
+        ],
+      ),
+      body: Row(
+        children: TaskStatus.values.map((status) {
+          final columnTasks = tasks.where((task) => task.status == status).toList();
+          return Expanded(
+            child: TaskColumn(
+              status: status,
+              tasks: columnTasks,
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+} */
+
+class ScrumBoardScreen extends ConsumerWidget {
+  const ScrumBoardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authStateProvider).value;
+    final tasks = ref.watch(filteredTasksProvider);
+
+    if (user == null) {
+      return const LoginScreen();
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scrum Board'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: () => _showFilterDialog(context, ref),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () => context.push('/new-task'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => ref.read(authServiceProvider).signOut(),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          _buildSearchBar(ref),
+          Expanded(
+            child: Row(
+              children: TaskStatus.values.map((status) {
+                final columnTasks =
+                    tasks.where((task) => task.status == status).toList();
+                return Expanded(
+                  child: TaskColumn(
+                    status: status,
+                    tasks: columnTasks,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: TextField(
+        decoration: const InputDecoration(
+          hintText: 'Search tasks...',
+          prefixIcon: Icon(Icons.search),
+        ),
+        onChanged: (value) {
+          ref.read(searchQueryProvider.notifier).state = value;
+        },
+      ),
+    );
+  }
+
+  Future<void> _showFilterDialog(BuildContext context, WidgetRef ref) async {
+    final currentFilter = ref.read(taskFilterProvider);
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Filter Tasks'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<TaskPriority>(
+              value: currentFilter.priority,
+              decoration: const InputDecoration(labelText: 'Priority'),
+              items: TaskPriority.values
+                  .map((p) => DropdownMenuItem(
+                        value: p,
+                        child: Text(p.toString().split('.').last),
+                      ))
+                  .toList(),
+              onChanged: (value) {
+                ref.read(taskFilterProvider.notifier).state =
+                    TaskFilter(priority: value);
+              },
+            ),
+            // Add more filter options here
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              ref.read(taskFilterProvider.notifier).state = const TaskFilter();
+              Navigator.pop(context);
+            },
+            child: const Text('Clear Filters'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+================================================================================
+
+================================================================================
+board/scrumboard.dart
+Size: 3.9 KB | Modified: 2024-12-02 10:25:37
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+import 'board_controller.dart';
+
+class BoardScreen extends StatefulWidget {
+  const BoardScreen({super.key});
+
+  @override
+  ScrumBoardScreenState createState() => ScrumBoardScreenState();
+}
+
+class ScrumBoardScreenState extends State<BoardScreen> {
+  final BoardController _controller = BoardController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Scrum Board')),
+      body: Row(
+        children: [
+          _buildColumn("To Do"),
+          _buildColumn("In Progress"),
+          _buildColumn("Done"),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          _controller.addTask("To Do", "New Task ${DateTime.now()}");
+        },
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildColumn(String column) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(column, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Expanded(
+            child: DragTarget<String>(
+              onWillAcceptWithDetails: (task) => true,
+              onAccept: (task) {
+                _controller.moveTask(_controller.getTaskColumn(task), column, task);
+              },
+              builder: (context, candidateData, rejectedData) {
+                return AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, _) {
+                    final tasks = _controller.getTasks(column);
+                    return ListView.builder(
+                      itemCount: tasks.length,
+                      itemBuilder: (context, index) {
+                        final task = tasks[index];
+                        return Draggable<String>(
+                          data: task,
+                          child: ListTile(
+                            title: Text(task),
+                            trailing: IconButton(
+                        icon: const Icon(Icons.delete),
+                        onPressed: () {
+                          _controller.removeTask(column, task);
+                        },
+                      ),
+                          ),
+                          feedback: Material(
+                            child: Container(
+                              color: Colors.blue,
+                              child: Text(
+                                task,
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              padding: const EdgeInsets.all(8),
+                            ),
+                          ),
+                          childWhenDragging: Container(),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  /* Widget _buildColumn(String column) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(column, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Expanded(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                final tasks = _controller.getTasks(column);
+                return ListView.builder(
+                  itemCount: tasks.length,
+                  itemBuilder: (context, index) {
+                    final task = tasks[index];
+                    return ListTile(
+                      title: Text(task),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete),
+                        onPressed: () {
+                          _controller.removeTask(column, task);
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  } */
+}
+
+================================================================================
+
+================================================================================
+board/task_card.dart
+Size: 752 B | Modified: 2024-12-02 09:35:09
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+import '../task/task.dart';
+
+class TaskCard extends StatelessWidget {
+  final Task task;
+  final VoidCallback? onTap;
+
+  const TaskCard({
+    required this.task,
+    this.onTap,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.all(8.0),
+      child: ListTile(
+        onTap: onTap,
+        title: Text(task.title),
+        subtitle: Text(
+          task.description!,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: task.assignedTo.isNotEmpty
+            ? CircleAvatar(
+                child: Text(task.assignedTo[0].toUpperCase()),
+              )
+            : null,
+      ),
+    );
+  }
+}
+
+================================================================================
+
+================================================================================
+board/task_column.dart
+Size: 1.3 KB | Modified: 2024-12-02 09:34:30
+--------------------------------------------------------------------------------
+import '../task/task.dart';
+
+class TaskColumn extends ConsumerWidget {
+  final TaskStatus status;
+  final List<Task> tasks;
+
+  const TaskColumn({
+    required this.status,
+    required this.tasks,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return DragTarget<Task>(
+      onAccept: (task) {
+        ref.read(taskListProvider.notifier).moveTask(task.id, status);
+      },
+      builder: (context, candidateData, rejectedData) {
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                status.toString().split('.').last.toUpperCase(),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: tasks.length,
+                itemBuilder: (context, index) {
+                  final task = tasks[index];
+                  return Draggable<Task>(
+                    data: task,
+                    feedback: TaskCard(task: task),
+                    child: TaskCard(
+                      task: task,
+                      onTap: () => context.push('/task/${task.id}'),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+================================================================================
+
+================================================================================
+board/task_new_screen.dart
+Size: 2.6 KB | Modified: 2024-12-02 09:36:10
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+import '../task/task.dart';
+
+class NewTaskScreen extends ConsumerStatefulWidget {
+  const NewTaskScreen({super.key});
+
+  @override
+  ConsumerState<NewTaskScreen> createState() => _NewTaskScreenState();
+}
+
+class _NewTaskScreenState extends ConsumerState<NewTaskScreen> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _assignedToController;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController();
+    _descriptionController = TextEditingController();
+    _assignedToController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _assignedToController.dispose();
+    super.dispose();
+  }
+
+  void _submitForm() {
+    if (_formKey.currentState!.validate()) {
+      final task = Task(
+        title: _titleController.text,
+        description: _descriptionController.text,
+        assignedTo: _assignedToController.text,
+      );
+      ref.read(taskListProvider.notifier).addTask(task);
+      context.pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('New Task'),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: [
+            TextFormField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: 'Title',
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter a title';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16.0),
+            TextFormField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Description',
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16.0),
+            TextFormField(
+              controller: _assignedToController,
+              decoration: const InputDecoration(
+                labelText: 'Assigned To',
+              ),
+            ),
+            const SizedBox(height: 24.0),
+            ElevatedButton(
+              onPressed: _submitForm,
+              child: const Text('Create Task'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+================================================================================
+
+================================================================================
+board/task_provider.dart
+Size: 2.0 KB | Modified: 2024-12-02 09:42:14
+--------------------------------------------------------------------------------
+import '../task/task.dart';
+
+final taskListProvider = StateNotifierProvider<TaskNotifier, List<Task>>((ref) {
+  return TaskNotifier();
+});
+
+final searchQueryProvider = StateProvider<String>((ref) => '');
+
+final taskFilterProvider = StateProvider<TaskFilter>((ref) => const TaskFilter());
+
+final filteredTasksProvider = Provider<List<Task>>((ref) {
+  final tasks = ref.watch(taskListProvider);
+  final filter = ref.watch(taskFilterProvider);
+  final searchQuery = ref.watch(searchQueryProvider).toLowerCase();
+
+  return tasks.where((task) {
+    final matchesSearch = searchQuery.isEmpty ||
+        task.title.toLowerCase().contains(searchQuery) ||
+        task.description.toLowerCase().contains(searchQuery);
+
+    final matchesPriority = filter.priority == null || task.priority == filter.priority;
+    final matchesAssignee =
+        filter.assignee == null || task.assignedTo == filter.assignee;
+    final matchesLabel = filter.label == null ||
+        task.labels.contains(filter.label);
+
+    return matchesSearch && matchesPriority && matchesAssignee && matchesLabel;
+  }).toList();
+});
+
+class TaskNotifier extends StateNotifier<List<Task>> {
+  TaskNotifier() : super([]) {
+    _loadTasks();
+  }
+
+  Future<void> _loadTasks() async {
+    final box = await Hive.openBox<Task>('tasks');
+    state = box.values.toList();
+  }
+
+  Future<void> addTask(Task task) async {
+    final box = await Hive.openBox<Task>('tasks');
+    await box.put(task.id, task);
+    state = [...state, task];
+  }
+
+  Future<void> updateTask(Task task) async {
+    final box = await Hive.openBox<Task>('tasks');
+    await box.put(task.id, task);
+    state = [
+      for (final t in state)
+        if (t.id == task.id) task else t
+    ];
+  }
+
+  Future<void> deleteTask(String taskId) async {
+    final box = await Hive.openBox<Task>('tasks');
+    await box.delete(taskId);
+    state = state.where((task) => task.id != taskId).toList();
+  }
+}
+
+class TaskFilter {
+  final TaskPriority? priority;
+  final String? assignee;
+  final String? label;
+
+  const TaskFilter({
+    this.priority,
+    this.assignee,
+    this.label,
+  });
+}
+
+================================================================================
+
+================================================================================
+board/task_services.dart
+Size: 793 B | Modified: 2024-12-02 09:33:08
+--------------------------------------------------------------------------------
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../task/task.dart';
+
+final taskListProvider = StateNotifierProvider<TaskNotifier, List<Task>>((ref) {
+  return TaskNotifier();
+});
+
+class TaskNotifier extends StateNotifier<List<Task>> {
+  TaskNotifier() : super([]);
+
+  void addTask(Task task) {
+    state = [...state, task];
+  }
+
+  void updateTask(Task task) {
+    state = [
+      for (final t in state)
+        if (t.id == task.id) task else t
+    ];
+  }
+
+  void deleteTask(String taskId) {
+    state = state.where((task) => task.id != taskId).toList();
+  }
+
+  void moveTask(String taskId, TaskStatus newStatus) {
+    state = [
+      for (final task in state)
+        if (task.id == taskId)
+          task.copyWith(status: newStatus)
+        else
+          task
+    ];
+  }
+}
+
+================================================================================
+
+================================================================================
+color/color_picker.dart
+Size: 1.8 KB | Modified: 2024-12-01 06:43:48
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+
+class ColorPickerButton extends StatelessWidget {
+  final Color color;
+  final ValueChanged<Color> onColorChanged;
+  final String? label;
+
+  const ColorPickerButton({
+    super.key,
+    required this.color,
+    required this.onColorChanged,
+    this.label,
+  });
+
+  void _showColorPicker(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(label ?? 'Pick a color'),
+          content: SingleChildScrollView(
+            child: ColorPicker(
+              pickerColor: color,
+              onColorChanged: (Color selectedColor) {
+                onColorChanged(selectedColor);
+              },
+              pickerAreaHeightPercent: 0.8,
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Done'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: () => _showColorPicker(context),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        minimumSize: const Size(100, 50),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+      child: Text(
+        label ?? 'Select Color',
+        style: TextStyle(
+          color: useWhiteForeground(color) ? Colors.white : Colors.black,
+        ),
+      ),
+    );
+  }
+
+  // Helper method to determine text color based on background
+  bool useWhiteForeground(Color backgroundColor) {
+    return (ThemeData.estimateBrightnessForColor(backgroundColor) ==
+        Brightness.dark);
+  }
+}
+
+================================================================================
+
+================================================================================
+color/export_button.dart
+Size: 4.6 KB | Modified: 2024-12-02 08:06:37
+--------------------------------------------------------------------------------
+
+import 'dart:convert';
+
+import 'package:excel/excel.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import '../task/task.dart';
+
+class ExportButton extends StatelessWidget {
+  final List<Task> tasks;
+  final DateTime startDate;
+  final DateTime endDate;
+
+  const ExportButton({
+    super.key,
+    required this.tasks,
+    required this.startDate,
+    required this.endDate,
+  });
+
+  void _showExportDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Export Project'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.table_chart),
+              title: const Text('Excel Spreadsheet'),
+              subtitle: const Text('Export as .xlsx file'),
+              onTap: () {
+                Navigator.pop(context);
+                _exportToExcel();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf),
+              title: const Text('PDF Document'),
+              subtitle: const Text('Export as .pdf file'),
+              onTap: () {
+                Navigator.pop(context);
+                _exportToPdf();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.code),
+              title: const Text('JSON Data'),
+              subtitle: const Text('Export as .json file'),
+              onTap: () {
+                Navigator.pop(context);
+                _exportToJson();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportToExcel() async {
+    final excel = Excel.createExcel();
+    final sheet = excel['Tasks'];
+
+    // Add headers
+    sheet.appendRow([
+      TextCellValue('Task Name'),
+      TextCellValue('Start Date'),
+      TextCellValue('End Date'),
+      TextCellValue('Duration'),
+      TextCellValue('Priority'),
+      TextCellValue('Status'),
+      TextCellValue('Assigned To'),
+      TextCellValue('Progress'),
+    ]);
+
+    // Add task data
+    for (var task in tasks) {
+      sheet.appendRow([
+     
+        TextCellValue(task.name!),
+        TextCellValue(DateFormat('yyyy-MM-dd').format(task.startDate!)),
+        TextCellValue(DateFormat('yyyy-MM-dd').format(task.endDate!)),
+        TextCellValue('${task.duration} days'),
+        TextCellValue(task.priority!.label),
+        TextCellValue(task.status!.label),
+       // TextCellValue(task.assignedTo!.join(', ') ?? ''),
+        TextCellValue('${(task.progress * 100).toStringAsFixed(0)}%'),
+      ]);
+    }
+
+    // Save file
+    final fileBytes = excel.encode();
+    if (fileBytes != null) {
+      final fileName = 'project_export_${DateFormat('yyyyMMdd').format(DateTime.now())}.xlsx';
+      // Implement file saving logic based on platform
+    }
+  }
+
+  Future<void> _exportToPdf() async {
+    /* final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.Page(
+        build: (context) => pw.Column(
+          children: [
+            pw.Header(
+              level: 0,
+              child: pw.Text('Project Timeline'),
+            ),
+            pw.SizedBox(height: 20),
+            pw.Table.fromTextArray(
+              context: context,
+              data: <List<String>>[
+                ['Task', 'Start', 'End', 'Status', 'Progress'],
+                ...tasks.map((task) => [
+                  task.name!,
+                  DateFormat('MM/dd/yyyy').format(task.startDate!),
+                  DateFormat('MM/dd/yyyy').format(task.endDate!),
+                  task.status.label,
+                  '${(task.progress * 100).toStringAsFixed(0)}%',
+                ]),
+              ],
+            ),
+          ],
+        ),
+      ), 
+    );
+
+    final fileBytes = await pdf.save();
+    final fileName = 'project_export_${DateFormat('yyyyMMdd').format(DateTime.now())}.pdf';
+    // Implement file saving logic based on platform
+
+    */
+  }
+
+  Future<void> _exportToJson() async {
+    final jsonData = {
+      'projectStart': startDate.toIso8601String(),
+      'projectEnd': endDate.toIso8601String(),
+      'tasks': tasks.map((task) => task.toJson()).toList(),
+    };
+
+    final jsonString = jsonEncode(jsonData);
+    final fileName = 'project_export_${DateFormat('yyyyMMdd').format(DateTime.now())}.json';
+    // Implement file saving logic based on platform
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Export Project',
+      child: IconButton(
+        icon: const Icon(Icons.download),
+        onPressed: () => _showExportDialog(context),
+      ),
+    );
+  }
+}
+
+
+
+================================================================================
+
+================================================================================
+comment/comment.dart
+Size: 603 B | Modified: 2024-12-01 06:57:01
+--------------------------------------------------------------------------------
+
+class Comment {
+  final String id;
+  final String userId;
+  final String userName;
+  final String content;
+  final DateTime timestamp;
+  
+  Comment({
+    required this.id,
+    required this.userId,
+    required this.userName,
+    required this.content,
+    required this.timestamp,
+  });
+}
+
+
+
+// Model for Task Comments
+class TaskComment {
+  final String id;
+  final String authorName;
+  final String text;
+  final DateTime timestamp;
+
+  TaskComment({
+    required this.id,
+    required this.authorName,
+    required this.text,
+    DateTime? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now();
+}
+================================================================================
+
+================================================================================
+comment/comment_section.dart
+Size: 2.4 KB | Modified: 2024-12-02 08:06:37
+--------------------------------------------------------------------------------
+
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../task/task.dart';
+
+class CommentSection extends StatefulWidget {
+  final List<TaskComment> comments;
+  final Function(String) onAddComment;
+
+  const CommentSection({
+    super.key,
+    required this.comments,
+    required this.onAddComment,
+  });
+
+  @override
+  CommentSectionState createState() => CommentSectionState();
+}
+
+class CommentSectionState extends State<CommentSection> {
+  final _commentController = TextEditingController();
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Comments', style: Theme.of(context).textTheme.titleMedium),
+        ListView.builder(
+          shrinkWrap: true,
+          itemCount: widget.comments.length,
+          itemBuilder: (context, index) {
+            final comment = widget.comments[index];
+            return ListTile(
+              leading: CircleAvatar(
+                child: Text(comment.author![0]),
+              ),
+              title: Text(comment.author!),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(comment.content!),
+                  Text(
+                    DateFormat('MMM dd, yyyy HH:mm').format(comment.timestamp!),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _commentController,
+                  decoration: const InputDecoration(
+                    hintText: 'Add a comment...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.send),
+                onPressed: () {
+                  if (_commentController.text.isNotEmpty) {
+                    widget.onAddComment(_commentController.text);
+                    _commentController.clear();
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+================================================================================
+
+================================================================================
+critical_path/criticalpat_overlay.dart
+Size: 1.5 KB | Modified: 2024-12-02 17:35:21
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+import 'criticalpath_painter.dart';
+import '../task/task.dart';
+
+class CriticalPathOverlay extends StatelessWidget {
+  final List<Task> tasks;
+  final double cellWidth;
+
+  final DateTime? startDate;
+
+  const CriticalPathOverlay(
+      {super.key, required this.tasks, this.cellWidth = 50.0, this.startDate});
+
+  List<Task> _calculateCriticalPath() {
+    // Implementation of critical path calculation algorithm
+    List<Task> criticalPath = [];
+    Map<Task, int> earliestStart = {};
+    Map<Task, int> earliestFinish = {};
+    Map<Task, int> latestStart = {};
+    Map<Task, int> latestFinish = {};
+
+    // Forward pass
+    for (var task in tasks) {
+      if (task.predecessors!.isEmpty!) {
+        earliestStart[task] = 0;
+        earliestFinish[task] = task.duration!;
+      } else {
+        int maxFinish = task.predecessors!
+            .map((p) => earliestFinish[p] ?? 0)
+            .reduce((a, b) => a > b ? a : b);
+        earliestStart[task] = maxFinish;
+        earliestFinish[task] = maxFinish + task.duration!;
+      }
+    }
+
+    // Backward pass and critical path identification
+    // ... (Additional critical path calculation logic)
+
+    return criticalPath;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final criticalPath = _calculateCriticalPath();
+    return CustomPaint(
+      painter: CriticalPathPainter(
+        criticalPath: criticalPath,
+        cellWidth: cellWidth,
+        taskHeight: 10,
+        startDate: startDate!,
+        taskPositions: {},
+      ),
+    );
+  }
+}
+
+================================================================================
+
+================================================================================
+critical_path/criticalpath_painter.dart
+Size: 4.2 KB | Modified: 2024-12-02 08:06:37
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+import '../task/task.dart';
+
+class CriticalPathPainter extends CustomPainter {
+  final List<Task> criticalPath;
+  final double cellWidth;
+  final double taskHeight;
+  final DateTime startDate;
+  final Map<String, double> taskPositions;
+
+  CriticalPathPainter({
+    required this.criticalPath,
+    required this.cellWidth,
+    required this.taskHeight,
+    required this.startDate,
+    required this.taskPositions,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (criticalPath.isEmpty) return;
+
+    // Setup paint styles
+    final pathPaint = Paint()
+      ..color = Colors.red.withOpacity(0.3)
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    final highlightPaint = Paint()
+      ..color = Colors.red.withOpacity(0.1)
+      ..style = PaintingStyle.fill;
+
+    final dotPaint = Paint()
+      ..color = Colors.red
+      ..style = PaintingStyle.fill;
+
+    // Draw connecting lines and task highlights
+    for (int i = 0; i < criticalPath.length; i++) {
+      Task currentTask = criticalPath[i];
+      
+      // Calculate task rectangle
+      double taskStart = _getTaskStartX(currentTask);
+      double taskEnd = taskStart + (currentTask.duration! * cellWidth);
+      double taskY = taskPositions[currentTask.id] ?? 0;
+      
+      // Draw task highlight
+      Rect taskRect = Rect.fromLTWH(
+        taskStart,
+        taskY,
+        taskEnd - taskStart,
+        taskHeight
+      );
+      canvas.drawRect(taskRect, highlightPaint);
+      canvas.drawRect(taskRect, pathPaint);
+
+      // Draw connection to next task if exists
+      if (i < criticalPath.length - 1) {
+        Task nextTask = criticalPath[i + 1];
+        double nextTaskStart = _getTaskStartX(nextTask);
+        double nextTaskY = taskPositions[nextTask.id] ?? 0;
+
+        // Draw connecting line
+        Path connectionPath = Path();
+        connectionPath.moveTo(taskEnd, taskY + taskHeight / 2);
+
+        // If tasks are on different rows, use curved path
+        if (taskY != nextTaskY) {
+          double controlX1 = taskEnd + cellWidth / 2;
+          double controlX2 = nextTaskStart - cellWidth / 2;
+          
+          connectionPath.cubicTo(
+            controlX1, taskY + taskHeight / 2,
+            controlX2, nextTaskY + taskHeight / 2,
+            nextTaskStart, nextTaskY + taskHeight / 2
+          );
+        } else {
+          // Straight line if tasks are on same row
+          connectionPath.lineTo(nextTaskStart, nextTaskY + taskHeight / 2);
+        }
+
+        canvas.drawPath(connectionPath, pathPaint);
+
+        // Draw connection points
+        canvas.drawCircle(
+          Offset(taskEnd, taskY + taskHeight / 2),
+          3,
+          dotPaint
+        );
+        canvas.drawCircle(
+          Offset(nextTaskStart, nextTaskY + taskHeight / 2),
+          3,
+          dotPaint
+        );
+      }
+
+      // Draw milestone diamond for final task
+      if (i == criticalPath.length - 1) {
+        double diamondSize = 8.0;
+        Path diamondPath = Path();
+        Offset center = Offset(taskEnd, taskY + taskHeight / 2);
+        
+        diamondPath.moveTo(center.dx, center.dy - diamondSize);
+        diamondPath.lineTo(center.dx + diamondSize, center.dy);
+        diamondPath.lineTo(center.dx, center.dy + diamondSize);
+        diamondPath.lineTo(center.dx - diamondSize, center.dy);
+        diamondPath.close();
+
+        canvas.drawPath(diamondPath, pathPaint);
+        canvas.drawPath(diamondPath, Paint()
+          ..color = Colors.red.withOpacity(0.2)
+          ..style = PaintingStyle.fill);
+      }
+    }
+  }
+
+  double _getTaskStartX(Task task) {
+    // Calculate days from project start to task start
+    int predecessorDuration = 0;
+    if (task.predecessors!.isNotEmpty) {
+      predecessorDuration = task.predecessors!
+          .map((p) => p.duration!)
+          .reduce((a, b) => a + b);
+    }
+    
+    return predecessorDuration * cellWidth;
+  }
+
+  @override
+  bool shouldRepaint(covariant CriticalPathPainter oldDelegate) {
+    return oldDelegate.criticalPath != criticalPath ||
+           oldDelegate.cellWidth != cellWidth ||
+           oldDelegate.taskHeight != taskHeight ||
+           oldDelegate.startDate != startDate ||
+           oldDelegate.taskPositions != taskPositions;
+  }
+}
+================================================================================
+
+================================================================================
+date/date_format.dart
+Size: 3.8 KB | Modified: 2024-12-01 06:09:49
+--------------------------------------------------------------------------------
+import 'package:intl/intl.dart';
+
+class DateTimeFormatters {
+  // Common date formats
+  static final commentTimestamp = DateFormat('MMM dd, yyyy HH:mm');
+  static final fullDateTime = DateFormat('MMMM dd, yyyy HH:mm:ss');
+  static final shortDate = DateFormat('MM/dd/yyyy');
+  static final mediumDate = DateFormat('MMM dd, yyyy');
+  static final longDate = DateFormat('MMMM dd, yyyy');
+  static final timeOnly = DateFormat('HH:mm:ss');
+  static final dayAndTime = DateFormat('E, MMM dd HH:mm');
+
+  // Format specific components
+  static final monthAndDay = DateFormat('MMM dd');
+  static final yearAndMonth = DateFormat('MMMM yyyy');
+  static final weekdayShort = DateFormat('E');
+  static final weekdayLong = DateFormat('EEEE');
+
+  // Custom formatters for special cases
+  static String formatRelativeTime(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inSeconds < 60) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return commentTimestamp.format(timestamp);
+    }
+  }
+
+  static String formatTaskDuration(DateTime start, DateTime end) {
+    final difference = end.difference(start);
+    
+    if (difference.inDays > 0) {
+      return '${difference.inDays}d ${difference.inHours % 24}h';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ${difference.inMinutes % 60}m';
+    } else {
+      return '${difference.inMinutes}m';
+    }
+  }
+
+  // Localized date formatting
+  static String formatLocalizedDate(DateTime date, String locale) {
+    return DateFormat.yMMMMd(locale).format(date);
+  }
+
+  // Format with custom pattern
+  static String formatCustomPattern(DateTime date, String pattern) {
+    return DateFormat(pattern).format(date);
+  }
+}
+
+// Example usage extension
+extension DateTimeFormatting on DateTime {
+  String toCommentFormat() => DateTimeFormatters.commentTimestamp.format(this);
+  
+  String toFullFormat() => DateTimeFormatters.fullDateTime.format(this);
+  
+  String toShortDate() => DateTimeFormatters.shortDate.format(this);
+  
+  String toRelativeTime() => DateTimeFormatters.formatRelativeTime(this);
+  
+  String toDurationString(DateTime endDate) => 
+      DateTimeFormatters.formatTaskDuration(this, endDate);
+}
+
+// Usage examples class
+class DateFormattingExamples {
+  void demonstrateFormatting() {
+    final now = DateTime.now();
+    final comment = DateTime(2024, 3, 15, 14, 30);
+    
+    // Comment timestamp format (original request)
+    print('Comment: ${DateFormat('MMM dd, yyyy HH:mm').format(comment)}');
+    // Output: Comment: Mar 15, 2024 14:30
+    
+    // Using the formatter class
+    print('Using formatter: ${DateTimeFormatters.commentTimestamp.format(comment)}');
+    // Output: Using formatter: Mar 15, 2024 14:30
+    
+    // Using extension
+    print('Using extension: ${comment.toCommentFormat()}');
+    // Output: Using extension: Mar 15, 2024 14:30
+    
+    // Relative time example
+    print('Relative time: ${DateTimeFormatters.formatRelativeTime(comment)}');
+    // Output depends on current time, e.g.: Relative time: 2d ago
+    
+    // Duration example
+    final endDate = comment.add(Duration(days: 2, hours: 3));
+    print('Duration: ${DateTimeFormatters.formatTaskDuration(comment, endDate)}');
+    // Output: Duration: 2d 3h
+    
+    // Localized example
+    print('Localized (es): ${DateTimeFormatters.formatLocalizedDate(comment, 'es')}');
+    // Output: 15 de marzo de 2024
+    
+    // Custom pattern
+    print('Custom: ${DateTimeFormatters.formatCustomPattern(comment, 'EEEE, MMMM d, y')}');
+    // Output: Friday, March 15, 2024
+  }
+}
+================================================================================
+
+================================================================================
+date/datetime_picker.dart
+Size: 1.1 KB | Modified: 2024-12-01 06:10:06
+--------------------------------------------------------------------------------
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+class DateTimePicker extends StatelessWidget {
+  final String labelText;
+  final DateTime? selectedDate;
+  final ValueChanged<DateTime> onChanged;
+
+  const DateTimePicker({
+    super.key,
+    required this.labelText,
+    required this.selectedDate,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () async {
+        final DateTime? picked = await showDatePicker(
+          context: context,
+          initialDate: selectedDate ?? DateTime.now(),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2100),
+        );
+        if (picked != null) {
+          onChanged(picked);
+        }
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: labelText,
+          border: const OutlineInputBorder(),
+        ),
+        child: Text(
+          selectedDate != null
+              ? DateFormat('MMM dd, yyyy').format(selectedDate!)
+              : 'Select date',
+        ),
+      ),
+    );
+  }
+}
+================================================================================
+
+================================================================================
+date/week_year.dart
+Size: 1.6 KB | Modified: 2024-12-01 11:19:04
+--------------------------------------------------------------------------------
+extension DateTimeExtensions on DateTime {
+  int get weekOfYear {
+    // Days since start of the year
+    final startOfYear = DateTime(year, 1, 1);
+    final firstMonday = startOfYear.add(
+      Duration(days: (8 - startOfYear.weekday) % 7),
+    );
+    
+    if (isBefore(firstMonday)) {
+      return DateTime(year - 1, 12, 28).weekOfYear;
+    }
+    
+    return ((difference(firstMonday).inDays + 1) / 7).ceil();
+  }
+
+  int get ordinalDate {
+    final startOfYear = DateTime(year, 1, 1);
+    return difference(startOfYear).inDays + 1;
+  }
+
+  bool get isLeapYear {
+    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+  }
+}
+
+DateTime dateTimeFromWeekNumber(int year, int week, int weekday) {
+  // Start with January 1st of the given year
+  final firstDayOfYear = DateTime(year, 1, 1);
+  
+  // Find the first day of week 1
+  // According to ISO 8601, week 1 is the week containing January 4th
+  final daysSinceMonday = (firstDayOfYear.weekday - DateTime.monday) % 7;
+  final firstMonday = firstDayOfYear.subtract(Duration(days: daysSinceMonday));
+  
+  // Calculate target date by adding weeks and days
+  final daysToAdd = (week - 1) * 7 + (weekday - DateTime.monday);
+  return firstMonday.add(Duration(days: daysToAdd));
+}
+
+// Example usage:
+void main() {
+  final date = DateTime.now();
+  print(date.weekOfYear);      // Get the ISO week of year
+  print(date.ordinalDate);     // Get the ordinal date
+  print(date.isLeapYear);      // Is this a leap year?
+  
+  final DateTime dateFromWeekNumber = dateTimeFromWeekNumber(2023, 13, DateTime.tuesday);
+  print(dateFromWeekNumber);   // 2023-02-28
+}
+================================================================================
+
+================================================================================
+dependency/dependency.dart
+Size: 3.0 KB | Modified: 2024-12-02 08:06:37
+--------------------------------------------------------------------------------
+
+// Dialog for selecting dependent tasks
+import 'package:flutter/material.dart';
+
+import '../task/task.dart';
+
+class DependencySelectionDialog extends StatefulWidget {
+  final Task currentTask;
+  final Function(Task) onDependencyAdded;
+
+  const DependencySelectionDialog({
+    super.key,
+    required this.currentTask,
+    required this.onDependencyAdded,
+  });
+
+  @override
+  DependencySelectionDialogState createState() => DependencySelectionDialogState();
+}
+
+class DependencySelectionDialogState extends State<DependencySelectionDialog> {
+  Task? _selectedDependentTask;
+  List<Task> _availableTasks = []; // Populate this with your existing tasks
+
+  @override
+  void initState() {
+    super.initState();
+    // TODO: Load available tasks that can be dependencies
+    // This might come from a state management solution or database
+    _loadAvailableTasks();
+  }
+
+  void _loadAvailableTasks() {
+    // Example of loading tasks
+    // In a real app, this would come from your data source
+    setState(() {
+      _availableTasks = [
+        Task(
+          title: 'Design Phase',
+          description: 'Initial project design',
+          startDate: DateTime.now(),
+          endDate: DateTime.now().add(Duration(days: 7)),
+        ),
+        Task(
+          title: 'Research Phase',
+          description: 'Preliminary research',
+          startDate: DateTime.now(),
+          endDate: DateTime.now().add(Duration(days: 5)),
+        ),
+        // Add more tasks
+      ];
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Add Dependency for "${widget.currentTask.title}"'),
+      content: SingleChildScrollView(
+        child: Column(
+          children: [
+            const Text('Select a task that this task depends on:'),
+            DropdownButton<Task>(
+              isExpanded: true,
+              value: _selectedDependentTask,
+              hint: const Text('Select Dependent Task'),
+              onChanged: (Task? newValue) {
+                setState(() {
+                  _selectedDependentTask = newValue;
+                });
+              },
+              items: _availableTasks
+                  .where((task) => task.title != widget.currentTask.title)
+                  .map<DropdownMenuItem<Task>>((Task task) {
+                return DropdownMenuItem<Task>(
+                  value: task,
+                  child: Text(task.title),
+                );
+              }).toList(),
+            ),
+            if (_selectedDependentTask != null) ...[
+              const SizedBox(height: 16),
+              Text('Selected Dependency: ${_selectedDependentTask!.title}'),
+            ]
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          child: const Text('Cancel'),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        ElevatedButton(
+          child: const Text('Add Dependency'),
+          onPressed: _selectedDependentTask != null
+              ? () {
+                  widget.onDependencyAdded(_selectedDependentTask!);
+                }
+              : null,
+        ),
+      ],
+    );
+  }
+}
+================================================================================
+
+================================================================================
+dependency/dependency_linepainter.dart
+Size: 947 B | Modified: 2024-12-01 07:01:23
+--------------------------------------------------------------------------------
+
+// Custom painter for dependency lines
+import 'package:flutter/material.dart';
+
+class DependencyLinePainter extends CustomPainter {
+  final Offset startPoint;
+  final List<Offset> endPoints;
+  final Color color;
+
+  DependencyLinePainter({
+    required this.startPoint,
+    required this.endPoints,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    for (var endPoint in endPoints) {
+      final path = Path();
+      path.moveTo(startPoint.dx, startPoint.dy);
+      
+      // Create a curved path between start and end points
+      path.cubicTo(
+        startPoint.dx + 50, startPoint.dy,
+        endPoint.dx - 50, endPoint.dy,
+        endPoint.dx, endPoint.dy
+      );
+
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+================================================================================
+
+================================================================================
+filter/filter_button.dart
+Size: 6.5 KB | Modified: 2024-12-02 08:06:37
+--------------------------------------------------------------------------------
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import 'filter_options.dart';
+import '../task/task.dart';
+
+class FilterButton extends StatefulWidget {
+  final Function(FilterOptions) onFilterChange;
+  final FilterOptions currentFilters;
+
+  const FilterButton({
+    super.key,
+    required this.onFilterChange,
+    required this.currentFilters,
+  });
+
+  @override
+  FilterButtonState createState() => FilterButtonState();
+}
+
+class FilterButtonState extends State<FilterButton> {
+  void _showFilterDialog() {
+    FilterOptions tempFilters = widget.currentFilters.copy();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Filter Tasks'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Date Range Filter
+                Text('Date Range', style: Theme.of(context).textTheme.titleMedium),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.calendar_today),
+                        label: Text(
+                          tempFilters.startDate != null
+                              ? DateFormat('MMM dd, yyyy').format(tempFilters.startDate!)
+                              : 'Start Date',
+                        ),
+                        onPressed: () async {
+                          final date = await showDatePicker(
+                            context: context,
+                            initialDate: tempFilters.startDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (date != null) {
+                            setState(() => tempFilters.startDate = date);
+                          }
+                        },
+                      ),
+                    ),
+                    Expanded(
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.calendar_today),
+                        label: Text(
+                          tempFilters.endDate != null
+                              ? DateFormat('MMM dd, yyyy').format(tempFilters.endDate!)
+                              : 'End Date',
+                        ),
+                        onPressed: () async {
+                          final date = await showDatePicker(
+                            context: context,
+                            initialDate: tempFilters.endDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (date != null) {
+                            setState(() => tempFilters.endDate = date);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Priority Filter
+                Text('Priority', style: Theme.of(context).textTheme.titleMedium),
+                Wrap(
+                  spacing: 8,
+                  children: TaskPriority.values.map((priority) {
+                    return FilterChip(
+                      label: Text(priority.label),
+                      selected: tempFilters.priorities.contains(priority),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            tempFilters.priorities.add(priority);
+                          } else {
+                            tempFilters.priorities.remove(priority);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Status Filter
+                Text('Status', style: Theme.of(context).textTheme.titleMedium),
+                Wrap(
+                  spacing: 8,
+                  children: TaskStatus.values.map((status) {
+                    return FilterChip(
+                      label: Text(status.label),
+                      selected: tempFilters.statuses.contains(status),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            tempFilters.statuses.add(status);
+                          } else {
+                            tempFilters.statuses.remove(status);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Assigned To Filter
+                Text('Assigned To', style: Theme.of(context).textTheme.titleMedium),
+                TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Search users...',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (value) {
+                    setState(() => tempFilters.assignedToSearch = value);
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Clear All'),
+              onPressed: () {
+                setState(() => tempFilters = FilterOptions());
+              },
+            ),
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.pop(context),
+            ),
+            FilledButton(
+              child: const Text('Apply'),
+              onPressed: () {
+                widget.onFilterChange(tempFilters);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasActiveFilters = widget.currentFilters.isActive;
+
+    return Tooltip(
+      message: 'Filter Tasks',
+      child: Badge(
+        isLabelVisible: hasActiveFilters,
+        label: Text(widget.currentFilters.activeFilterCount.toString()),
+        child: IconButton(
+          icon: const Icon(Icons.filter_list),
+          onPressed: _showFilterDialog,
+        ),
+      ),
+    );
+  }
+}
+
+
+================================================================================
+
+================================================================================
+filter/filter_options.dart
+Size: 1.1 KB | Modified: 2024-12-02 08:06:37
+--------------------------------------------------------------------------------
+
+// Supporting Classes
+
+import '../task/task.dart';
+
+class FilterOptions {
+  DateTime? startDate;
+  DateTime? endDate;
+  Set<TaskPriority> priorities;
+  Set<TaskStatus> statuses;
+  String assignedToSearch;
+
+  FilterOptions({
+    this.startDate,
+    this.endDate,
+    Set<TaskPriority>? priorities,
+    Set<TaskStatus>? statuses,
+    this.assignedToSearch = '',
+  })  : priorities = priorities ?? {},
+        statuses = statuses ?? {};
+
+  bool get isActive =>
+      startDate != null ||
+      endDate != null ||
+      priorities.isNotEmpty ||
+      statuses.isNotEmpty ||
+      assignedToSearch.isNotEmpty;
+
+  int get activeFilterCount {
+    int count = 0;
+    if (startDate != null) count++;
+    if (endDate != null) count++;
+    if (priorities.isNotEmpty) count++;
+    if (statuses.isNotEmpty) count++;
+    if (assignedToSearch.isNotEmpty) count++;
+    return count;
+  }
+
+  FilterOptions copy() {
+    return FilterOptions(
+      startDate: startDate,
+      endDate: endDate,
+      priorities: Set.from(priorities),
+      statuses: Set.from(statuses),
+      assignedToSearch: assignedToSearch,
+    );
+  }
+}
+
+
+================================================================================
+
+================================================================================
+gantt/day_header.dart
+Size: 1.5 KB | Modified: 2024-12-02 21:04:43
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+import 'week_day.dart';
+
+class DayHeader extends StatelessWidget {
+  static const defaultColor = Colors.black;
+  static const defaultBackgroundColor = Colors.white;
+  static const defaultHolidayColor = Colors.white;
+  static final defaultHolidayBackgroundColor = Colors.grey.shade800;
+
+  final Color? color;
+  final Color? backgroundColor;
+  final BoxBorder? border;
+  final WidgetBuilder? widgetBuilder;
+
+  const DayHeader({
+    super.key,
+    required this.date,
+    required this.isHoliday,
+    this.color,
+    this.backgroundColor,
+    this.border,
+    this.widgetBuilder,
+  });
+
+  final DateTime date;
+  final bool isHoliday;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: backgroundColor ?? _defaultBackgroundColor(isHoliday),
+        border: border ?? _defaultBorder,
+      ),
+      child: widgetBuilder?.call(context) ?? _defaultChild(context),
+    );
+  }
+
+  Color _defaultColor(bool isHoliday) =>
+      isHoliday ? defaultHolidayColor : defaultColor;
+
+  Color _defaultBackgroundColor(bool isHoliday) =>
+      isHoliday ? defaultHolidayBackgroundColor : defaultBackgroundColor;
+
+  BoxBorder get _defaultBorder => const BorderDirectional(
+        bottom: BorderSide(),
+        start: BorderSide(),
+      );
+
+  Widget _defaultChild(BuildContext context) => Center(
+        child: Text(
+          '${WeekDay.fromIntWeekday(date.weekday).symbol}\n${date.day}',
+          style: TextStyle(color: color ?? _defaultColor(isHoliday)),
+        ),
+      );
+}
+
+================================================================================
+
+================================================================================
+gantt/event.dart
+Size: 3.9 KB | Modified: 2024-12-02 14:40:26
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+import 'gantt_view.dart';
+import 'week_day.dart';
+
+/// *d* workdays starting from [start] (includes start if it was a work day)
+///
+/// result date is execlusive.
+///
+/// so if you have monday as start, and you need 2 work days,
+/// your 2 workdays will be monday + tuesday,
+/// but the result date will be on widnesday.
+///
+/// this is so you can test like
+///
+/// someDate.isBefore(endDate)
+DateTime getRelativeDateInclusiveStartExeclusiveEnd(
+  BuildContext context,
+  DateTime start,
+  Duration d,
+  Set<WeekDay> weekends,
+  IsExtraHolidayFunc isExtraHolidayFunc,
+) {
+  if (d.inDays == 0) return start;
+  final targetWorkDays = d.inDays;
+  var index = 0;
+  var workDaysCount = 0;
+  while (true) {
+    final dayToTest = DateUtils.addDaysToDate(start, index);
+    //
+    final weekday = WeekDay.fromIntWeekday(dayToTest.weekday);
+    if (!weekends.contains(weekday) &&
+        !isExtraHolidayFunc(context, dayToTest)) {
+      workDaysCount++;
+      index++;
+      if (workDaysCount < targetWorkDays) {
+      } else {
+        break;
+      }
+    } else {
+      index++;
+    }
+  }
+  return DateUtils.addDaysToDate(start, index);
+}
+
+abstract class GanttEventBase {
+  Object? get extra;
+  String? get displayName;
+  Color? get suggestedColor;
+  String Function(BuildContext context)? get displayNameBuilder;
+
+  DateTime getStartDateInclusive(
+    BuildContext context,
+    DateTime ganttStartDate,
+    Set<WeekDay> weekends,
+    IsExtraHolidayFunc isExtraHolidayFunc,
+  );
+
+  DateTime getEndDateExeclusive(
+    BuildContext context,
+    DateTime calculatedStartDate,
+    Set<WeekDay> weekends,
+    IsExtraHolidayFunc isExtraHolidayFunc,
+  );
+
+  String getDisplayName(BuildContext context) =>
+      displayName ?? displayNameBuilder?.call(context) ?? '';
+}
+
+class GanttAbsoluteEvent extends GanttEventBase {
+  final DateTime startDate;
+  final DateTime endDate;
+  @override
+  final String? displayName;
+  @override
+  final String Function(BuildContext context)? displayNameBuilder;
+  @override
+  final Object? extra;
+
+  @override
+  final Color? suggestedColor;
+  GanttAbsoluteEvent({
+    required this.startDate,
+    required this.endDate,
+    this.extra,
+    this.displayNameBuilder,
+    this.displayName,
+    this.suggestedColor,
+  });
+
+  @override
+  DateTime getEndDateExeclusive(
+    BuildContext context,
+    DateTime calculatedStartDate,
+    Set<WeekDay> weekends,
+    IsExtraHolidayFunc isExtraHolidayFunc,
+  ) {
+    return DateUtils.addDaysToDate(endDate, 1);
+  }
+
+  @override
+  DateTime getStartDateInclusive(
+    BuildContext context,
+    DateTime ganttStartDate,
+    Set<WeekDay> weekends,
+    IsExtraHolidayFunc isExtraHolidayFunc,
+  ) {
+    return ganttStartDate.isAfter(startDate) ? ganttStartDate : startDate;
+  }
+}
+
+class GanttRelativeEvent extends GanttEventBase {
+  final Duration relativeToStart;
+  final Duration duration;
+  final String? id;
+  @override
+  final Object? extra;
+  @override
+  final String? displayName;
+  @override
+  final String Function(BuildContext context)? displayNameBuilder;
+
+  @override
+  final Color? suggestedColor;
+
+  GanttRelativeEvent({
+    required this.relativeToStart,
+    required this.duration,
+    this.id,
+    this.extra,
+    this.displayName,
+    this.displayNameBuilder,
+    this.suggestedColor,
+  });
+
+  @override
+  DateTime getStartDateInclusive(
+    BuildContext context,
+    DateTime ganttStartDate,
+    Set<WeekDay> weekends,
+    IsExtraHolidayFunc isExtraHolidayFunc,
+  ) =>
+      getRelativeDateInclusiveStartExeclusiveEnd(
+        context,
+        ganttStartDate,
+        relativeToStart,
+        weekends,
+        isExtraHolidayFunc,
+      );
+
+  @override
+  DateTime getEndDateExeclusive(
+    BuildContext context,
+    DateTime calculatedStartDate,
+    Set<WeekDay> weekends,
+    IsExtraHolidayFunc isExtraHolidayFunc,
+  ) =>
+      getRelativeDateInclusiveStartExeclusiveEnd(
+        context,
+        calculatedStartDate,
+        duration,
+        weekends,
+        isExtraHolidayFunc,
+      );
+}
+
+================================================================================
+
+================================================================================
+gantt/gantt_default_event_cell_per_day.dart
+Size: 1.8 KB | Modified: 2024-12-02 21:06:41
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+import 'event.dart';
+
+class GanttChartDefaultEventRowPerDayBuilder extends StatelessWidget {
+  static const defaultHolidayColor = Colors.grey;
+  static const defaultBorder = BorderDirectional(
+    top: BorderSide.none,
+    bottom: BorderSide.none,
+    start: BorderSide(),
+  );
+
+  const GanttChartDefaultEventRowPerDayBuilder({
+    super.key,
+    required this.dayDate,
+    required this.isHoliday,
+    required this.event,
+    required this.actStartDate,
+    required this.actEndDate,
+    required this.weekDate,
+    required this.eventColor,
+    this.holidayColor,
+    this.border,
+  });
+
+  final Color eventColor;
+  final DateTime dayDate;
+  final bool isHoliday;
+  final GanttEventBase event;
+  final DateTime actStartDate;
+  final DateTime actEndDate;
+  final DateTime weekDate;
+  final Color? holidayColor;
+  final BoxBorder? border;
+
+  @override
+  Widget build(BuildContext context) {
+    final isWithinEvent = !DateUtils.isSameDay(actStartDate, actEndDate) &&
+        (DateUtils.isSameDay(actStartDate, dayDate) ||
+            dayDate.isAfter(actStartDate) && dayDate.isBefore(actEndDate));
+
+    final color = isHoliday
+        ? (holidayColor ?? defaultHolidayColor)
+        : isWithinEvent
+            ? eventColor
+            : null;
+    return Container(
+      decoration: BoxDecoration(
+        color: isHoliday ? color : null,
+        border: border ?? defaultBorder,
+      ),
+      child: !isWithinEvent || isHoliday
+          ? null
+          : LayoutBuilder(
+              builder: (context, constraints) => Center(
+                child: Container(
+                  height: constraints.maxHeight / 2,
+                  color: color,
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+================================================================================
+
+================================================================================
+gantt/gantt_view.dart
+Size: 12.2 KB | Modified: 2024-12-02 22:18:28
+--------------------------------------------------------------------------------
+import 'package:collection/collection.dart';
+import 'package:flutter/material.dart';
+
+import 'event.dart';
+import 'day_header.dart';
+import '../settings/setting.dart';
+import 'task_row_per_week.dart';
+import 'task_list_panel.dart';
+import 'week_header.dart';
+import 'week_day.dart';
+
+typedef IsExtraHolidayFunc = bool Function(BuildContext context, DateTime date);
+typedef EventCellBuilderFunction = Widget Function(
+  BuildContext context,
+  DateTime eventStart,
+  DateTime eventEnd,
+  bool isHoliday,
+  GanttEventBase event,
+  DateTime day,
+  Color eventColor,
+);
+
+/// Displays a gantt chart
+class GanttChartView extends StatefulWidget {
+  GanttChartView(
+      {super.key,
+      required this.events,
+      required this.startDate,
+      this.maxDuration,
+      this.stickyAreaWidth = 200,
+      this.stickyAreaEventBuilder,
+      this.stickyAreaDayBuilder,
+      this.stickyAreaWeekBuilder,
+      this.showDays = true,
+      this.dayHeaderBuilder,
+      this.weekHeaderBuilder,
+      this.isExtraHoliday,
+      this.eventRowPerWeekBuilder,
+      this.eventCellPerDayBuilder,
+      this.holidayColor,
+      this.showStickyArea = true,
+      this.scrollController,
+      this.scrollPhysics,
+      this.timelineSetting})
+      : assert(
+          !timelineSetting!.weekEnds.contains(timelineSetting!.startOfTheWeek),
+          'startOfTheWeek must be a work day',
+        );
+
+  /// The horizontal scroll controller that gets passed to the internal listview
+  final ScrollController? scrollController;
+
+  /// The horizontal scroll physics that gets passed to the internal listview
+  final ScrollPhysics? scrollPhysics;
+
+  /// Custom builder for sticky area per event
+  ///
+  /// default([TaskListPanel])
+  final Widget Function(
+    BuildContext context,
+    int eventIndex,
+    GanttEventBase event,
+    Color eventColor,
+  )? stickyAreaEventBuilder;
+
+  /// Custom builder for sticky area as a header for the weeks row
+  ///
+  /// default(`null`)
+  final WidgetBuilder? stickyAreaWeekBuilder;
+
+  /// Custom builder for sticky area as a header for the days row
+  ///
+  /// default(`null`)
+  final WidgetBuilder? stickyAreaDayBuilder;
+
+  /// Color to mark holiday
+  ///
+  /// default(`null`)
+  final Color? holidayColor;
+
+  /// Initial datetime
+  final DateTime startDate;
+
+  /// Maximum duration that will be displayed by the gantt chart
+  final Duration? maxDuration;
+
+  /// override this to check if specific date is a holiday
+  final IsExtraHolidayFunc? isExtraHoliday;
+
+  /// list of events
+  final List<GanttEventBase> events;
+
+  /// show days row
+  final bool showDays;
+
+  /// the week header builder (gets called for every week)
+  ///
+  /// [weekDate] is the start of the week, which will always be a [startOfTheWeek]
+  final Widget Function(BuildContext context, DateTime weekDate)?
+      weekHeaderBuilder;
+
+  /// Show sticky row headers on the left
+  final bool showStickyArea;
+
+  /// Sticky area width
+  final double stickyAreaWidth;
+
+  /// the day header builder
+  final Widget Function(BuildContext context, DateTime date, bool isHoliday)?
+      dayHeaderBuilder;
+
+  /// Custom builder for the event row per week
+  ///
+  /// default([TaskRowPerWeek])
+  final Widget Function(
+    BuildContext context,
+    DateTime eventStart,
+    DateTime eventEnd,
+    double dayWidth,
+    double weekWidth,
+    DateTime weekStartDate,
+    bool Function(BuildContext, DateTime) isHoliday,
+    GanttEventBase event,
+    Color eventColor,
+  )? eventRowPerWeekBuilder;
+
+  /// Custom builder for the event cell per day
+  ///
+  /// default([GanttChartDefaultEventRowPerDayBuilder])
+  final EventCellBuilderFunction? eventCellPerDayBuilder;
+
+  /* /// a set of [WeekDay]s which are considered holidays that occur every week
+  ///
+  /// by default are [WeekDay.friday], [WeekDay.saturday]
+  final Set<WeekDay> weekEnds;
+
+  /// First workday of the week, by default [WeekDay.sunday]
+  final WeekDay startOfTheWeek;
+
+  /// Day column width (in pixels)
+  final double dayWidth;
+
+  /// Event row height (in pixels)
+  final double eventHeight;
+
+  /// Week header row height (in pixels)
+  final double weekHeaderHeight;
+
+  /// Day header row height (in pixels)
+  final double dayHeaderHeight; */
+
+  final TimelineSettings? timelineSetting;
+
+  @override
+  State<GanttChartView> createState() => GanttChartViewState();
+}
+
+class GanttChartViewState extends State<GanttChartView> {
+  late ScrollController controller; // = ScrollController();
+  final extraHolidayCache = <DateTime>{};
+
+  Set<WeekDay> get weekEnds => widget.timelineSetting!.weekEnds;
+
+  double get weekWidth => widget.timelineSetting!.dayWidth * 7;
+
+  WeekDay get startOfTheWeek => widget.timelineSetting!.startOfTheWeek;
+
+  late DateTime startDate;
+  late DateTime weekOfStartDate;
+
+  double durationToWeekOffset(Duration duration) {
+    final inWeeks = duration.inDays ~/ 7;
+    return inWeeks * weekWidth;
+  }
+
+  DateTime getWeekOf(DateTime date) {
+    var targetWeekday = WeekDay.fromDateTime(date);
+    var diff = -((targetWeekday.number - startOfTheWeek.number) % 7);
+    return date.add(Duration(days: diff));
+  }
+
+  final eventColors = <Color>[];
+  void initFromCurrentWidget() {
+    eventColors.clear();
+    eventColors.addAll(widget.events.mapIndexed((index, element) =>
+        element.suggestedColor ??
+        Colors.primaries[index % Colors.primaries.length]));
+    controller = widget.scrollController ?? ScrollController();
+    startDate = DateUtils.dateOnly(widget.startDate);
+    weekOfStartDate = getWeekOf(startDate);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    initFromCurrentWidget();
+  }
+
+  @override
+  void didUpdateWidget(covariant GanttChartView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final newScrollController = widget.scrollController;
+    final oldScrollController = oldWidget.scrollController;
+    if (newScrollController != oldScrollController &&
+        oldScrollController == null) {
+      //moves from null to not-null, dispose self-created controller
+      controller.dispose();
+    }
+    initFromCurrentWidget();
+  }
+
+  @override
+  void dispose() {
+    if (widget.scrollController == null) {
+      // dispose self-created controller
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  bool isHolidayCached(BuildContext context, DateTime date) {
+    if (weekEnds.contains(WeekDay.fromDateTime(date))) return true;
+
+    final dateOnly = DateUtils.dateOnly(date);
+    if (extraHolidayCache.contains(dateOnly)) return true;
+    if (widget.isExtraHoliday?.call(context, dateOnly) == true) {
+      extraHolidayCache.add(dateOnly);
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.showStickyArea) _taskListPanel(),
+        Expanded(
+          child: SizedBox(
+            height: widget.timelineSetting!.weekHeaderHeight +
+                (widget.showDays
+                    ? widget.timelineSetting!.dayHeaderHeight
+                    : 0) +
+                (widget.timelineSetting!.eventHeight * widget.events.length),
+            child: ListView.builder(
+              physics: widget.scrollPhysics,
+              itemExtent: weekWidth,
+              scrollDirection: Axis.horizontal,
+              controller: controller,
+              itemCount: widget.maxDuration == null
+                  ? null
+                  : (widget.maxDuration!.inDays / 7).ceil(),
+              itemBuilder: (context, index) {
+                //map index to week
+
+                //1) get week of startDate
+                final date = startDate.add(Duration(days: index * 7));
+                final weekDate = getWeekOf(date);
+
+                return Column(
+                  key: ValueKey(weekDate),
+                  children: [
+                    _weekHeaderRow(weekDate),
+                    if (widget.showDays) _holidayHeader(weekDate),
+
+                    //Body
+                    ...widget.events.mapIndexed(
+                      (index, e) {
+                        final actStartDate = e.getStartDateInclusive(
+                          context,
+                          startDate,
+                          weekEnds,
+                          isHolidayCached,
+                        );
+                        final actEndDate = e.getEndDateExeclusive(
+                          context,
+                          actStartDate,
+                          weekEnds,
+                          isHolidayCached,
+                        );
+
+                        final eventColor = eventColors[index];
+                        return Container(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: index == widget.events.length - 1
+                                  ? const BorderSide()
+                                  : BorderSide.none,
+                            ),
+                          ),
+                          height: widget.timelineSetting!.eventHeight,
+                          child: widget.eventRowPerWeekBuilder?.call(
+                                context,
+                                actStartDate,
+                                actEndDate,
+                                widget.timelineSetting!.dayWidth,
+                                weekWidth,
+                                weekDate,
+                                isHolidayCached,
+                                e,
+                                eventColor,
+                              ) ??
+                              TaskRowPerWeek(
+                                eventEndDate: actEndDate,
+                                eventStartDate: actStartDate,
+                                dayWidth: widget.timelineSetting!.dayWidth,
+                                event: e,
+                                isHolidayFunc: isHolidayCached,
+                                weekDate: weekDate,
+                                func: widget.eventCellPerDayBuilder,
+                                holidayColor: widget.holidayColor,
+                                eventColor: eventColor,
+                              ),
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  _holidayHeader(weekDate) => SizedBox(
+      height: widget.timelineSetting!.dayHeaderHeight,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: List<Widget>.generate(DateTime.daysPerWeek, (i) {
+          final day = weekDate.add(Duration(days: i));
+          final isHoliday = isHolidayCached(context, day);
+          //Header row
+          return SizedBox(
+            width: widget.timelineSetting!.dayWidth,
+            child: widget.dayHeaderBuilder?.call(context, day, isHoliday) ??
+                DayHeader(date: day, isHoliday: isHoliday),
+          );
+        }).toList(),
+      ));
+
+  _weekHeaderRow(weekDate) {
+    return //Week Header row
+        SizedBox(
+      height: widget.timelineSetting!.weekHeaderHeight,
+      width: weekWidth,
+      child: widget.weekHeaderBuilder?.call(context, weekDate) ??
+          WeekHeader(
+            weekDate: weekDate,
+          ),
+    );
+  }
+
+  Widget _headerDay() => SizedBox(
+        height: widget.timelineSetting!.dayHeaderHeight,
+        child: widget.stickyAreaDayBuilder?.call(context),
+      );
+
+  Widget _headerWeek() => SizedBox(
+        height: widget.timelineSetting!.weekHeaderHeight,
+        child: widget.stickyAreaWeekBuilder?.call(context),
+      );
+
+  Widget _taskListPanel() => SizedBox(
+        width: widget.stickyAreaWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _headerWeek(),
+            if (widget.showDays) _headerDay(),
+            ...widget.events.mapIndexed((index, event) {
+              final eventColor = eventColors[index];
+              return SizedBox(
+                height: widget.timelineSetting!.eventHeight,
+                child: widget.stickyAreaEventBuilder
+                        ?.call(context, index, event, eventColor) ??
+                    TaskListPanel(
+                      event: event,
+                      eventIndex: index,
+                      eventColor: eventColor,
+                    ),
+              );
+            })
+          ],
+        ),
+      );
+}
+
+================================================================================
+
+================================================================================
+gantt/task_list_panel.dart
+Size: 969 B | Modified: 2024-12-02 21:11:05
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+import 'event.dart';
+
+class TaskListPanel extends StatelessWidget {
+  final GanttEventBase event;
+  final int eventIndex;
+  final Color eventColor;
+  final WidgetBuilder? widgetBuilder;
+
+  const TaskListPanel({
+    super.key,
+    required this.event,
+    required this.eventIndex,
+    required this.eventColor,
+    this.widgetBuilder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: eventColor,
+        border: BorderDirectional(
+          top: eventIndex == 0 ? const BorderSide() : BorderSide.none,
+          start: const BorderSide(),
+          end: const BorderSide(),
+          bottom: const BorderSide(),
+        ),
+      ),
+      child: Center(
+        child: widgetBuilder?.call(context) ?? _defaultChild(context),
+      ),
+    );
+  }
+
+  Widget _defaultChild(BuildContext context) => Text(
+        event.getDisplayName(context),
+      );
+}
+
+================================================================================
+
+================================================================================
+gantt/task_row_per_week.dart
+Size: 2.8 KB | Modified: 2024-12-02 21:08:38
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+import 'event.dart';
+import 'gantt_default_event_cell_per_day.dart';
+import 'gantt_view.dart';
+
+class TaskRowPerWeek extends StatelessWidget {
+  const TaskRowPerWeek({
+    super.key,
+    required this.weekDate,
+    required this.isHolidayFunc,
+    required this.dayWidth,
+    required this.event,
+    required this.eventStartDate,
+    required this.eventEndDate,
+    required this.func,
+    required this.holidayColor,
+    required this.eventColor,
+  });
+
+  final Color? holidayColor;
+  final Color eventColor;
+  final DateTime weekDate;
+  final bool Function(BuildContext context, DateTime date) isHolidayFunc;
+  final double dayWidth;
+  final GanttEventBase event;
+  final DateTime eventStartDate;
+  final DateTime eventEndDate;
+  final EventCellBuilderFunction? func;
+  @override
+  Widget build(BuildContext context) {
+    // int? daysToSkip;
+    // if ((DateUtils.isSameDay(
+    //           eventStartDate,
+    //           weekDate,
+    //         ) ||
+    //         eventStartDate.isAfter(
+    //           weekDate,
+    //         )) &&
+    //     (eventStartDate.isBefore(
+    //           DateUtils.addDaysToDate(
+    //             weekDate,
+    //             6,
+    //           ),
+    //         ) ||
+    //         DateUtils.isSameDay(
+    //           eventStartDate,
+    //           weekDate,
+    //         ))) {
+    //   //
+    //   daysToSkip = eventStartDate.difference(weekDate).inDays;
+    // }
+    final row = Row(
+      children: List.generate(7, (index) {
+        //
+        final dayDate = DateUtils.addDaysToDate(weekDate, index);
+        final isHoliday = isHolidayFunc(context, dayDate);
+
+        return SizedBox(
+          width: dayWidth,
+          child: func?.call(
+                context,
+                eventStartDate,
+                eventEndDate,
+                isHoliday,
+                event,
+                dayDate,
+                eventColor,
+              ) ??
+              GanttChartDefaultEventRowPerDayBuilder(
+                actEndDate: eventEndDate,
+                actStartDate: eventStartDate,
+                dayDate: dayDate,
+                event: event,
+                isHoliday: isHoliday,
+                weekDate: weekDate,
+                eventColor: eventColor,
+                holidayColor: holidayColor,
+              ),
+        );
+      }),
+    );
+    return row;
+    // if (daysToSkip == null) {
+    //   return row;
+    // } else {
+    //   return Stack(
+    //     children: [
+    //       row,
+    //       PositionedDirectional(
+    //         top: 0,
+    //         bottom: 0,
+    //         start: (dayWidth * daysToSkip) + 8,
+    //         child: Center(child: Text(event.getDisplayName(context))),
+    //       ),
+    //     ],
+    //   );
+    // }
+  }
+}
+
+================================================================================
+
+================================================================================
+gantt/week_day.dart
+Size: 591 B | Modified: 2024-12-02 14:40:26
+--------------------------------------------------------------------------------
+enum WeekDay {
+  monday(DateTime.monday, 'M'),
+  tuesday(DateTime.tuesday, 'Tu'),
+  wednesday(DateTime.wednesday, 'W'),
+  thursday(DateTime.thursday, 'Th'),
+  friday(DateTime.friday, 'F'),
+  saturday(DateTime.saturday, 'Sa'),
+  sunday(DateTime.sunday, 'Su');
+
+  factory WeekDay.fromIntWeekday(int weekDay) {
+    return WeekDay.values[weekDay - 1];
+  }
+  factory WeekDay.fromDateTime(DateTime day) {
+    return WeekDay.values[day.weekday - 1];
+  }
+
+  final int number;
+  final String symbol;
+  const WeekDay(this.number, this.symbol);
+
+  @override
+  String toString() => '$name ($number)';
+}
+
+================================================================================
+
+================================================================================
+gantt/week_header.dart
+Size: 2.9 KB | Modified: 2024-12-02 21:09:45
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+// import 'package:gantt_chart/src/dateweek_ext.dart';
+
+class WeekHeader extends StatelessWidget {
+  static const defaultColor = Colors.white;
+  static final defaultBackgroundColor = Colors.blue.shade900;
+
+  final Color? color;
+  final Color? backgroundColor;
+  final BoxBorder? border;
+  final WidgetBuilder? widgetBuilder;
+
+  const WeekHeader({
+    super.key,
+    required this.weekDate,
+    this.color,
+    this.backgroundColor,
+    this.border,
+    this.widgetBuilder,
+  });
+  final DateTime weekDate;
+
+  int get weekNumberWithinThisYear => weekDate.weekOfYear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsetsDirectional.only(start: 8, top: 1, bottom: 1),
+      decoration: BoxDecoration(
+        color: backgroundColor ?? defaultBackgroundColor,
+        border: border ?? _defaultBorder,
+      ),
+      child: widgetBuilder?.call(context) ?? _defaultChild(context),
+    );
+  }
+
+  BoxBorder get _defaultBorder => const BorderDirectional(
+        start: BorderSide(),
+        bottom: BorderSide(),
+      );
+
+  Widget _defaultChild(BuildContext context) => Center(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            String txt;
+            if (constraints.maxWidth < 50) {
+              txt = weekDate.month.toString();
+            } else if (constraints.maxWidth < 7 * 20) {
+              txt = '${weekDate.month}-${weekDate.year % 100}';
+            } else {
+              txt =
+                  '${weekDate.day}-${weekDate.month}-${weekDate.year}  #$weekNumberWithinThisYear';
+            }
+
+            return Text(
+              txt,
+              style: TextStyle(color: color ?? defaultColor),
+            );
+          },
+        ),
+      );
+}
+
+extension on DateTime {
+  int get weekOfYear {
+    // Days since start of the year
+    final startOfYear = DateTime(year, 1, 1);
+    final firstMonday = startOfYear.add(
+      Duration(days: (8 - startOfYear.weekday) % 7),
+    );
+
+    if (isBefore(firstMonday)) {
+      return DateTime(year - 1, 12, 28).weekOfYear;
+    }
+
+    return ((difference(firstMonday).inDays + 1) / 7).ceil();
+  }
+
+  int get ordinalDate {
+    final startOfYear = DateTime(year, 1, 1);
+    return difference(startOfYear).inDays + 1;
+  }
+
+  bool get isLeapYear {
+    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+  }
+}
+
+DateTime dateTimeFromWeekNumber(int year, int week, int weekday) {
+  // Start with January 1st of the given year
+  final firstDayOfYear = DateTime(year, 1, 1);
+
+  // Find the first day of week 1
+  // According to ISO 8601, week 1 is the week containing January 4th
+  final daysSinceMonday = (firstDayOfYear.weekday - DateTime.monday) % 7;
+  final firstMonday = firstDayOfYear.subtract(Duration(days: daysSinceMonday));
+
+  // Calculate target date by adding weeks and days
+  final daysToAdd = (week - 1) * 7 + (weekday - DateTime.monday);
+  return firstMonday.add(Duration(days: daysToAdd));
+}
+
+================================================================================
+
+================================================================================
+gantt_view.dart
+Size: 1.2 KB | Modified: 2024-12-02 20:26:51
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+import 'task/add_task_dialog.dart';
+
+import 'task/task.dart';
+import 'task/task_tree_.dart';
+import 'timeline/timeline_view.dart';
+
+class GanttView extends StatelessWidget {
+  final List<Task> tasks;
+  final Timeline timeline;
+  const GanttView({super.key, required this.tasks, required this.timeline});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Row(
+        children: [
+          // Tree View Section
+          SizedBox(
+            width: 300,
+            child: TaskTreeView(
+              tasks: tasks,
+            ),
+          ),
+          // Timeline Section
+          Expanded(
+            child: TimelineView(
+              timeline: Timeline(
+                  //tasks: tasks
+                  ),
+              tasks: tasks,
+              onTaskSelected: (Task) {},
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddTaskDialog(context),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  void _showAddTaskDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AddTaskDialog(
+        task: tasks[0],
+      ),
+    );
+  }
+}
+
+================================================================================
+
+================================================================================
+ky_gantt.dart
+Size: 275 B | Modified: 2024-12-02 21:44:58
+--------------------------------------------------------------------------------
+library ky_gantt;
+
+export 'gantt/gantt_view.dart';
+export 'gantt/task_list_panel.dart';
+export 'gantt/day_header.dart';
+export 'gantt/gantt_default_event_cell_per_day.dart';
+export 'gantt/task_row_per_week.dart';
+export 'gantt/week_header.dart';
+export 'gantt/week_day.dart';
+================================================================================
+
+================================================================================
+milestone/milestone.dart
+Size: 1.5 KB | Modified: 2024-12-01 10:25:27
+--------------------------------------------------------------------------------
+
+// Custom Painters and Widgets
+import 'package:flutter/material.dart';
+
+class MilestonePainter extends CustomPainter {
+  final Color color;
+  final double position;
+
+  MilestonePainter({super.repaint, required this.color, required this.position});
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    
+    final path = Path()
+      ..moveTo(position, 0)
+      ..lineTo(position + 10, 10)
+      ..lineTo(position, 20)
+      ..lineTo(position - 10, 10)
+      ..close();
+    
+    canvas.drawPath(path, paint);
+  }
+  
+  @override
+  bool shouldRepaint(MilestonePainter oldDelegate) =>
+      color != oldDelegate.color || position != oldDelegate.position;
+}
+
+class DependencyLinePainter extends CustomPainter {
+  final Offset start;
+  final Offset end;
+
+  DependencyLinePainter({super.repaint, required this.start, required this.end, required Offset startPoint, required List endPoints, required Color color});
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+    
+    final path = Path()
+      ..moveTo(start.dx, start.dy)
+      ..cubicTo(
+        start.dx + 50, start.dy,
+        end.dx - 50, end.dy,
+        end.dx, end.dy,
+      );
+    
+    canvas.drawPath(path, paint);
+  }
+  
+  @override
+  bool shouldRepaint(DependencyLinePainter oldDelegate) =>
+      start != oldDelegate.start || end != oldDelegate.end;
+}
+
+================================================================================
+
+================================================================================
+milestone/priority_selector.dart
+Size: 1.0 KB | Modified: 2024-12-02 08:06:37
+--------------------------------------------------------------------------------
+
+import 'package:flutter/material.dart';
+
+import '../task/task.dart';
+
+class PrioritySelector extends StatelessWidget {
+  final TaskPriority priority;
+  final ValueChanged<TaskPriority> onChanged;
+
+  const PrioritySelector({
+    super.key,
+    required this.priority,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<TaskPriority>(
+      value: priority,
+      decoration: const InputDecoration(
+        labelText: 'Priority',
+        border: OutlineInputBorder(),
+      ),
+      items: TaskPriority.values.map((priority) {
+        return DropdownMenuItem(
+          value: priority,
+          child: Row(
+            children: [
+              Icon(
+                priority.icon,
+                color: priority.color,
+              ),
+              const SizedBox(width: 8),
+              Text(priority.label),
+            ],
+          ),
+        );
+      }).toList(),
+      onChanged: (value) {
+        if (value != null) onChanged(value);
+      },
+    );
+  }
+}
+
+================================================================================
+
+================================================================================
+milestone/reminder_selector.dart
+Size: 1004 B | Modified: 2024-12-02 08:06:37
+--------------------------------------------------------------------------------
+
+import 'package:flutter/material.dart';
+
+import '../date/datetime_picker.dart';
+
+class ReminderSelector extends StatelessWidget {
+  final DateTime? reminderDate;
+  final ValueChanged<DateTime?> onChanged;
+
+  const ReminderSelector({
+    super.key,
+    required this.reminderDate,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CheckboxListTile(
+          title: const Text('Set Reminder'),
+          value: reminderDate != null,
+          onChanged: (checked) {
+            if (checked == false) {
+              onChanged(null);
+            } else {
+              onChanged(DateTime.now().add(const Duration(days: 1)));
+            }
+          },
+        ),
+        if (reminderDate != null)
+          DateTimePicker(
+            labelText: 'Reminder Date',
+            selectedDate: reminderDate,
+            onChanged: onChanged,
+          ),
+      ],
+    );
+  }
+}
+================================================================================
+
+================================================================================
+notification_service.dart
+Size: 937 B | Modified: 2024-12-01 10:40:22
+--------------------------------------------------------------------------------
+/* 
+// Notification Service
+class NotificationService {
+  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  
+  Future<void> initialize() async {
+    final initializationSettings = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(),
+    );
+    
+    await _notifications.initialize(initializationSettings);
+  }
+  
+  Future<void> scheduleTaskReminder(GanttTask task) async {
+    if (task.reminderDate == null) return;
+    
+    await _notifications.schedule(
+      task.id.hashCode,
+      'Task Reminder',
+      'Task "${task.name}" is due soon',
+      task.reminderDate!,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'gantt_tasks',
+          'Task Reminders',
+          importance: Importance.high,
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
+    );
+  }
+}
+ */
+================================================================================
+
+================================================================================
+providers/gantt_state.dart
+Size: 2.5 KB | Modified: 2025-11-01 23:47:06
+--------------------------------------------------------------------------------
+// Enhanced State Management
+import 'package:flutter/material.dart';
+
+import '../task/task.dart';
+
+class GanttState extends ChangeNotifier {
+  final List<Task> _tasks = [];
+  final DateTime _viewStartDate = DateTime.now();
+  final DateTime _viewEndDate = DateTime.now().add(const Duration(days: 30));
+  double _zoomLevel = 1.0;
+  bool _showCriticalPath = false;
+  final Map<String, bool> _filters = {
+    'showCompleted': true,
+    'showMilestones': true,
+    'showOverdue': true,
+  };
+
+  List<Task> get tasks => _applyFilters(_tasks);
+  DateTime get viewStartDate => _viewStartDate;
+  DateTime get viewEndDate => _viewEndDate;
+  double get zoomLevel => _zoomLevel;
+  bool get showCriticalPath => _showCriticalPath;
+
+  List<Task> _applyFilters(List<Task> tasks) {
+    return tasks.where((task) {
+      if (!_filters['showCompleted']! && task.progress! >= 100) return false;
+      if (!_filters['showMilestones']! && task.isMillestone) return false;
+      if (!_filters['showOverdue']! && task.endDate!.isBefore(DateTime.now())) {
+        return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  void setZoomLevel(double level) {
+    _zoomLevel = level.clamp(0.5, 2.0);
+    notifyListeners();
+  }
+
+  void toggleCriticalPath() {
+    _showCriticalPath = !_showCriticalPath;
+    notifyListeners();
+  }
+
+  void updateFilter(String key, bool value) {
+    _filters[key] = value;
+    notifyListeners();
+  }
+
+  List<Task> getCriticalPath() {
+    // Implement critical path calculation algorithm
+    return [];
+  }
+
+  void exportToCSV() {
+    // Implement CSV export
+  }
+
+  Future<void> saveToPreferences() async {
+    // Implement state persistence
+  }
+
+  Future<void> loadFromPreferences() async {
+    // Implement state loading
+  }
+}
+
+
+/* 
+
+// State Management
+class GanttState extends ChangeNotifier {
+  List<Task> _tasks = [];
+  DateTime _viewStartDate = DateTime.now();
+  DateTime _viewEndDate = DateTime.now().add(const Duration(days: 30));
+  
+  List<Task> get tasks => _tasks;
+  DateTime get viewStartDate => _viewStartDate;
+  DateTime get viewEndDate => _viewEndDate;
+
+  void addTask(Task task) {
+    _tasks.add(task);
+    notifyListeners();
+  }
+
+  void updateTaskDates(String taskId, DateTime newStart, DateTime newEnd) {
+    final taskIndex = _tasks.indexWhere((t) => t.id == taskId);
+    if (taskIndex != -1) {
+      _tasks[taskIndex].startDate = newStart;
+      _tasks[taskIndex].endDate = newEnd;
+      notifyListeners();
+    }
+  }
+
+  void updateViewRange(DateTime start, DateTime end) {
+    _viewStartDate = start;
+    _viewEndDate = end;
+    notifyListeners();
+  }
+}
+ */
+================================================================================
+
+================================================================================
+settings/setting.dart
+Size: 1.1 KB | Modified: 2024-12-02 22:18:28
+--------------------------------------------------------------------------------
+import '../gantt/week_day.dart';
+
+class TimelineSettings {
+  /// a set of [WeekDay]s which are considered holidays that occur every week
+  ///
+  /// by default are [WeekDay.friday], [WeekDay.saturday]
+  final Set<WeekDay> weekEnds;
+
+  /// First workday of the week, by default [WeekDay.sunday]
+  final WeekDay startOfTheWeek;
+
+  /// Day column width (in pixels)
+  final double dayWidth;
+
+  /// Event row height (in pixels)
+  final double eventHeight;
+
+  /// Week header row height (in pixels)
+  final double weekHeaderHeight;
+
+  /// Day header row height (in pixels)
+  final double dayHeaderHeight;
+
+  TimelineSettings(
+      {required this.weekEnds,
+      required this.startOfTheWeek,
+      required this.dayWidth,
+      required this.eventHeight,
+      required this.weekHeaderHeight,
+      required this.dayHeaderHeight});
+}
+
+
+/* 
+
+  TimelineSettings({
+    this.dayWidth = 30,
+    this.eventHeight = 30,
+    this.weekHeaderHeight = 30,
+    this.dayHeaderHeight = 40,
+    this.weekEnds = const {WeekDay.friday, WeekDay.saturday},
+    this.startOfTheWeek = WeekDay.sunday,
+  });
+   */
+
+================================================================================
+
+================================================================================
+settings/setting_view.dart
+Size: 1.3 KB | Modified: 2024-12-02 22:17:52
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+class SettingView extends StatelessWidget {
+  
+  const SettingView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      SwitchListTile.adaptive(
+                value: showDaysRow,
+                title: const Text('Show Days Row ?'),
+                onChanged: (v) => setState(() => showDaysRow = v),
+              ),
+              SwitchListTile.adaptive(
+                value: showStickyArea,
+                title: const Text('Show Sticky Area ?'),
+                onChanged: (v) => setState(() => showStickyArea = v),
+              ),
+              SwitchListTile.adaptive(
+                value: customStickyArea,
+                title: const Text('Custom Sticky Area ?'),
+                onChanged: (v) => setState(() => customStickyArea = v),
+              ),
+              SwitchListTile.adaptive(
+                value: customWeekHeader,
+                title: const Text('Custom Week Header ?'),
+                onChanged: (v) => setState(() => customWeekHeader = v),
+              ),
+              SwitchListTile.adaptive(
+                value: customDayHeader,
+                title: const Text('Custom Day Header ?'),
+                onChanged: (v) => setState(() => customDayHeader = v),
+              ),
+    ],);
+  }
+}
+================================================================================
+
+================================================================================
+task/add_task_dialog.dart
+Size: 2.3 KB | Modified: 2024-12-02 08:06:37
+--------------------------------------------------------------------------------
+// Add Task Dialog
+import 'package:flutter/material.dart';
+
+import 'task.dart';
+
+class AddTaskDialog extends StatefulWidget {
+  final Task task;
+  final void Function()? onPressed;
+  const AddTaskDialog({super.key, required this.task, this.onPressed});
+
+  @override
+  AddTaskDialogState createState() => AddTaskDialogState();
+}
+
+class AddTaskDialogState extends State<AddTaskDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nameController;
+  late DateTime _startDate;
+  late DateTime _endDate;
+  String? _selectedParentId;
+  String? _selectedAssigneeId;
+
+/* GanttTask(
+        id: const Uuid().v4(),
+        name: '_nameController.text',
+        startDate:  DateTime.now(),
+        endDate: DateTime.now(),
+        assigneeId:   '',
+        assigneeName: 'Assignee Name',
+        assigneeAvatar: 'https://placeholder.com/avatar.jpg',
+        parentId: _selectedParentId,
+      ) */
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+    _startDate = DateTime.now();
+    _endDate = DateTime.now().add(const Duration(days: 1));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add New Task'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Task Name'),
+              validator: (value) =>
+                  value?.isEmpty ?? true ? 'Please enter a task name' : null,
+            ),
+            // Add more form fields for dates, assignee, etc.
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: widget.onPressed, //_submitForm()
+          child: const Text('Add'),
+        ),
+      ],
+    );
+  }
+
+  /* void _submitForm() {
+    if (_formKey.currentState?.validate() ?? false) {
+      final ganttState = context.read<GanttState>();
+      
+      ganttState.addTask(widget.task);
+      Navigator.pop(context);
+    }
+  } */
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+}
+
+================================================================================
+
+================================================================================
+task/assignee.dart
+Size: 255 B | Modified: 2024-12-02 17:50:16
+--------------------------------------------------------------------------------
+class Assignee {
+  final String? assigneeId;
+  final String? assigneeName;
+  final String? assigneeAvatar;
+  final String? assignedTo;
+
+  Assignee(
+      { this.assigneeId,
+       this.assigneeName,
+       this.assigneeAvatar,
+       this.assignedTo});
+}
+
+================================================================================
+
+================================================================================
+task/task.dart
+Size: 2.9 KB | Modified: 2024-12-02 20:12:34
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
+
+import '../attachment/attachment.dart';
+import 'assignee.dart';
+import 'task_style.dart';
+
+//enum TaskStatus { backlog, todo, inProgress, review, done }
+enum TaskStatus {
+  notStarted,
+  completed,
+  onHold,
+  cancelled,
+  backlog,
+  todo,
+  inProgress,
+  review,
+  done;
+
+  String get label => name.split(RegExp(r'(?=[A-Z])')).join(' ').toUpperCase();
+}
+
+enum TaskPriority {
+  low,
+  medium,
+  high,
+  urgent,
+  critical;
+
+  String get label => name.toUpperCase();
+  IconData get icon => {
+        TaskPriority.low: Icons.arrow_downward,
+        TaskPriority.medium: Icons.remove,
+        TaskPriority.high: Icons.arrow_upward,
+      }[this]!;
+  Color get color => {
+        TaskPriority.low: Colors.green,
+        TaskPriority.medium: Colors.orange,
+        TaskPriority.high: Colors.red,
+      }[this]!;
+}
+
+class Task {
+  final String? id;
+  final String? name;
+  final String title;
+  final String? description;
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final int? duration;
+  final double? progress;
+
+  final bool? isExpanded;
+  final TaskStyle? style;
+  final TaskPriority? priority;
+  final TaskStatus? status;
+  final bool isMillestone;
+  final DateTime? reminderDate;
+
+  final String? parentId;
+  final List<Task>? predecessors;
+  final List<Task>? subTasks;
+  final List<String> predecessorIds;
+
+  final List<TaskAttachment>? attachments;
+  final List<TaskComment>? comments;
+
+  final Assignee? assignee;
+
+  Task({
+    this.style,
+    this.status,
+    this.assignee,
+    this.id,
+    this.name,
+    this.duration,
+    this.predecessors = const [],
+    required this.title,
+    this.startDate,
+    this.endDate,
+    this.attachments = const [],
+    this.comments = const [],
+    this.parentId,
+    this.progress = 0.0,
+    this.subTasks = const [],
+    this.predecessorIds = const [],
+    this.isExpanded = true,
+    this.description = '',
+    this.priority = TaskPriority.medium,
+    this.isMillestone = false,
+    this.reminderDate,
+  }) //: (id == id) ?? const Uuid().v4()
+
+  /* : id = id ?? const Uuid().v4(),
+        assignedTo = assignedTo ?? '',
+        createdAt = createdAt ?? DateTime.now(),
+        labels = labels ?? []; */
+
+  ; // : id == id?? const Uuid().v4(), startDate =DateTime.now(), endDate = DateTime(2025);
+
+  //get predecessorIds => [];
+
+  toJson() {}
+}
+
+class Timeline {
+  final bool showCriticalPath;
+  final DateTime startDate;
+  final DateTime endDate;
+  final int tasksLength;
+  //final List<Task>? tasks;
+  Timeline({
+    this.showCriticalPath = false,
+    //this.startDate =  ,
+    // this.endDate = DateTime(2025),
+    this.tasksLength = 0,
+    //this.tasks
+  })  : startDate = DateTime.now(),
+        endDate = DateTime(2025);
+}
+
+class TaskComment {
+  final String? id;
+  final String? author;
+  final String? content;
+  final DateTime? timestamp;
+
+  TaskComment({this.author, this.content, this.timestamp, this.id});
+}
+
+================================================================================
+
+================================================================================
+task/task_dialog.dart
+Size: 5.7 KB | Modified: 2024-12-02 08:06:38
+--------------------------------------------------------------------------------
+// Enhanced Task Dialog
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import '../color/color_picker.dart';
+import '../comment/comment_section.dart';
+import '../date/datetime_picker.dart';
+import '../attachment/attachment.dart';
+import 'task.dart';
+import '../milestone/priority_selector.dart';
+import '../milestone/reminder_selector.dart';
+
+class TaskDialog extends StatefulWidget {
+  final Task? task;
+
+  final Task? initialTask;
+
+  const TaskDialog(
+      {super.key,
+      this.task,
+      this.initialTask,
+      required Null Function(dynamic updatedTask) onTaskSaved});
+
+  @override
+  TaskDialogState createState() => TaskDialogState();
+}
+
+class TaskDialogState extends State<TaskDialog> {
+  late TextEditingController _nameController;
+  late TextEditingController _descriptionController;
+  late DateTime _startDate;
+  late DateTime _endDate;
+  late Color _selectedColor;
+  late TaskPriority _priority;
+  late bool _isMillestone;
+  DateTime? _reminderDate;
+  late TextEditingController _titleController;
+
+  final List<TaskAttachment> _attachments = [];
+  final List<TaskComment> _comments = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController =
+        TextEditingController(text: widget.initialTask?.title ?? '');
+    _descriptionController =
+        TextEditingController(text: widget.initialTask?.description ?? '');
+    _startDate = widget.initialTask?.startDate ?? DateTime.now();
+    _endDate =
+        widget.initialTask?.endDate ?? DateTime.now().add(Duration(days: 7));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.task == null ? 'Add Task' : 'Edit Task'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Task Name'),
+            ),
+            TextFormField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(labelText: 'Description'),
+              maxLines: 3,
+            ),
+            DateTimePicker(
+              labelText: 'Start Date',
+              selectedDate: _startDate,
+              onChanged: (date) => setState(() => _startDate = date),
+            ),
+            DateTimePicker(
+              labelText: 'End Date',
+              selectedDate: _endDate,
+              onChanged: (date) => setState(() => _endDate = date),
+            ),
+            ColorPickerButton(
+              color: _selectedColor,
+              onColorChanged: (color) => setState(() => _selectedColor = color),
+            ),
+            PrioritySelector(
+              priority: _priority,
+              onChanged: (priority) => setState(() => _priority = TaskPriority.low),
+            ),
+            SwitchListTile(
+              title: const Text('Is Milestone'),
+              value: _isMillestone,
+              onChanged: (value) => setState(() => _isMillestone = value),
+            ),
+            ReminderSelector(
+              reminderDate: _reminderDate,
+              onChanged: (date) => setState(() => _reminderDate = date),
+            ),
+            /* AttachmentList(
+              attachments: widget.task?.attachments ?? [],
+              onAdd: _addAttachment,
+              onRemove: _removeAttachment,
+            ), */
+            CommentSection(
+              comments: widget.task?.comments ?? [],
+              onAddComment: _addComment,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _saveTask,
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+
+  // Add attachment method
+  Future<void> _addAttachment() async {
+    // Use file_picker to select attachments
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'pdf', 'doc', 'png'],
+    );
+
+    if (result != null) {
+      final attachment = TaskAttachment(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: result.files.single.name,
+        type: _getAttachmentType(result.files.single.extension ?? ''),
+        url: result.files.single.path ?? '',
+      );
+
+      setState(() {
+        _attachments.add(attachment);
+      });
+    }
+  }
+
+  // Remove attachment method
+  void _removeAttachment(TaskAttachment attachment) {
+    setState(() {
+      _attachments.remove(attachment);
+    });
+  }
+
+  // Add comment method
+  void _addComment(String commentText) {
+    if (commentText.trim().isNotEmpty) {
+      final comment = TaskComment(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        author: 'Current User', // Replace with actual user
+        content: commentText,
+      );
+
+      setState(() {
+        _comments.add(comment);
+      });
+    }
+  }
+
+  // Save task method
+  void _saveTask() {
+    // Validate and save task
+    final task = Task(
+      title: _titleController.text,
+      description: _descriptionController.text,
+      startDate: _startDate,
+      endDate: _endDate,
+      attachments: _attachments,
+      comments: _comments,
+    );
+
+    // Here you would typically call a method to save the task
+    // to your state management or database
+    Navigator.of(context).pop(task);
+  }
+
+  // Helper method to determine attachment type
+  AttachmentType _getAttachmentType(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'jpg':
+      case 'png':
+      case 'gif':
+        return AttachmentType.image;
+      case 'pdf':
+      case 'doc':
+      case 'docx':
+        return AttachmentType.file;
+      default:
+        return AttachmentType.link;
+    }
+  }
+}
+
+================================================================================
+
+================================================================================
+task/task_style.dart
+Size: 177 B | Modified: 2024-12-02 17:59:04
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+class TaskStyle {
+  final FontStyle? fontStyle;
+  final Color? color;
+
+  TaskStyle({this.fontStyle, this.color = Colors.blueAccent,});
+}
+================================================================================
+
+================================================================================
+task/task_timeline_item.dart
+Size: 11.9 KB | Modified: 2024-12-02 18:42:44
+--------------------------------------------------------------------------------
+
+import 'package:flutter/material.dart';
+import 'package:percent_indicator/linear_percent_indicator.dart';
+
+
+import '../dependency/dependency.dart';
+import '../providers/gantt_state.dart';
+import '../milestone/milestone.dart';
+import 'task.dart';
+import 'task_dialog.dart';
+
+
+
+class TaskTimelineItem extends StatefulWidget {
+  final String title;
+  final DateTime startDate;
+  final DateTime endDate;
+  final Color color;
+
+  const TaskTimelineItem({
+    super.key,
+    required this.title,
+    required this.startDate,
+    required this.endDate,
+    this.color = Colors.blue, required Task task,
+  });
+
+  @override
+  TaskTimelineItemState createState() => TaskTimelineItemState();
+}
+
+class TaskTimelineItemState extends State<TaskTimelineItem> {
+  late final Task task;
+  // final position = _calculatePosition(context);
+    
+  
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (details) => _showContextMenu(context, details as Offset),
+      onPanUpdate: (details) => _handleDrag(context, details),
+      child:  Container(
+        height: 50,
+        child: Stack(
+          children: [
+            if (task.isMillestone)
+              _buildMilestone(context)
+            else
+              _buildTaskBar(context),
+            if (task.predecessorIds.isNotEmpty)
+              _buildDependencyLines(context),
+          ],
+        ),
+      ),
+    );
+  }
+/* 
+  Positioned(
+      left: position['left'],
+      child: GestureDetector(
+        onTapUp: (details) => _showContextMenu(context, details.globalPosition),
+        onHorizontalDragUpdate: (details) => _handleDrag(context, details),
+        child: Container(
+          width: position['width'],
+          decoration: BoxDecoration(
+            color: widget.color,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              _buildMilestone(context),
+              Text(widget.title),
+            ],
+          ),
+        ),
+      ),
+    ); */
+  
+  Widget _buildTaskBar(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: task.style!.color!.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 4,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(task.name!)),
+              CircleAvatar(
+                radius: 12,
+                backgroundImage: NetworkImage(task.assignee!.assigneeAvatar!),
+              ),
+            ],
+          ),
+          LinearPercentIndicator(
+            percent: task.progress! / 100,
+            backgroundColor: Colors.white30,
+            progressColor: Colors.white,
+            padding: EdgeInsets.zero,
+            lineHeight: 4,
+          ),
+        ],
+      ),
+    );
+  }
+  
+
+
+
+  // Show context menu with options
+  void _showContextMenu(BuildContext context, Offset details) {
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    
+    showMenu(
+      context: context,
+      position: RelativeRect.fromRect(
+        details & const Size(40, 40), // smaller rect for tap position
+        Offset.zero & overlay.size
+      ),
+      items: [
+        PopupMenuItem(
+          child: const Text('Edit Task'),
+          onTap: () {
+            // Open task edit dialog
+            _openTaskEditDialog(context);
+          },
+        ),
+        PopupMenuItem(
+          child: const Text('Delete Task'),
+          onTap: () {
+            // Implement task deletion
+            _deleteTask(context);
+          },
+        ),
+        PopupMenuItem(
+          child: const Text('Add Dependency'),
+          onTap: () {
+            // Implement dependency addition logic
+            _addDependency(context);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMilestone(BuildContext context) {
+    return CustomPaint(
+      painter: MilestonePainter(
+        color: task.style!.color!,
+        position: _calculatePosition(context),
+      ),
+    );
+  }
+  // Build milestone indicator
+ /*  Widget _buildMilestone(BuildContext context) {
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        color: widget.color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: widget.color.withOpacity(0.5),
+            blurRadius: 4,
+            spreadRadius: 2,
+          )
+        ],
+      ),
+    );
+  } */
+
+  // Handle drag events for task rescheduling
+  void _handleDrag(BuildContext context, DragUpdateDetails details) {
+    // Implement drag logic to update task dates
+    setState(() {
+      // Calculate new start and end dates based on drag
+      // This is a simplified example
+      final pixelToDateRatio = 1; // adjust based on your timeline scale
+      final dateDelta = Duration(days: (details.delta.dx * pixelToDateRatio).round());
+      
+      widget.startDate.add(dateDelta);
+      widget.endDate.add(dateDelta);
+    });
+  }
+
+  // Build dependency connection lines
+  Widget _buildDependencyLines(BuildContext context) {
+    return CustomPaint(
+      painter: DependencyLinePainter(
+        startPoint: Offset.zero, // Calculate actual start point
+        endPoints: [], // List of dependency connection points
+        color: widget.color, start: Offset.zero, end: Offset.zero,
+      ),
+    );
+  }
+  
+
+  // Calculate position and width for timeline rendering
+  double _calculatePosition(BuildContext context) {
+    //final ganttState = context.read<GanttState>();
+    //final totalDays = ganttState.viewEndDate.difference(ganttState.viewStartDate).inDays;
+    final taskStartDays = 1;//task.startDate.difference(ganttState.viewStartDate).inDays;
+    return taskStartDays * 50.0;
+  }
+  
+  /* Map<String, double> _calculatePosition(BuildContext context) {
+    // Assume total timeline width and start/end dates of entire project
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final timelineWidth = renderBox.size.width;
+    
+    // Example calculation (you'll need to adjust based on your specific timeline logic)
+    final totalProjectDuration = 365; // days
+    final taskDuration = widget.endDate.difference(widget.startDate).inDays;
+    
+    final startPosition = (widget.startDate.difference(DateTime(widget.startDate.year)).inDays / totalProjectDuration) * timelineWidth;
+    final itemWidth = (taskDuration / totalProjectDuration) * timelineWidth;
+
+    return {
+      'left': startPosition,
+      'width': itemWidth,
+    };
+  } */
+
+
+  /* Widget _buildTaskBar(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.blue,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: Text(task.name)),
+          CircleAvatar(
+            radius: 15,
+            backgroundImage: NetworkImage(task.assigneeAvatar!),
+          ),
+        ],
+      ),
+    );
+  } */
+
+  
+
+  double _calculateWidth(BuildContext context) {
+    final taskDays = task.endDate!.difference(task.startDate!).inDays;
+    return taskDays * 50.0;
+  }
+/* 
+  void _showContextMenu(BuildContext context, TapDownDetails details) {
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    
+    showMenu(
+      context: context,
+      position: RelativeRect.fromRect(
+        details.globalPosition & const Size(40, 40),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        PopupMenuItem(
+          child: const Text('Edit'),
+          onTap: () => _showEditDialog(context),
+        ),
+        PopupMenuItem(
+          child: const Text('Delete'),
+          onTap: () => _deleteTask(context),
+        ),
+      ],
+    );
+  } */
+
+
+  // Method to open task edit dialog
+  void _openTaskEditDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return TaskDialog(
+          initialTask: Task(
+            title: 'title',
+            description: '', // You might want to add description to the initial constructor
+            startDate: DateTime.now(),
+            endDate: DateTime.now(), id: '',
+          ),
+          onTaskSaved: (updatedTask) {
+            // Handle task update
+            // This could involve updating the task in a state management solution
+            // or calling a callback to update the parent widget
+            Navigator.of(dialogContext).pop();
+            
+            // Example of potential update mechanism
+            // taskBloc.add(UpdateTaskEvent(updatedTask));
+          },
+        );
+      },
+    );
+  }
+
+  // Method to delete task with confirmation
+  void _deleteTask(BuildContext context) {
+    // Show confirmation dialog before deletion
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete Task'),
+          content: Text('Are you sure you want to delete the task "${widget.title}"?'),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Delete'),
+              onPressed: () {
+                // Perform task deletion
+                // This could involve:
+                // 1. Removing from a list
+                // 2. Calling a state management method
+                // 3. Updating a database
+                
+                // Example of potential deletion mechanism
+                // taskBloc.add(DeleteTaskEvent(taskId));
+                
+                // Close confirmation dialog
+                Navigator.of(dialogContext).pop();
+                
+                // Optionally, close or update parent view
+                // Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Method to add task dependencies
+  void _addDependency(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return DependencySelectionDialog(
+          currentTask: Task(
+            title: widget.title,
+            description: '',
+            startDate: widget.startDate,
+            endDate: widget.endDate,
+          ),
+          onDependencyAdded: (dependentTask) {
+            // Handle adding dependency
+            // This could involve:
+            // 1. Updating task dependencies in a data model
+            // 2. Calling a state management method
+            // 3. Updating UI to show dependency lines
+            
+            // Example of potential dependency addition
+            // taskBloc.add(AddDependencyEvent(
+            //   parentTaskId: currentTask.id, 
+            //   dependentTaskId: dependentTask.id
+            // ));
+            
+            Navigator.of(dialogContext).pop();
+          },
+        );
+      },
+    );
+  }
+}
+
+
+
+
+/* 
+
+class TaskTimelineItem extends StatelessWidget {
+  final GanttTask task;
+
+  const TaskTimelineItem({required this.task, Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (details) => _showContextMenu(context, details),
+      child: Container(
+        height: 40,
+        margin: const EdgeInsets.symmetric(vertical: 2),
+        child: Stack(
+          children: [
+            Positioned(
+              left: _calculateLeftPosition(context),
+              width: _calculateWidth(context),
+              top: 0,
+              bottom: 0,
+              child: _buildTaskBar(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  void _showEditDialog(BuildContext context) {
+    // Implement edit dialog
+  }
+
+  void _deleteTask(BuildContext context) {
+    // Implement delete functionality
+  }
+} */
+================================================================================
+
+================================================================================
+task/task_tree_.dart
+Size: 1.6 KB | Modified: 2024-12-02 20:45:12
+--------------------------------------------------------------------------------
+// Tree View Implementation
+import 'package:flutter/material.dart';
+import 'package:flutter_treeview/flutter_treeview.dart';
+
+import 'task.dart';
+
+class TaskTreeView extends StatelessWidget {
+  final List<Task> tasks;
+  const TaskTreeView({super.key, required this.tasks});
+
+  @override
+  Widget build(BuildContext context) {
+    List<Node> _convertTasksToNodes(List<Task> tasks) {
+      Map<String, List<Task>> tasksByParent = {};
+      for (var task in tasks) {
+        tasksByParent.putIfAbsent(task.parentId ?? 'root', () => []).add(task);
+      }
+
+      List<Node> buildNodes(String parentId) {
+        final children = tasksByParent[parentId] ?? [];
+        return children.map((task) {
+          return Node(
+            key: task.id!,
+            label: task.name!,
+            expanded: task.isExpanded!,
+            children: buildNodes(task.id!),
+            data: task,
+          );
+        }).toList();
+      }
+
+      return buildNodes('root');
+    }
+
+    final nodes = _convertTasksToNodes(tasks);
+    TreeViewController controller = TreeViewController();
+    return TreeView(
+      //nodes: nodes,
+      nodeBuilder: (p0, p1) {
+        return Column(
+          children: tasks.map((e) => Text(e.title)).toList(),
+        );
+      },
+      onNodeTap: (key) {
+        // Handle node tap
+      },
+      theme: const TreeViewTheme(
+        expanderTheme: ExpanderThemeData(
+          type: ExpanderType.caret,
+          modifier: ExpanderModifier.circleFilled,
+          position: ExpanderPosition.start,
+          color: Colors.blue,
+          size: 20,
+        ),
+      ),
+      controller: controller,
+    );
+  }
+}
+
+================================================================================
+
+================================================================================
+task/task_tree_view.dart
+Size: 3.3 KB | Modified: 2024-12-02 18:43:18
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+import 'task.dart';
+
+class TaskTreeView extends StatefulWidget {
+  final List<Task> tasks;
+  final Function(Task) onTaskSelected;
+
+  const TaskTreeView(
+      {super.key, required this.tasks, required this.onTaskSelected});
+
+  @override
+  TaskTreeViewState createState() => TaskTreeViewState();
+}
+
+class TaskTreeViewState extends State<TaskTreeView> {
+  // Track expanded nodes
+  final Set<String> _expandedNodes = {};
+
+  @override
+  Widget build(BuildContext context) {
+    // Build hierarchical tree of tasks
+    List<Task> rootTasks = _buildTaskHierarchy(widget.tasks);
+
+    return ListView.builder(
+      itemCount: rootTasks.length,
+      itemBuilder: (context, index) {
+        return _buildTaskNode(rootTasks[index]);
+      },
+    );
+  }
+
+  Widget _buildTaskNode(Task task, {int depth = 0}) {
+    bool isExpanded = _expandedNodes.contains(task.id);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () {
+            widget.onTaskSelected(task);
+
+            // Toggle node expansion
+            setState(() {
+              if (_expandedNodes.contains(task.id)) {
+                _expandedNodes.remove(task.id);
+              } else {
+                _expandedNodes.add(task.id!);
+              }
+            });
+          },
+          child: Padding(
+            padding: EdgeInsets.only(left: depth * 16.0),
+            child: Row(
+              children: [
+                // Expand/collapse icon
+                Icon(
+                  task.subTasks!.isNotEmpty
+                      ? (isExpanded ? Icons.expand_more : Icons.chevron_right)
+                      : Icons.fiber_manual_record,
+                  size: 16,
+                ),
+
+                // Task details
+                Expanded(
+                  child: Text(
+                    task.name!,
+                    style: TextStyle(
+                        fontWeight: task.subTasks!.isNotEmpty
+                            ? FontWeight.bold
+                            : FontWeight.normal),
+                  ),
+                ),
+
+                // Progress indicator
+                CircularProgressIndicator(
+                  value: task.progress! / 100,
+                  backgroundColor: Colors.grey[300],
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                      _getProgressColor(task.progress!)),
+                  semanticsLabel: 'Task progress',
+                  semanticsValue: '${task.progress!}%',
+                )
+              ],
+            ),
+          ),
+        ),
+
+        // Recursively show subtasks if expanded
+        if (isExpanded && task.subTasks!.isNotEmpty)
+          ...task.subTasks!
+              .map((subTask) => _buildTaskNode(subTask, depth: depth + 1)),
+      ],
+    );
+  }
+
+  // Builds task hierarchy
+  List<Task> _buildTaskHierarchy(List<Task> tasks) {
+    // Group tasks by parent
+    Map<String?, List<Task>> taskGroups = {};
+    for (var task in tasks) {
+      taskGroups.putIfAbsent(task.parentId, () => []).add(task);
+    }
+
+    // Find root tasks (tasks without parent)
+    return taskGroups[null] ?? [];
+  }
+
+  // Color-coded progress indicator
+  Color _getProgressColor(double progress) {
+    if (progress < 25) return Colors.red;
+    if (progress < 50) return Colors.orange;
+    if (progress < 75) return Colors.yellow;
+    return Colors.green;
+  }
+}
+
+================================================================================
+
+================================================================================
+timeline/timeline_grid.dart
+Size: 1.4 KB | Modified: 2024-12-01 06:13:35
+--------------------------------------------------------------------------------
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+class TimelineGrid extends StatelessWidget {
+  final DateTime startDate;
+  final DateTime endDate;
+  final double cellWidth;
+  final double headerHeight;
+
+  const TimelineGrid({
+    super.key,
+    required this.startDate,
+    required this.endDate,
+    this.cellWidth = 50.0,
+    this.headerHeight = 40.0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final daysBetween = endDate.difference(startDate).inDays;
+    
+    return Container(
+      height: headerHeight,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: daysBetween + 1,
+        itemBuilder: (context, index) {
+          final date = startDate.add(Duration(days: index));
+          return Container(
+            width: cellWidth,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  DateFormat('d').format(date),
+                  style: const TextStyle(fontSize: 12),
+                ),
+                Text(
+                  DateFormat('E').format(date),
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+================================================================================
+
+================================================================================
+timeline/timeline_header.dart
+Size: 755 B | Modified: 2024-12-01 10:08:58
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+class TimelineHeader extends StatelessWidget {
+  final DateTime date;
+  final int days;
+  const TimelineHeader({super.key, required this.date, required this.days});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 50,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: days,
+        itemBuilder: (context, index) {
+          return SizedBox(
+            width: 50,
+            child: Column(
+              children: [
+                Text(DateFormat('d').format(date)),
+                Text(DateFormat('MMM').format(date)),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+================================================================================
+
+================================================================================
+timeline/timeline_toolbar.dart
+Size: 1.4 KB | Modified: 2025-11-01 23:43:21
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+
+import '../color/export_button.dart';
+import '../filter/filter_button.dart';
+
+class TimelineToolbar extends StatelessWidget {
+  final DateTime startDate;
+  final DateTime endDate;
+  final onZoomIn;
+  final toggleCriticalPath;
+  final onZoomOut;
+
+  final currentFilters;
+  const TimelineToolbar(
+      {super.key,
+      required this.startDate,
+      required this.endDate,
+      this.onZoomIn,
+      this.toggleCriticalPath,
+      this.onZoomOut,
+      this.currentFilters});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        IconButton(
+            icon: const Icon(Icons.zoom_in),
+            onPressed: () =>
+                onZoomIn //() => ganttState.setZoomLevel(ganttState.zoomLevel + 0.1),
+            ),
+        IconButton(
+            icon: const Icon(Icons.zoom_out),
+            onPressed: () =>
+                onZoomOut //ganttState.setZoomLevel(ganttState.zoomLevel - 0.1),
+            ),
+        IconButton(
+            icon: const Icon(Icons.route),
+            onPressed: () => toggleCriticalPath //ganttState.toggleCriticalPath,
+            ),
+        FilterButton(
+          onFilterChange: (FilterOptions) {},
+          currentFilters: currentFilters,
+        ),
+        ExportButton(
+          tasks: [],
+          startDate: startDate,
+          endDate: endDate,
+        ),
+      ],
+    );
+  }
+}
+
+================================================================================
+
+================================================================================
+timeline/timeline_view.dart
+Size: 4.4 KB | Modified: 2025-11-01 23:48:49
+--------------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../task/task.dart';
+
+class TimelineView extends StatefulWidget {
+  final List<Task> tasks;
+  final Function(Task) onTaskSelected;
+
+  const TimelineView(
+      {super.key,
+      required this.tasks,
+      required this.onTaskSelected,
+      required Timeline timeline});
+
+  @override
+  TimelineViewState createState() => TimelineViewState();
+}
+
+class TimelineViewState extends State<TimelineView> {
+  // View modes
+  TimelineViewMode _currentViewMode = TimelineViewMode.week;
+
+  @override
+  Widget build(BuildContext context) {
+    // Determine date range for entire project
+    DateTime projectStart = _getProjectStartDate(widget.tasks);
+    DateTime projectEnd = _getProjectEndDate(widget.tasks);
+
+    return Column(
+      children: [
+        // View mode selector
+        _buildViewModeSelector(),
+
+        // Timeline header with dates
+        _buildTimelineHeader(projectStart, projectEnd),
+
+        // Expanded timeline view
+        Expanded(
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: widget.tasks.length,
+            itemBuilder: (context, index) {
+              return _buildTimelineRow(widget.tasks[index], projectStart);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildViewModeSelector() {
+    return ToggleButtons(
+      isSelected: [
+        _currentViewMode == TimelineViewMode.week,
+        _currentViewMode == TimelineViewMode.month,
+        _currentViewMode == TimelineViewMode.quarter
+      ],
+      onPressed: (index) {
+        setState(() {
+          switch (index) {
+            case 0:
+              _currentViewMode = TimelineViewMode.week;
+              break;
+            case 1:
+              _currentViewMode = TimelineViewMode.month;
+              break;
+            case 2:
+              _currentViewMode = TimelineViewMode.quarter;
+              break;
+          }
+        });
+      },
+      children: const [Text('Week'), Text('Month'), Text('Quarter')],
+    );
+  }
+
+  Widget _buildTimelineHeader(DateTime start, DateTime end) {
+    return Row(
+      children: _generateDateMarkers(start, end),
+    );
+  }
+
+  Widget _buildTimelineRow(Task task, DateTime projectStart) {
+    return Container(
+      width: _calculateTaskWidth(task, projectStart),
+      decoration: BoxDecoration(
+          color: _getTaskColor(task),
+          border: Border.all(color: Colors.black26)),
+      child: Text(
+        task.name!,
+        style: const TextStyle(fontSize: 12),
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  List<Widget> _generateDateMarkers(DateTime start, DateTime end) {
+    List<Widget> markers = [];
+    DateTime current = start;
+
+    while (current.isBefore(end)) {
+      markers.add(Text(
+        _formatDateForView(current),
+        style: const TextStyle(fontSize: 10),
+      ));
+
+      current = _incrementDateBasedOnView(current);
+    }
+    return markers;
+  }
+
+  // Utility methods
+  DateTime _getProjectStartDate(List<Task> tasks) {
+    return tasks
+        .map((t) => t.startDate!)
+        .reduce((a, b) => a.isBefore(b) ? a : b);
+  }
+
+  DateTime _getProjectEndDate(List<Task> tasks) {
+    return tasks.map((t) => t.endDate!).reduce((a, b) => a.isAfter(b) ? a : b);
+  }
+
+  double _calculateTaskWidth(Task task, DateTime projectStart) {
+    return task.startDate!.difference(projectStart).inDays.toDouble();
+  }
+
+  Color _getTaskColor(Task task) {
+    if (task.progress! < 25) return Colors.red.shade100;
+    if (task.progress! < 50) return Colors.orange.shade100;
+    if (task.progress! < 75) return Colors.yellow.shade100;
+    return Colors.green.shade100;
+  }
+
+  String _formatDateForView(DateTime date) {
+    switch (_currentViewMode) {
+      case TimelineViewMode.week:
+        return DateFormat('EEE dd').format(date);
+      case TimelineViewMode.month:
+        return DateFormat('MMM').format(date);
+      case TimelineViewMode.quarter:
+        return 'Q${((date.month - 1) ~/ 3) + 1}';
+    }
+  }
+
+  DateTime _incrementDateBasedOnView(DateTime current) {
+    switch (_currentViewMode) {
+      case TimelineViewMode.week:
+        return current.add(const Duration(days: 7));
+      case TimelineViewMode.month:
+        return DateTime(current.year, current.month + 1);
+      case TimelineViewMode.quarter:
+        return DateTime(current.year, current.month + 3);
+    }
+  }
+}
+
+// Enum for view modes
+enum TimelineViewMode { week, month, quarter }
+
+================================================================================
+
+================================================================================
+timeline/timeview
+Size: 2.1 KB | Modified: 2024-12-02 07:20:24
+--------------------------------------------------------------------------------
+// Enhanced Timeline View
+import 'package:flutter/material.dart';
+
+import '../criticalpat_overlay.dart';
+import '../gantt_state.dart';
+import '../models/gantt_task.dart';
+import '../models/task.dart';
+import '../task_timeline_item.dart';
+import '../timeline_toolbar.dart';
+import 'timeline_grid.dart';
+import 'timeline_header.dart';
+
+class TimelineView extends StatelessWidget {
+  final Timeline timeline;
+  final List<GanttTask> tasks;
+  const TimelineView(
+      {super.key,
+      required this.timeline, required this.tasks});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+         TimelineToolbar(startDate: timeline.startDate, endDate: timeline.endDate,),
+        TimelineHeader(
+          date: DateTime.now(),
+          days: 12,
+        ),
+        Expanded(
+          child: Stack(
+            children: [
+              TimelineGrid(
+                startDate: timeline.startDate,
+                endDate: timeline.endDate,
+              ),
+              if (timeline.showCriticalPath)
+                const CriticalPathOverlay(
+                  tasks: [],
+                ),
+              ListView.builder(
+                itemCount: tasks.length,
+                itemBuilder: (context, index) {
+                  return TaskTimelineItem(
+                    task: tasks[index],
+                    title: 'ini judul',
+                    startDate: timeline.startDate,
+                    endDate: timeline.endDate,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+
+
+
+
+/* 
+// Timeline Implementation
+class TimelineView extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final ganttState = context.watch<GanttState>();
+    
+    return Column(
+      children: [
+        // Timeline Header
+        const TimelineHeader(),
+        // Timeline Grid
+        Expanded(
+          child: ListView.builder(
+            itemCount: ganttState.tasks.length,
+            itemBuilder: (context, index) {
+              return TaskTimelineItem(task: ganttState.tasks[index]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+ */
+================================================================================
+
+
+=== SUMMARY ===
+Files processed: 53
+Directories scanned: 15
+Total input size: 127.9 KB
+Output size: 144.3 KB
+Processing time: 0.01 seconds

@@ -1,0 +1,1 @@
+ public record ToggleAliasRequest(boolean isActive) {}

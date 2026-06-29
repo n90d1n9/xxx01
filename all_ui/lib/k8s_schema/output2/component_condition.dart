@@ -1,0 +1,28 @@
+class ComponentCondition {
+  final String type;
+  final String status;
+  final String? message;
+  final String? error;
+  ComponentCondition({
+    required this.type,
+    required this.status,
+    this.message,
+    this.error,
+  });
+  factory ComponentCondition.fromJson(Map<String, dynamic> json) {
+    return ComponentCondition(
+      type: json['type'],
+      status: json['status'],
+      message: json['message'],
+      error: json['error'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'type': type,
+      'status': status,
+      if (message != null) 'message': message,
+      if (error != null) 'error': error,
+    };
+  }
+}

@@ -1,0 +1,18 @@
+package com.estate.faraid
+
+global Map shares;
+global Map reasons;
+global List executionLog;
+
+rule "Ultra Simple Son Rule"
+    salience 100
+    agenda-group "fixed-shares"
+    when
+        $son: FamilyMember(relationName == "son", isDeceased == false)
+    then
+        print("🎯 ULTRA SIMPLE RULE FIRED for: " + $son.name);
+        shares[$son.id] = 1.0;
+        reasons[$son.id] = "Ultra simple rule worked!";
+        executionLog.add("Ultra simple rule fired");
+        print("✅ Share assigned: " + $son.name + " gets " + shares[$son.id]);
+end

@@ -1,0 +1,70 @@
+import 'selinux_options.dart';
+import 'capabilities.dart';
+
+class SecurityContext {
+  final SELinuxOptions? seLinuxOptions;
+  final int? runAsUser;
+  final int? runAsGroup;
+  final bool? runAsNonRoot;
+  final List<int>? supplementalGroups;
+  final int? fsGroup;
+  final Capabilities? capabilities;
+  final bool? privileged;
+  final bool? readOnlyRootFilesystem;
+  final bool? allowPrivilegeEscalation;
+  final String? procMount;
+  SecurityContext({
+    this.seLinuxOptions,
+    this.runAsUser,
+    this.runAsGroup,
+    this.runAsNonRoot,
+    this.supplementalGroups,
+    this.fsGroup,
+    this.capabilities,
+    this.privileged,
+    this.readOnlyRootFilesystem,
+    this.allowPrivilegeEscalation,
+    this.procMount,
+  });
+  factory SecurityContext.fromJson(Map<String, dynamic> json) {
+    return SecurityContext(
+      seLinuxOptions:
+          json['seLinuxOptions'] != null
+              ? SELinuxOptions.fromJson(json['seLinuxOptions'])
+              : null,
+      runAsUser: json['runAsUser'],
+      runAsGroup: json['runAsGroup'],
+      runAsNonRoot: json['runAsNonRoot'],
+      supplementalGroups:
+          json['supplementalGroups'] != null
+              ? List<int>.from(json['supplementalGroups'])
+              : null,
+      fsGroup: json['fsGroup'],
+      capabilities:
+          json['capabilities'] != null
+              ? Capabilities.fromJson(json['capabilities'])
+              : null,
+      privileged: json['privileged'],
+      readOnlyRootFilesystem: json['readOnlyRootFilesystem'],
+      allowPrivilegeEscalation: json['allowPrivilegeEscalation'],
+      procMount: json['procMount'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (seLinuxOptions != null) 'seLinuxOptions': seLinuxOptions!.toJson(),
+      if (runAsUser != null) 'runAsUser': runAsUser,
+      if (runAsGroup != null) 'runAsGroup': runAsGroup,
+      if (runAsNonRoot != null) 'runAsNonRoot': runAsNonRoot,
+      if (supplementalGroups != null) 'supplementalGroups': supplementalGroups,
+      if (fsGroup != null) 'fsGroup': fsGroup,
+      if (capabilities != null) 'capabilities': capabilities!.toJson(),
+      if (privileged != null) 'privileged': privileged,
+      if (readOnlyRootFilesystem != null)
+        'readOnlyRootFilesystem': readOnlyRootFilesystem,
+      if (allowPrivilegeEscalation != null)
+        'allowPrivilegeEscalation': allowPrivilegeEscalation,
+      if (procMount != null) 'procMount': procMount,
+    };
+  }
+}

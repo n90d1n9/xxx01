@@ -1,0 +1,265 @@
+// ==================== ROBUST PLUGIN SYSTEM ====================
+// Future-proof, extensible plugin architecture for node executors
+
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+
+// ==================== PLUGIN METADATA ====================
+
+
+
+// ==================== PLUGIN INTERFACE ====================
+
+
+
+
+// ==================== NODE EXECUTOR INTERFACE ====================
+
+class NodeSchema {
+  final String name;
+  final String description;
+  final String category;
+  final IconData icon;
+  final Color color;
+  final List<PortSchema> inputs;
+  final List<PortSchema> outputs;
+  final List<ConfigFieldSchema> configFields;
+  final List<String> requiredSecrets;
+  final Map<String, dynamic> examples;
+
+  NodeSchema({
+    required this.name,
+    required this.description,
+    required this.category,
+    required this.icon,
+    required this.color,
+    required this.inputs,
+    required this.outputs,
+    this.configFields = const [],
+    this.requiredSecrets = const [],
+    this.examples = const {},
+  });
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'description': description,
+        'category': category,
+        'inputs': inputs.map((i) => i.toJson()).toList(),
+        'outputs': outputs.map((o) => o.toJson()).toList(),
+        'configFields': configFields.map((c) => c.toJson()).toList(),
+        'requiredSecrets': requiredSecrets,
+        'examples': examples,
+      };
+}
+
+class PortSchema {
+  final String id;
+  final String name;
+  final String description;
+  final PortType type;
+  final bool required;
+  final dynamic defaultValue;
+
+  PortSchema({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.type,
+    this.required = true,
+    this.defaultValue,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'type': type.toString(),
+        'required': required,
+        'defaultValue': defaultValue,
+      };
+}
+
+enum PortType { string, number, boolean, object, array, any, file, stream }
+
+class ConfigFieldSchema {
+  final String key;
+  final String label;
+  final String description;
+  final FieldType type;
+  final bool required;
+  final dynamic defaultValue;
+  final List<dynamic>? options;
+  final Map<String, dynamic>? validation;
+
+  ConfigFieldSchema({
+    required this.key,
+    required this.label,
+    required this.description,
+    required this.type,
+    this.required = false,
+    this.defaultValue,
+    this.options,
+    this.validation,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        'label': label,
+        'description': description,
+        'type': type.toString(),
+        'required': required,
+        'defaultValue': defaultValue,
+        'options': options,
+        'validation': validation,
+      };
+}
+
+enum FieldType {
+  text,
+  number,
+  boolean,
+  select,
+  multiSelect,
+  textarea,
+  password,
+  json,
+  code,
+  file,
+  date,
+  datetime,
+  color,
+  url,
+  email
+}
+
+
+
+
+
+
+// ==================== PLUGIN REGISTRY ====================
+
+
+// ==================== SUPPORTING CLASSES ====================
+
+
+
+
+
+
+// ==================== EXCEPTIONS ====================
+
+
+// ==================== EXAMPLE USAGE ====================
+
+void exampleUsage() async {
+  final registry = PluginRegistry();
+
+  // Register a plugin
+  final myPlugin = ExamplePlugin();
+  await registry.registerPlugin(myPlugin);
+
+  // Get an executor
+  final executor = registry.getExecutor('example_node');
+
+  // Execute a node
+  if (executor != null) {
+    final context = NodeExecutionContext(
+      nodeId: 'node-1',
+      workflowId: 'workflow-1',
+      executionId: 'exec-1',
+      inputs: {'data': 'test'},
+      config: {},
+      secrets: {},
+      variables: {},
+    );
+
+    final result = await executor.execute(context);
+    print('Execution result: ${result.status}');
+  }
+}
+
+// Example plugin implementation
+class ExamplePlugin implements NodePlugin {
+  @override
+  PluginMetadata get metadata => PluginMetadata(
+        id: 'example-plugin',
+        name: 'Example Plugin',
+        version: '1.0.0',
+        description: 'An example plugin',
+        author: 'Developer',
+        tags: ['example'],
+        capabilities: PluginCapabilities(),
+        createdAt: DateTime.now(),
+      );
+
+  @override
+  Future<void> initialize(PluginContext context) async {
+    context.logger.info('Example plugin initialized');
+  }
+
+  @override
+  Future<void> dispose() async {
+    // Cleanup
+  }
+
+  @override
+  List<NodeExecutor> getExecutors() {
+    return [ExampleExecutor()];
+  }
+}
+
+class ExampleExecutor implements NodeExecutor {
+  @override
+  String get nodeType => 'example_node';
+
+  @override
+  NodeSchema get schema => NodeSchema(
+        name: 'Example Node',
+        description: 'An example node executor',
+        category: 'Example',
+        icon: Icons.star,
+        color: Colors.blue,
+        inputs: [
+          PortSchema(
+            id: 'input',
+            name: 'Input',
+            description: 'Input data',
+            type: PortType.any,
+          ),
+        ],
+        outputs: [
+          PortSchema(
+            id: 'output',
+            name: 'Output',
+            description: 'Output data',
+            type: PortType.any,
+          ),
+        ],
+      );
+
+  @override
+  Future<NodeExecutionResult> execute(NodeExecutionContext context) async {
+    final startTime = DateTime.now();
+
+    try {
+      // Your execution logic here
+      final output = {'result': 'success', 'data': context.inputs['data']};
+
+      return NodeExecutionResult.success(
+        context.nodeId,
+        output,
+        DateTime.now().difference(startTime),
+      );
+    } catch (e) {
+      return NodeExecutionResult.failure(
+        context.nodeId,
+        e.toString(),
+        DateTime.now().difference(startTime),
+      );
+    }
+  }
+}
+
+

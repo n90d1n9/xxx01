@@ -1,0 +1,2029 @@
+// pubspec.yaml dependencies:
+// flutter_riverpod: ^2.4.0
+// go_router: ^12.0.0
+// freezed_annotation: ^2.4.1
+// json_annotation: ^4.8.1
+// fl_chart: ^0.65.0
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:math' as math;
+
+// ==================== MODELS WITH FREEZED-STYLE ====================
+
+class User {
+  final String id;
+  final String name;
+  final String email;
+  final String avatar;
+  final UserRole role;
+  final DateTime joinedDate;
+
+  User({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.avatar,
+    required this.role,
+    required this.joinedDate,
+  });
+
+  User copyWith({String? name, String? email, UserRole? role}) {
+    return User(
+      id: id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      avatar: avatar,
+      role: role ?? this.role,
+      joinedDate: joinedDate,
+    );
+  }
+}
+
+enum UserRole { student, instructor, admin }
+
+class CourseSchema {
+  final String id;
+  final String title;
+  final String description;
+  final String instructorId;
+  final String thumbnail;
+  final String category;
+  final DifficultyLevel difficulty;
+  final List<String> tags;
+  final List<ModuleSchema> modules;
+  final DateTime createdAt;
+  final DateTime? publishedAt;
+  final CourseStatus status;
+  final int enrolledCount;
+  final double rating;
+
+  CourseSchema({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.instructorId,
+    required this.thumbnail,
+    required this.category,
+    required this.difficulty,
+    required this.tags,
+    required this.modules,
+    required this.createdAt,
+    this.publishedAt,
+    required this.status,
+    this.enrolledCount = 0,
+    this.rating = 0.0,
+  });
+
+  CourseSchema copyWith({
+    String? title,
+    String? description,
+    List<ModuleSchema>? modules,
+    CourseStatus? status,
+    DateTime? publishedAt,
+  }) {
+    return CourseSchema(
+      id: id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      instructorId: instructorId,
+      thumbnail: thumbnail,
+      category: category,
+      difficulty: difficulty,
+      tags: tags,
+      modules: modules ?? this.modules,
+      createdAt: createdAt,
+      publishedAt: publishedAt ?? this.publishedAt,
+      status: status ?? this.status,
+      enrolledCount: enrolledCount,
+      rating: rating,
+    );
+  }
+
+  int get totalLessons => modules.fold(0, (sum, m) => sum + m.lessons.length);
+  Duration get totalDuration => modules.fold(
+    Duration.zero,
+    (sum, m) => sum + m.lessons.fold(Duration.zero, (s, l) => s + l.duration),
+  );
+}
+
+enum CourseStatus { draft, review, published, archived }
+enum DifficultyLevel { beginner, intermediate, advanced }
+
+class ModuleSchema {
+  final String id;
+  final String title;
+  final String description;
+  final int order;
+  final List<LessonSchema> lessons;
+
+  ModuleSchema({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.order,
+    required this.lessons,
+  });
+
+  ModuleSchema copyWith({String? title, List<LessonSchema>? lessons}) {
+    return ModuleSchema(
+      id: id,
+      title: title ?? this.title,
+      description: description,
+      order: order,
+      lessons: lessons ?? this.lessons,
+    );
+  }
+}
+
+class LessonSchema {
+  final String id;
+  final String title;
+  final String description;
+  final LessonType type;
+  final Duration duration;
+  final int order;
+  final String? videoUrl;
+  final String? content;
+  final QuizSchema? quiz;
+
+  LessonSchema({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.type,
+    required this.duration,
+    required this.order,
+    this.videoUrl,
+    this.content,
+    this.quiz,
+  });
+}
+
+enum LessonType { video, text, quiz, assignment }
+
+class QuizSchema {
+  final String id;
+  final List<QuestionSchema> questions;
+  final int passingScore;
+
+  QuizSchema({
+    required this.id,
+    required this.questions,
+    required this.passingScore,
+  });
+}
+
+class QuestionSchema {
+  final String id;
+  final String question;
+  final List<String> options;
+  final int correctAnswer;
+
+  QuestionSchema({
+    required this.id,
+    required this.question,
+    required this.options,
+    required this.correctAnswer,
+  });
+}
+
+class Enrollment {
+  final String id;
+  final String userId;
+  final String courseId;
+  final DateTime enrolledAt;
+  final double progress;
+  final Map<String, bool> completedLessons;
+  final DateTime? lastAccessedAt;
+
+  Enrollment({
+    required this.id,
+    required this.userId,
+    required this.courseId,
+    required this.enrolledAt,
+    required this.progress,
+    required this.completedLessons,
+    this.lastAccessedAt,
+  });
+
+  Enrollment copyWith({
+    double? progress,
+    Map<String, bool>? completedLessons,
+    DateTime? lastAccessedAt,
+  }) {
+    return Enrollment(
+      id: id,
+      userId: userId,
+      courseId: courseId,
+      enrolledAt: enrolledAt,
+      progress: progress ?? this.progress,
+      completedLessons: completedLessons ?? this.completedLessons,
+      lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+    );
+  }
+}
+
+class DashboardStats {
+  final int totalCourses;
+  final int activeCourses;
+  final int completedCourses;
+  final int totalStudents;
+  final double avgProgress;
+  final List<CategoryStats> categoryBreakdown;
+
+  DashboardStats({
+    required this.totalCourses,
+    required this.activeCourses,
+    required this.completedCourses,
+    required this.totalStudents,
+    required this.avgProgress,
+    required this.categoryBreakdown,
+  });
+}
+
+class CategoryStats {
+  final String category;
+  final int count;
+  final Color color;
+
+  CategoryStats({
+    required this.category,
+    required this.count,
+    required this.color,
+  });
+}
+
+// ==================== PROVIDERS ====================
+
+final currentUserProvider = StateProvider<User>((ref) {
+  return User(
+    id: '1',
+    name: 'Alex Thompson',
+    email: 'alex@example.com',
+    avatar: '👨‍💻',
+    role: UserRole.instructor,
+    joinedDate: DateTime(2023, 1, 15),
+  );
+});
+
+final coursesProvider = StateNotifierProvider<CoursesNotifier, AsyncValue<List<CourseSchema>>>((ref) {
+  return CoursesNotifier();
+});
+
+final enrollmentsProvider = StateNotifierProvider<EnrollmentsNotifier, List<Enrollment>>((ref) {
+  return EnrollmentsNotifier();
+});
+
+final selectedCourseProvider = StateProvider<CourseSchema?>((ref) => null);
+
+final dashboardStatsProvider = Provider<DashboardStats>((ref) {
+  final courses = ref.watch(coursesProvider).value ?? [];
+  final enrollments = ref.watch(enrollmentsProvider);
+  
+  final published = courses.where((c) => c.status == CourseStatus.published).length;
+  final totalStudents = courses.fold(0, (sum, c) => sum + c.enrolledCount);
+  final avgProgress = enrollments.isEmpty 
+      ? 0.0 
+      : enrollments.fold(0.0, (sum, e) => sum + e.progress) / enrollments.length;
+
+  final categoryMap = <String, int>{};
+  for (var course in courses) {
+    categoryMap[course.category] = (categoryMap[course.category] ?? 0) + 1;
+  }
+
+  final colors = [
+    const Color(0xFF6366F1),
+    const Color(0xFFEC4899),
+    const Color(0xFF10B981),
+    const Color(0xFFF59E0B),
+    const Color(0xFF8B5CF6),
+  ];
+
+  final categoryStats = categoryMap.entries.map((e) {
+    final index = categoryMap.keys.toList().indexOf(e.key);
+    return CategoryStats(
+      category: e.key,
+      count: e.value,
+      color: colors[index % colors.length],
+    );
+  }).toList();
+
+  return DashboardStats(
+    totalCourses: courses.length,
+    activeCourses: published,
+    completedCourses: courses.where((c) => c.status == CourseStatus.published).length,
+    totalStudents: totalStudents,
+    avgProgress: avgProgress,
+    categoryBreakdown: categoryStats,
+  );
+});
+
+// ==================== STATE NOTIFIERS ====================
+
+class CoursesNotifier extends StateNotifier<AsyncValue<List<CourseSchema>>> {
+  CoursesNotifier() : super(const AsyncValue.loading()) {
+    _loadCourses();
+  }
+
+  Future<void> _loadCourses() async {
+    state = const AsyncValue.loading();
+    await Future.delayed(const Duration(milliseconds: 800));
+    state = AsyncValue.data(_mockCourses);
+  }
+
+  static final _mockCourses = [
+    CourseSchema(
+      id: '1',
+      title: 'Advanced Flutter Architecture',
+      description: 'Master clean architecture, TDD, and advanced patterns',
+      instructorId: '1',
+      thumbnail: '📱',
+      category: 'Development',
+      difficulty: DifficultyLevel.advanced,
+      tags: ['Flutter', 'Architecture', 'Clean Code'],
+      modules: [
+        ModuleSchema(
+          id: 'm1',
+          title: 'Introduction to Clean Architecture',
+          description: 'Learn the fundamentals',
+          order: 1,
+          lessons: [
+            LessonSchema(
+              id: 'l1',
+              title: 'What is Clean Architecture?',
+              description: 'Understanding the principles',
+              type: LessonType.video,
+              duration: const Duration(minutes: 15),
+              order: 1,
+              videoUrl: 'https://example.com/video1',
+            ),
+            LessonSchema(
+              id: 'l2',
+              title: 'Layers and Dependencies',
+              description: 'Breaking down the layers',
+              type: LessonType.video,
+              duration: const Duration(minutes: 20),
+              order: 2,
+            ),
+          ],
+        ),
+        ModuleSchema(
+          id: 'm2',
+          title: 'State Management Deep Dive',
+          description: 'Mastering Riverpod',
+          order: 2,
+          lessons: [
+            LessonSchema(
+              id: 'l3',
+              title: 'Provider Types',
+              description: 'Understanding different providers',
+              type: LessonType.video,
+              duration: const Duration(minutes: 25),
+              order: 1,
+            ),
+          ],
+        ),
+      ],
+      createdAt: DateTime(2024, 1, 15),
+      publishedAt: DateTime(2024, 2, 1),
+      status: CourseStatus.published,
+      enrolledCount: 1245,
+      rating: 4.8,
+    ),
+    CourseSchema(
+      id: '2',
+      title: 'UI/UX Design System Mastery',
+      description: 'Build scalable design systems from scratch',
+      instructorId: '1',
+      thumbnail: '🎨',
+      category: 'Design',
+      difficulty: DifficultyLevel.intermediate,
+      tags: ['Design Systems', 'UI', 'Figma'],
+      modules: [
+        ModuleSchema(
+          id: 'm3',
+          title: 'Design Tokens',
+          description: 'Creating a token system',
+          order: 1,
+          lessons: [
+            LessonSchema(
+              id: 'l4',
+              title: 'Color Systems',
+              description: 'Building color palettes',
+              type: LessonType.video,
+              duration: const Duration(minutes: 18),
+              order: 1,
+            ),
+          ],
+        ),
+      ],
+      createdAt: DateTime(2024, 2, 10),
+      publishedAt: DateTime(2024, 3, 1),
+      status: CourseStatus.published,
+      enrolledCount: 892,
+      rating: 4.6,
+    ),
+  ];
+
+  void addCourse(CourseSchema course) {
+    state.whenData((courses) {
+      state = AsyncValue.data([...courses, course]);
+    });
+  }
+
+  void updateCourse(String id, CourseSchema updatedCourse) {
+    state.whenData((courses) {
+      state = AsyncValue.data([
+        for (final course in courses)
+          if (course.id == id) updatedCourse else course,
+      ]);
+    });
+  }
+
+  void deleteCourse(String id) {
+    state.whenData((courses) {
+      state = AsyncValue.data(courses.where((c) => c.id != id).toList());
+    });
+  }
+}
+
+class EnrollmentsNotifier extends StateNotifier<List<Enrollment>> {
+  EnrollmentsNotifier() : super(_mockEnrollments);
+
+  static final _mockEnrollments = [
+    Enrollment(
+      id: 'e1',
+      userId: '1',
+      courseId: '1',
+      enrolledAt: DateTime(2024, 3, 1),
+      progress: 0.65,
+      completedLessons: {'l1': true, 'l2': true},
+      lastAccessedAt: DateTime.now().subtract(const Duration(hours: 2)),
+    ),
+    Enrollment(
+      id: 'e2',
+      userId: '1',
+      courseId: '2',
+      enrolledAt: DateTime(2024, 3, 15),
+      progress: 0.30,
+      completedLessons: {'l4': true},
+      lastAccessedAt: DateTime.now().subtract(const Duration(days: 1)),
+    ),
+  ];
+
+  void updateProgress(String courseId, String lessonId, bool completed) {
+    state = [
+      for (final enrollment in state)
+        if (enrollment.courseId == courseId)
+          enrollment.copyWith(
+            completedLessons: {
+              ...enrollment.completedLessons,
+              lessonId: completed,
+            },
+            lastAccessedAt: DateTime.now(),
+          )
+        else
+          enrollment,
+    ];
+  }
+}
+
+// ==================== MAIN APP ====================
+
+void main() {
+  runApp(const ProviderScope(child: LMSApp()));
+}
+
+class LMSApp extends ConsumerWidget {
+  const LMSApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return MaterialApp(
+      title: 'Advanced LMS',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+        cardTheme: CardTheme(
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      ),
+      home: const MainNavigator(),
+    );
+  }
+}
+
+// ==================== MAIN NAVIGATOR ====================
+
+class MainNavigator extends ConsumerStatefulWidget {
+  const MainNavigator({super.key});
+
+  @override
+  ConsumerState<MainNavigator> createState() => _MainNavigatorState();
+}
+
+class _MainNavigatorState extends ConsumerState<MainNavigator> {
+  int _selectedIndex = 0;
+
+  final _screens = const [
+    DashboardScreen(),
+    CoursesListScreen(),
+    CourseBuilderScreen(),
+    AnalyticsScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Row(
+        children: [
+          NavigationRail(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: (index) {
+              setState(() => _selectedIndex = index);
+            },
+            extended: MediaQuery.of(context).size.width > 800,
+            backgroundColor: Colors.white,
+            destinations: const [
+              NavigationRailDestination(
+                icon: Icon(Icons.dashboard_outlined),
+                selectedIcon: Icon(Icons.dashboard),
+                label: Text('Dashboard'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.school_outlined),
+                selectedIcon: Icon(Icons.school),
+                label: Text('Courses'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.add_box_outlined),
+                selectedIcon: Icon(Icons.add_box),
+                label: Text('Builder'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.analytics_outlined),
+                selectedIcon: Icon(Icons.analytics),
+                label: Text('Analytics'),
+              ),
+            ],
+          ),
+          Expanded(child: _screens[_selectedIndex]),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== DASHBOARD SCREEN ====================
+
+class DashboardScreen extends ConsumerWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stats = ref.watch(dashboardStatsProvider);
+    final user = ref.watch(currentUserProvider);
+
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(context, user),
+              const SizedBox(height: 32),
+              _buildStatsGrid(context, stats),
+              const SizedBox(height: 32),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: _buildRecentActivity(context, ref),
+                  ),
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: _buildCategoryChart(context, stats),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, User user) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Welcome back, ${user.name}! 👋',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Here\'s what\'s happening with your courses',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Text(
+                user.avatar,
+                style: const TextStyle(fontSize: 24),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                user.role.name.toUpperCase(),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatsGrid(BuildContext context, DashboardStats stats) {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 4,
+      mainAxisSpacing: 16,
+      crossAxisSpacing: 16,
+      childAspectRatio: 1.5,
+      children: [
+        _buildStatCard(
+          context,
+          'Total Courses',
+          stats.totalCourses.toString(),
+          Icons.school,
+          const Color(0xFF6366F1),
+        ),
+        _buildStatCard(
+          context,
+          'Active Courses',
+          stats.activeCourses.toString(),
+          Icons.play_circle,
+          const Color(0xFF10B981),
+        ),
+        _buildStatCard(
+          context,
+          'Total Students',
+          stats.totalStudents.toString(),
+          Icons.people,
+          const Color(0xFFEC4899),
+        ),
+        _buildStatCard(
+          context,
+          'Avg Progress',
+          '${(stats.avgProgress * 100).toInt()}%',
+          Icons.trending_up,
+          const Color(0xFFF59E0B),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentActivity(BuildContext context, WidgetRef ref) {
+    final enrollments = ref.watch(enrollmentsProvider);
+    
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Recent Activity',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ...enrollments.take(5).map((e) => _buildActivityItem(context, e)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivityItem(BuildContext context, Enrollment enrollment) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.play_circle_outline,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Course Progress Updated',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  _formatTimestamp(enrollment.lastAccessedAt ?? enrollment.enrolledAt),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${(enrollment.progress * 100).toInt()}%',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTimestamp(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
+  Widget _buildCategoryChart(BuildContext context, DashboardStats stats) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Course Categories',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ...stats.categoryBreakdown.map((cat) {
+            final total = stats.categoryBreakdown.fold(0, (sum, c) => sum + c.count);
+            final percentage = (cat.count / total * 100).toInt();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(cat.category, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Text('$percentage%', style: TextStyle(color: Colors.grey[600])),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: LinearProgressIndicator(
+                      value: cat.count / total,
+                      minHeight: 8,
+                      backgroundColor: Colors.grey[200],
+                      valueColor: AlwaysStoppedAnimation(cat.color),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== COURSES LIST SCREEN ====================
+
+class CoursesListScreen extends ConsumerWidget {
+  const CoursesListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final coursesAsync = ref.watch(coursesProvider);
+
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'All Courses',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: coursesAsync.when(
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (err, stack) => Center(child: Text('Error: $err')),
+                  data: (courses) {
+                    return GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 400,
+                        childAspectRatio: 1.2,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                      ),
+                      itemCount: courses.length,
+                      itemBuilder: (context, index) {
+                        return CourseCard(course: courses[index]);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class CourseCard extends ConsumerWidget {
+  final CourseSchema course;
+
+  const CourseCard({super.key, required this.course});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            ref.read(selectedCourseProvider.notifier).state = course;
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => CourseDetailScreen(course: course)),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Text(course.thumbnail, style: const TextStyle(fontSize: 28)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _getDifficultyColor(course.difficulty).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              course.difficulty.name.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: _getDifficultyColor(course.difficulty),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  course.title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  course.description,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const Spacer(),
+                Row(
+                  children: [
+                    Icon(Icons.people_outline, size: 16, color: Colors.grey[600]),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${course.enrolledCount} students',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                    const SizedBox(width: 16),
+                    Icon(Icons.star, size: 16, color: Colors.amber[600]),
+                    const SizedBox(width: 4),
+                    Text(
+                      course.rating.toString(),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getDifficultyColor(DifficultyLevel difficulty) {
+    switch (difficulty) {
+      case DifficultyLevel.beginner:
+        return const Color(0xFF10B981);
+      case DifficultyLevel.intermediate:
+        return const Color(0xFFF59E0B);
+      case DifficultyLevel.advanced:
+        return const Color(0xFFEF4444);
+    }
+  }
+}
+
+// ==================== COURSE BUILDER SCREEN ====================
+
+class CourseBuilderScreen extends ConsumerStatefulWidget {
+  const CourseBuilderScreen({super.key});
+
+  @override
+  ConsumerState<CourseBuilderScreen> createState() => _CourseBuilderScreenState();
+}
+
+class _CourseBuilderScreenState extends ConsumerState<CourseBuilderScreen> {
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  String _selectedCategory = 'Development';
+  DifficultyLevel _selectedDifficulty = DifficultyLevel.beginner;
+  final List<ModuleSchema> _modules = [];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: _buildBuilderForm(context),
+            ),
+            Expanded(
+              child: _buildPreview(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBuilderForm(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Create New Course',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 32),
+            _buildTextField('Course Title', _titleController, 'Enter course title'),
+            const SizedBox(height: 20),
+            _buildTextField(
+              'Description',
+              _descriptionController,
+              'Enter course description',
+              maxLines: 4,
+            ),
+            const SizedBox(height: 20),
+            _buildDropdown(
+              'Category',
+              _selectedCategory,
+              ['Development', 'Design', 'Data Science', 'Business', 'Marketing'],
+              (value) => setState(() => _selectedCategory = value!),
+            ),
+            const SizedBox(height: 20),
+            _buildDifficultySelector(),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Course Modules',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _addModule,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Module'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            ..._modules.asMap().entries.map((entry) {
+              return _buildModuleCard(entry.key, entry.value);
+            }),
+            const SizedBox(height: 32),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {},
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('Save as Draft'),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _publishCourse,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('Publish Course'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller,
+    String hint, {
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          maxLines: maxLines,
+          decoration: InputDecoration(
+            hintText: hint,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdown(
+    String label,
+    String value,
+    List<String> items,
+    void Function(String?) onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: value,
+          decoration: InputDecoration(
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+          items: items.map((item) {
+            return DropdownMenuItem(
+              value: item,
+              child: Text(item),
+            );
+          }).toList(),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDifficultySelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Difficulty Level',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: DifficultyLevel.values.map((level) {
+            final isSelected = _selectedDifficulty == level;
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: ChoiceChip(
+                label: Text(level.name.toUpperCase()),
+                selected: isSelected,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() => _selectedDifficulty = level);
+                  }
+                },
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModuleCard(int index, ModuleSchema module) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Module ${index + 1}: ${module.title}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    onPressed: () => _editModule(index),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    onPressed: () => _deleteModule(index),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            module.description,
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '${module.lessons.length} lessons',
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreview(BuildContext context) {
+    return Container(
+      color: const Color(0xFFF8FAFC),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Preview',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.image, size: 48, color: Colors.white54),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      _titleController.text.isEmpty
+                          ? 'Course Title'
+                          : _titleController.text,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _descriptionController.text.isEmpty
+                          ? 'Course description will appear here...'
+                          : _descriptionController.text,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        Chip(
+                          label: Text(_selectedCategory),
+                          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                        ),
+                        Chip(
+                          label: Text(_selectedDifficulty.name.toUpperCase()),
+                          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                        ),
+                      ],
+                    ),
+                    if (_modules.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Course Content',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ..._modules.map((module) => ListTile(
+                        leading: const Icon(Icons.folder_outlined),
+                        title: Text(module.title),
+                        subtitle: Text('${module.lessons.length} lessons'),
+                      )),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _addModule() {
+    showDialog(
+      context: context,
+      builder: (context) => ModuleDialog(
+        onSave: (module) {
+          setState(() => _modules.add(module));
+        },
+      ),
+    );
+  }
+
+  void _editModule(int index) {
+    showDialog(
+      context: context,
+      builder: (context) => ModuleDialog(
+        module: _modules[index],
+        onSave: (module) {
+          setState(() => _modules[index] = module);
+        },
+      ),
+    );
+  }
+
+  void _deleteModule(int index) {
+    setState(() => _modules.removeAt(index));
+  }
+
+  void _publishCourse() {
+    if (_titleController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a course title')),
+      );
+      return;
+    }
+
+    final course = CourseSchema(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: _titleController.text,
+      description: _descriptionController.text,
+      instructorId: ref.read(currentUserProvider).id,
+      thumbnail: '📚',
+      category: _selectedCategory,
+      difficulty: _selectedDifficulty,
+      tags: [],
+      modules: _modules,
+      createdAt: DateTime.now(),
+      publishedAt: DateTime.now(),
+      status: CourseStatus.published,
+      enrolledCount: 0,
+      rating: 0.0,
+    );
+
+    ref.read(coursesProvider.notifier).addCourse(course);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Course published successfully!')),
+    );
+
+    _titleController.clear();
+    _descriptionController.clear();
+    setState(() => _modules.clear());
+  }
+}
+
+// ==================== MODULE DIALOG ====================
+
+class ModuleDialog extends StatefulWidget {
+  final ModuleSchema? module;
+  final Function(ModuleSchema) onSave;
+
+  const ModuleDialog({super.key, this.module, required this.onSave});
+
+  @override
+  State<ModuleDialog> createState() => _ModuleDialogState();
+}
+
+class _ModuleDialogState extends State<ModuleDialog> {
+  late TextEditingController _titleController;
+  late TextEditingController _descriptionController;
+  final List<LessonSchema> _lessons = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.module?.title ?? '');
+    _descriptionController = TextEditingController(text: widget.module?.description ?? '');
+    if (widget.module != null) {
+      _lessons.addAll(widget.module!.lessons);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: 600,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.module == null ? 'Add Module' : 'Edit Module',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 24),
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: 'Module Title',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _descriptionController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Module Description',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Lessons (${_lessons.length})',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: _addLesson,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Lesson'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_lessons.isNotEmpty)
+              Container(
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _lessons.length,
+                  itemBuilder: (context, index) {
+                    final lesson = _lessons[index];
+                    return ListTile(
+                      leading: Icon(_getLessonIcon(lesson.type)),
+                      title: Text(lesson.title),
+                      subtitle: Text('${lesson.duration.inMinutes} min'),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () => setState(() => _lessons.removeAt(index)),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: _save,
+                  child: const Text('Save'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getLessonIcon(LessonType type) {
+    switch (type) {
+      case LessonType.video:
+        return Icons.play_circle_outline;
+      case LessonType.text:
+        return Icons.article_outlined;
+      case LessonType.quiz:
+        return Icons.quiz_outlined;
+      case LessonType.assignment:
+        return Icons.assignment_outlined;
+    }
+  }
+
+  void _addLesson() {
+    final lesson = LessonSchema(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: 'New Lesson',
+      description: 'Lesson description',
+      type: LessonType.video,
+      duration: const Duration(minutes: 10),
+      order: _lessons.length + 1,
+    );
+    setState(() => _lessons.add(lesson));
+  }
+
+  void _save() {
+    if (_titleController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a module title')),
+      );
+      return;
+    }
+
+    final module = ModuleSchema(
+      id: widget.module?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      title: _titleController.text,
+      description: _descriptionController.text,
+      order: widget.module?.order ?? 1,
+      lessons: _lessons,
+    );
+
+    widget.onSave(module);
+    Navigator.pop(context);
+  }
+}
+
+// ==================== ANALYTICS SCREEN ====================
+
+class AnalyticsScreen extends ConsumerWidget {
+  const AnalyticsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stats = ref.watch(dashboardStatsProvider);
+
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Analytics & Insights',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 32),
+              _buildEngagementChart(context),
+              const SizedBox(height: 24),
+              _buildPerformanceMetrics(context, stats),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEngagementChart(BuildContext context) {
+    return Container(
+      height: 300,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Student Engagement',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Expanded(
+            child: CustomPaint(
+              painter: LineChartPainter(),
+              child: Container(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPerformanceMetrics(BuildContext context, DashboardStats stats) {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 3,
+      mainAxisSpacing: 16,
+      crossAxisSpacing: 16,
+      childAspectRatio: 1.5,
+      children: [
+        _buildMetricCard(
+          context,
+          'Completion Rate',
+          '${(stats.avgProgress * 100).toInt()}%',
+          Icons.check_circle_outline,
+          const Color(0xFF10B981),
+          '+12% vs last month',
+        ),
+        _buildMetricCard(
+          context,
+          'Avg. Rating',
+          '4.7',
+          Icons.star_outline,
+          const Color(0xFFF59E0B),
+          '0.3 improvement',
+        ),
+        _buildMetricCard(
+          context,
+          'Revenue',
+          '\${(stats.totalStudents * 49.99).toStringAsFixed(0)}',
+          Icons.attach_money,
+          const Color(0xFF6366F1),
+          '+24% growth',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricCard(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+    String trend,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 32),
+          const Spacer(),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            trend,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== COURSE DETAIL SCREEN ====================
+
+class CourseDetailScreen extends StatelessWidget {
+  final CourseSchema course;
+
+  const CourseDetailScreen({super.key, required this.course});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(course.title),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () {},
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 200,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Text(course.thumbnail, style: const TextStyle(fontSize: 80)),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              course.title,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              course.description,
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 24),
+            Wrap(
+              spacing: 16,
+              runSpacing: 12,
+              children: [
+                _buildInfoChip(Icons.people, '${course.enrolledCount} students'),
+                _buildInfoChip(Icons.star, '${course.rating} rating'),
+                _buildInfoChip(Icons.schedule, '${course.totalDuration.inHours}h'),
+                _buildInfoChip(Icons.book, '${course.totalLessons} lessons'),
+              ],
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'Course Content',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...course.modules.map((module) => _buildModuleExpansion(context, module)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(IconData icon, String label) {
+    return Chip(
+      avatar: Icon(icon, size: 18),
+      label: Text(label),
+    );
+  }
+
+  Widget _buildModuleExpansion(BuildContext context, ModuleSchema module) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ExpansionTile(
+        leading: const Icon(Icons.folder_outlined),
+        title: Text(module.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text('${module.lessons.length} lessons'),
+        children: module.lessons.map((lesson) {
+          return ListTile(
+            leading: Icon(_getLessonIcon(lesson.type)),
+            title: Text(lesson.title),
+            subtitle: Text('${lesson.duration.inMinutes} min'),
+            trailing: const Icon(Icons.play_arrow),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  IconData _getLessonIcon(LessonType type) {
+    switch (type) {
+      case LessonType.video:
+        return Icons.play_circle_outline;
+      case LessonType.text:
+        return Icons.article_outlined;
+      case LessonType.quiz:
+        return Icons.quiz_outlined;
+      case LessonType.assignment:
+        return Icons.assignment_outlined;
+    }
+  }
+}
+
+// ==================== CUSTOM CHART PAINTER ====================
+
+class LineChartPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF6366F1)
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+    final points = [0.2, 0.5, 0.4, 0.7, 0.6, 0.8, 0.9];
+    
+    path.moveTo(0, size.height * (1 - points[0]));
+    
+    for (var i = 0; i < points.length; i++) {
+      final x = (size.width / (points.length - 1)) * i;
+      final y = size.height * (1 - points[i]);
+      path.lineTo(x, y);
+    }
+
+    canvas.drawPath(path, paint);
+
+    // Draw area under curve
+    final areaPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          const Color(0xFF6366F1).withOpacity(0.3),
+          const Color(0xFF6366F1).withOpacity(0.0),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.fill;
+
+    final areaPath = Path.from(path);
+    areaPath.lineTo(size.width, size.height);
+    areaPath.lineTo(0, size.height);
+    areaPath.close();
+
+    canvas.drawPath(areaPath, areaPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}

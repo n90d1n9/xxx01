@@ -1,0 +1,150 @@
+// Enhanced _createDefaultElement method in CanvasArea class
+
+
+// Enhanced ElementRenderer class
+
+
+// Add additional properties to PropertiesPanel
+
+
+// Add dropdown property widget
+
+// Add enhanced number property widget
+Widget _buildNumberProperty(
+  WidgetRef ref,
+  LayoutElement element,
+  String label,
+  String property, {
+  double defaultValue = 0.0,
+  bool isInteger = false,
+}) {
+  final value = element.properties[property] as double? ?? defaultValue;
+  final isInfinity = value == double.infinity;
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          Expanded(
+            child: TextField(
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+              ),
+              controller: TextEditingController(
+                text: isInfinity ? 'auto' : (isInteger ? value.toInt().toString() : value.toString()),
+              ),
+              enabled: !isInfinity,
+              keyboardType: TextInputType.number,
+              onChanged: (newValue) {
+                final parsed = double.tryParse(newValue);
+                if (parsed != null) {
+                  final updatedElement = element.copyWith(
+                    properties: {...element.properties, property: isInteger ? parsed.toInt().toDouble() : parsed},
+                  );
+                  ref
+                      .read(layoutElementsProvider.notifier)
+                      .updateElement(element.id, updatedElement);
+                }
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (property == 'width')
+            Checkbox(
+              value: isInfinity,
+              onChanged: (value) {
+                final updatedElement = element.copyWith(
+                  properties: {
+                    ...element.properties,
+                    property: value == true ? double.infinity : 100.0,
+                  },
+                );
+                ref
+                    .read(layoutElementsProvider.notifier)
+                    .updateElement(element.id, updatedElement);
+              },
+            ),
+          if (property == 'width') const Text('Auto'),
+        ],
+      ),
+      const SizedBox(height: 16),
+    ],
+  );
+}
+
+// Create a Preview Dialog
+class PreviewDialog extends StatelessWidget {
+  final List<LayoutElement> elements;
+
+  const PreviewDialog({Key? key, required this.elements}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: const EdgeInsets.all(16),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.8,
+        height: MediaQuery.of(context).size.height * 0.8,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const Text(
+                  'Preview',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const Divider(),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Container(
+                  width: double.infinity,
+                  child: Column(
+                    children: elements
+                        .map((element) => ElementRenderer(
+                              element: element,
+                              isPreview: true,
+                            ))
+                        .toList(),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Add previewButton onPressed in WebsiteLayoutBuilder
+/* In WebsiteLayoutBuilder class's build method, update the ElevatedButton.icon:
+ElevatedButton.icon(
+  icon: const Icon(Icons.visibility),
+  label: const Text('Preview'),
+  onPressed: () {
+    final elements = ref.read(layoutElementsProvider);
+    showDialog(
+      context: context,
+      builder: (context) => PreviewDialog(elements: elements),
+    );
+  },
+),
+*/

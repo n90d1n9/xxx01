@@ -1,0 +1,31 @@
+import 'csinode_spec.dart';
+import 'object_meta.dart';
+
+class CSINode {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final CSINodeSpec spec;
+  CSINode({
+    this.apiVersion = 'storage.k8s.io/v1',
+    this.kind = 'CSINode',
+    required this.metadata,
+    required this.spec,
+  });
+  factory CSINode.fromJson(Map<String, dynamic> json) {
+    return CSINode(
+      apiVersion: json['apiVersion'] ?? 'storage.k8s.io/v1',
+      kind: json['kind'] ?? 'CSINode',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      spec: CSINodeSpec.fromJson(json['spec']),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      'spec': spec.toJson(),
+    };
+  }
+}

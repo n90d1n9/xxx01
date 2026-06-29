@@ -1,0 +1,1023 @@
+// ============================================================================
+// COMPLETE WORKING EXAMPLE - READY TO RUN
+// ============================================================================
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+void main() {
+  runApp(
+    const ProviderScope(
+      child: CamelVisualDesignerApp(),
+    ),
+  );
+}
+
+class CamelVisualDesignerApp extends ConsumerWidget {
+  const CamelVisualDesignerApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return MaterialApp(
+      title: 'Apache Camel Visual Designer',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
+      ),
+      darkTheme: ThemeData.dark(useMaterial3: true),
+      themeMode: ref.watch(darkModeProvider) ? ThemeMode.dark : ThemeMode.light,
+      home: const MainDesignerScreen(),
+    );
+  }
+}
+
+// ============================================================================
+// MAIN DESIGNER SCREEN
+// ============================================================================
+
+class MainDesignerScreen extends ConsumerStatefulWidget {
+  const MainDesignerScreen({super.key});
+
+  @override
+  ConsumerState<MainDesignerScreen> createState() => _MainDesignerScreenState();
+}
+
+class _MainDesignerScreenState extends ConsumerState<MainDesignerScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    // Initialize systems
+    await ProviderSetupHelper.initializeSystems(ref);
+    
+    // Check if we need to show migration dialog
+    final existingRoutes = ref.read(routesProvider);
+    final integrationRoutes = ref.read(integrationRoutesProvider);
+    
+    if (existingRoutes.isNotEmpty && integrationRoutes.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showMigrationDialog();
+      });
+    } else if (integrationRoutes.isEmpty) {
+      // Show welcome dialog
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showWelcomeDialog();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final route = ref.watch(selectedRouteProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Apache Camel Visual Designer'),
+        actions: [
+          IconButton(
+            icon: Icon(
+              ref.watch(darkModeProvider) ? Icons.light_mode : Icons.dark_mode,
+            ),
+            onPressed: () {
+              ref.read(darkModeProvider.notifier).state = 
+                  !ref.read(darkModeProvider);
+            },
+            tooltip: 'Toggle Theme',
+          ),
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            onPressed: _showHelp,
+            tooltip: 'Help',
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Enhanced toolbar
+          const EnhancedToolbar(),
+          
+          // Main content area
+          Expanded(
+            child: Row(
+              children: [
+                // Component Palette (left sidebar)
+                SizedBox(
+                  width: 280,
+                  child: EnhancedComponentPalette(),
+                ),
+                
+                // Canvas Area (center)
+                Expanded(
+                  child: route == null
+                      ? const EmptyRouteState()
+                      : const CanvasArea(),
+                ),
+                
+                // Properties Panel (right sidebar)
+                SizedBox(
+                  width: 320,
+                  child: route == null
+                      ? const EmptyPropertiesPanel()
+                      : const EnhancedPropertiesPanel(),
+                ),
+              ],
+            ),
+          ),
+          
+          // Status bar
+          _buildStatusBar(),
+        ],
+      ),
+      floatingActionButton: _buildFloatingActions(),
+    );
+  }
+
+  Widget _buildStatusBar() {
+    final route = ref.watch(selectedRouteProvider);
+    final validation = route != null 
+        ? ref.watch(routeValidationProvider(route.id))
+        : null;
+
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        border: Border(
+          top: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      child: Row(
+        children: [
+          if (route != null) ...[
+            Text(
+              '${route.nodes.length} nodes',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(width: 16),
+            Text(
+              '${route.connections.length} connections',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(width: 16),
+            if (validation != null) ...[
+              Icon(
+                validation.isValid ? Icons.check_circle : Icons.error,
+                size: 16,
+                color: validation.isValid ? Colors.green : Colors.red,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                validation.isValid 
+                    ? 'Valid' 
+                    : '${validation.errors.length} errors',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: validation.isValid ? Colors.green : Colors.red,
+                ),
+              ),
+            ],
+          ] else
+            Text(
+              'No route selected',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          const Spacer(),
+          Text(
+            'Apache Camel Visual Designer v1.0',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).disabledColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingActions() {
+    final route = ref.watch(selectedRouteProvider);
+    
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (route == null)
+          FloatingActionButton.extended(
+            onPressed: _createNewRoute,
+            icon: const Icon(Icons.add),
+            label: const Text('New Route'),
+          )
+        else ...[
+          FloatingActionButton(
+            heroTag: 'validate',
+            onPressed: () => _handleValidation(route.id),
+            child: const Icon(Icons.check_circle_outline),
+            tooltip: 'Validate Route',
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            heroTag: 'test',
+            onPressed: () => _handleTest(route),
+            child: const Icon(Icons.play_arrow),
+            tooltip: 'Test Route',
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            heroTag: 'code',
+            onPressed: () => _handleCodeGeneration(route),
+            child: const Icon(Icons.code),
+            tooltip: 'Generate Code',
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _createNewRoute() {
+    showDialog(
+      context: context,
+      builder: (context) => const NewRouteDialog(),
+    );
+  }
+
+  void _handleValidation(String routeId) {
+    ref.read(routeValidationProvider(routeId).notifier).validate();
+    final validation = ref.read(routeValidationProvider(routeId));
+    
+    showDialog(
+      context: context,
+      builder: (context) => ValidationResultDialog(result: validation!),
+    );
+  }
+
+  void _handleTest(IntegrationRoute route) {
+    showDialog(
+      context: context,
+      builder: (context) => RouteTestDialog(route: route),
+    );
+  }
+
+  void _handleCodeGeneration(IntegrationRoute route) {
+    showDialog(
+      context: context,
+      builder: (context) => const CodeGenerationTargetDialog(),
+    ).then((target) {
+      if (target != null) {
+        final code = ref.read(codeGeneratorProvider).generateCode(
+          route.id,
+          target as GenerationTarget,
+        );
+        
+        showDialog(
+          context: context,
+          builder: (context) => CodeGenerationDialog(
+            route: route,
+            target: target,
+            generatedCode: code,
+          ),
+        );
+      }
+    });
+  }
+
+  void _showMigrationDialog() {
+    final existingRoutes = ref.read(routesProvider);
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => MigrationDialog(existingRoutes: existingRoutes),
+    ).then((migratedRoutes) {
+      if (migratedRoutes != null) {
+        ref.read(integrationRoutesProvider.notifier).state = migratedRoutes;
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Routes migrated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    });
+  }
+
+  void _showWelcomeDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => const WelcomeDialog(),
+    );
+  }
+
+  void _showHelp() {
+    showDialog(
+      context: context,
+      builder: (context) => const HelpDialog(),
+    );
+  }
+}
+
+// ============================================================================
+// WELCOME DIALOG
+// ============================================================================
+
+class WelcomeDialog extends ConsumerWidget {
+  const WelcomeDialog({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.waving_hand, color: Colors.amber),
+          SizedBox(width: 12),
+          Text('Welcome to Camel Visual Designer!'),
+        ],
+      ),
+      content: SizedBox(
+        width: 500,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Get started by choosing one of the following options:',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 24),
+            _buildOption(
+              context,
+              Icons.add_circle_outline,
+              'Create New Route',
+              'Start with a blank canvas',
+              () {
+                Navigator.pop(context);
+                _createNewRoute(context, ref);
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildOption(
+              context,
+              Icons.library_books,
+              'Use Template',
+              'Start from a pre-built template',
+              () {
+                Navigator.pop(context);
+                _showTemplates(context, ref);
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildOption(
+              context,
+              Icons.science,
+              'Try Sample Route',
+              'Explore with a sample integration',
+              () {
+                Navigator.pop(context);
+                _createSampleRoute(context, ref);
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Skip'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOption(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String subtitle,
+    VoidCallback onTap,
+  ) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: Theme.of(context).primaryColor),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).disabledColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios, size: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _createNewRoute(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => const NewRouteDialog(),
+    );
+  }
+
+  void _showTemplates(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => const TemplatesDialog(),
+    );
+  }
+
+  void _createSampleRoute(BuildContext context, WidgetRef ref) {
+    QuickStartHelper.initializeWithSampleRoute(ref);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Sample route created! Explore the components.'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// NEW ROUTE DIALOG
+// ============================================================================
+
+class NewRouteDialog extends StatefulWidget {
+  const NewRouteDialog({super.key});
+
+  @override
+  State<NewRouteDialog> createState() => _NewRouteDialogState();
+}
+
+class _NewRouteDialogState extends State<NewRouteDialog> {
+  final _nameController = TextEditingController();
+  final _descriptionController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Create New Route'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Route Name',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.label),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.description),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _createRoute,
+          child: const Text('Create'),
+        ),
+      ],
+    );
+  }
+
+  void _createRoute() {
+    if (_nameController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a route name')),
+      );
+      return;
+    }
+
+    final route = IntegrationRoute(
+      id: 'route_${DateTime.now().millisecondsSinceEpoch}',
+      name: _nameController.text,
+      description: _descriptionController.text,
+      nodes: const [],
+      connections: const [],
+      transformations: const [],
+      metadata: {},
+    );
+
+    Navigator.pop(context, route);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+}
+
+// ============================================================================
+// CODE GENERATION TARGET DIALOG
+// ============================================================================
+
+class CodeGenerationTargetDialog extends StatelessWidget {
+  const CodeGenerationTargetDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Select Generation Target'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildTargetOption(
+              context,
+              Icons.code,
+              'Java DSL',
+              'Traditional Java RouteBuilder',
+              GenerationTarget.camelJava,
+            ),
+            _buildTargetOption(
+              context,
+              Icons.description,
+              'YAML DSL',
+              'Modern YAML configuration',
+              GenerationTarget.camelYaml,
+            ),
+            _buildTargetOption(
+              context,
+              Icons.code_off,
+              'XML DSL',
+              'Classic XML configuration',
+              GenerationTarget.camelXml,
+            ),
+            _buildTargetOption(
+              context,
+              Icons.spa,
+              'Spring Boot',
+              'Complete Spring Boot project',
+              GenerationTarget.camelSpringBoot,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTargetOption(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String subtitle,
+    GenerationTarget target,
+  ) {
+    return Card(
+      child: ListTile(
+        leading: Icon(icon, color: Theme.of(context).primaryColor),
+        title: Text(title),
+        subtitle: Text(subtitle),
+        onTap: () => Navigator.pop(context, target),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// HELP DIALOG
+// ============================================================================
+
+class HelpDialog extends StatelessWidget {
+  const HelpDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.help_outline),
+          SizedBox(width: 12),
+          Text('Help & Shortcuts'),
+        ],
+      ),
+      content: SizedBox(
+        width: 600,
+        height: 500,
+        child: DefaultTabController(
+          length: 3,
+          child: Column(
+            children: [
+              const TabBar(
+                tabs: [
+                  Tab(text: 'Getting Started'),
+                  Tab(text: 'Keyboard Shortcuts'),
+                  Tab(text: 'Tips & Tricks'),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _buildGettingStarted(),
+                    _buildKeyboardShortcuts(),
+                    _buildTips(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGettingStarted() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: const [
+        Text(
+          '1. Drag Components',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        Text('Drag components from the left panel to the canvas'),
+        SizedBox(height: 16),
+        Text(
+          '2. Configure Nodes',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        Text('Double-click any node to configure its parameters'),
+        SizedBox(height: 16),
+        Text(
+          '3. Connect Nodes',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        Text('Click the output dot (↑) and drag to input dot (↓) of another node'),
+        SizedBox(height: 16),
+        Text(
+          '4. Validate & Test',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        Text('Use the toolbar to validate and test your route'),
+        SizedBox(height: 16),
+        Text(
+          '5. Generate Code',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        Text('Click the code button to generate deployable code'),
+      ],
+    );
+  }
+
+  Widget _buildKeyboardShortcuts() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: const [
+        _ShortcutRow('Ctrl + Z', 'Undo'),
+        _ShortcutRow('Ctrl + Y', 'Redo'),
+        _ShortcutRow('Ctrl + C', 'Copy selected nodes'),
+        _ShortcutRow('Ctrl + V', 'Paste nodes'),
+        _ShortcutRow('Delete', 'Delete selected nodes'),
+        _ShortcutRow('Ctrl + A', 'Select all nodes'),
+        _ShortcutRow('Ctrl + G', 'Group selected nodes'),
+        _ShortcutRow('Ctrl + S', 'Save route'),
+        _ShortcutRow('Ctrl + F', 'Search components'),
+        _ShortcutRow('Space', 'Pan canvas'),
+      ],
+    );
+  }
+
+  Widget _buildTips() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: const [
+        Text(
+          '💡 Pro Tips',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        SizedBox(height: 16),
+        Text('• Hold Shift to select multiple nodes'),
+        SizedBox(height: 8),
+        Text('• Use templates for common integration patterns'),
+        SizedBox(height: 8),
+        Text('• Validate your route before generating code'),
+        SizedBox(height: 8),
+        Text('• Test with sample data to verify transformations'),
+        SizedBox(height: 8),
+        Text('• Use groups to organize complex routes'),
+        SizedBox(height: 8),
+        Text('• Enable grid snapping for precise alignment'),
+        SizedBox(height: 8),
+        Text('• Check component documentation for advanced options'),
+        SizedBox(height: 8),
+        Text('• Use the minimap for large routes'),
+      ],
+    );
+  }
+}
+
+class _ShortcutRow extends StatelessWidget {
+  final String shortcut;
+  final String description;
+
+  const _ShortcutRow(this.shortcut, this.description);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              shortcut,
+              style: const TextStyle(fontFamily: 'monospace'),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(child: Text(description)),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// EMPTY STATE WIDGETS
+// ============================================================================
+
+class EmptyRouteState extends ConsumerWidget {
+  const EmptyRouteState({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.route_outlined,
+            size: 120,
+            color: Theme.of(context).disabledColor,
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'No Route Selected',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Create a new route or select an existing one',
+            style: TextStyle(color: Theme.of(context).disabledColor),
+          ),
+          const SizedBox(height: 32),
+          ElevatedButton.icon(
+            onPressed: () => _showNewRouteDialog(context, ref),
+            icon: const Icon(Icons.add),
+            label: const Text('Create New Route'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNewRouteDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => const NewRouteDialog(),
+    ).then((route) {
+      if (route != null) {
+        ref.read(integrationRoutesProvider.notifier).addRoute(route);
+        ref.read(selectedRouteIdProvider.notifier).state = route.id;
+      }
+    });
+  }
+}
+
+class EmptyPropertiesPanel extends StatelessWidget {
+  const EmptyPropertiesPanel({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.settings_outlined,
+              size: 64,
+              color: Theme.of(context).disabledColor,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No Selection',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Select a node to view properties',
+              style: TextStyle(color: Theme.of(context).disabledColor),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// ENHANCED PROPERTIES PANEL
+// ============================================================================
+
+class EnhancedPropertiesPanel extends ConsumerWidget {
+  const EnhancedPropertiesPanel({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedNode = ref.watch(selectedNodeProvider);
+    
+    if (selectedNode == null) {
+      return const EmptyPropertiesPanel();
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      child: Column(
+        children: [
+          _buildHeader(context, selectedNode),
+          Expanded(
+            child: _buildProperties(context, ref, selectedNode),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, NodeCard node) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: node.color.withOpacity(0.1),
+        border: Border(
+          bottom: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(node.icon, color: node.color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  node.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                Text(
+                  node.type,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).disabledColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProperties(BuildContext context, WidgetRef ref, NodeCard node) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          'Configuration',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 16),
+        if (node.config.isEmpty)
+          Text(
+            'No configuration set',
+            style: TextStyle(color: Theme.of(context).disabledColor),
+          )
+        else
+          ...node.config.entries.map((entry) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    entry.key,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(entry.value.toString()),
+                ],
+              ),
+            );
+          }),
+        const SizedBox(height: 24),
+        OutlinedButton.icon(
+          onPressed: () => _configureNode(context, ref, node),
+          icon: const Icon(Icons.settings),
+          label: const Text('Configure'),
+        ),
+      ],
+    );
+  }
+
+  void _configureNode(BuildContext context, WidgetRef ref, NodeCard node) async {
+    final configManager = ref.read(nodeConfigDialogProvider);
+    final newConfig = await configManager.showConfigDialog(context, node);
+    
+    if (newConfig != null) {
+      final route = ref.read(selectedRouteProvider);
+      if (route != null) {
+        final updatedNode = node.copyWith(
+          config: newConfig,
+          name: newConfig['name'] ?? node.name,
+        );
+        
+        ref
+            .read(integrationRoutesProvider.notifier)
+            .updateNodeInRoute(route.id, node.id, updatedNode);
+      }
+    }
+  }
+}

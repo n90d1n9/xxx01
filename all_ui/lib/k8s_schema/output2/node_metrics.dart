@@ -1,0 +1,38 @@
+import 'object_meta.dart';
+
+class NodeMetrics {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final DateTime timestamp;
+  final DateTime window;
+  final Map<String, String> usage;
+  NodeMetrics({
+    this.apiVersion = 'metrics.k8s.io/v1beta1',
+    this.kind = 'NodeMetrics',
+    required this.metadata,
+    required this.timestamp,
+    required this.window,
+    required this.usage,
+  });
+  factory NodeMetrics.fromJson(Map<String, dynamic> json) {
+    return NodeMetrics(
+      apiVersion: json['apiVersion'] ?? 'metrics.k8s.io/v1beta1',
+      kind: json['kind'] ?? 'NodeMetrics',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      timestamp: DateTime.parse(json['timestamp']),
+      window: DateTime.parse(json['window']),
+      usage: Map<String, String>.from(json['usage']),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      'timestamp': timestamp.toIso8601String(),
+      'window': window.toIso8601String(),
+      'usage': usage,
+    };
+  }
+}

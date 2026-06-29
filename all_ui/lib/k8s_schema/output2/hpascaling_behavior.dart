@@ -1,0 +1,25 @@
+import 'hpascaling_rules.dart';
+
+class HPAScalingBehavior {
+  final HPAScalingRules? scaleUp;
+  final HPAScalingRules? scaleDown;
+  HPAScalingBehavior({this.scaleUp, this.scaleDown});
+  factory HPAScalingBehavior.fromJson(Map<String, dynamic> json) {
+    return HPAScalingBehavior(
+      scaleUp:
+          json['scaleUp'] != null
+              ? HPAScalingRules.fromJson(json['scaleUp'])
+              : null,
+      scaleDown:
+          json['scaleDown'] != null
+              ? HPAScalingRules.fromJson(json['scaleDown'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (scaleUp != null) 'scaleUp': scaleUp!.toJson(),
+      if (scaleDown != null) 'scaleDown': scaleDown!.toJson(),
+    };
+  }
+}

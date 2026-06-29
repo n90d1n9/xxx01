@@ -1,0 +1,796 @@
+// ===== COMPLETE MISSING CLASSES IMPLEMENTATION =====
+
+// RiskSummaryStats.java - Standalone class for comprehensive risk statistics
+
+
+// RiskAppetiteReport.java - Complete standalone class for risk appetite reporting
+
+
+// EmailService.java - Complete standalone email service
+
+
+// NotificationMessage.java - Complete standalone notification message class
+
+    // ===== COMPLETE MISSING CLASSES IMPLEMENTATION =====
+
+// RiskSummaryStats.java - Standalone class for comprehensive risk statistics
+public class RiskSummaryStats {
+    public Integer totalRisks;
+    public Integer activeRisks;
+    public Integer closedRisks;
+    public Double averageRiskScore;
+    public Double averageInherentRiskScore;
+    public Double averageResidualRiskScore;
+    
+    // Risk Level Distribution
+    public Integer criticalRisks;
+    public Integer highRisks;
+    public Integer mediumRisks;
+    public Integer lowRisks;
+    public Integer veryLowRisks;
+    
+    // Action Items Statistics
+    public Integer totalActions;
+    public Integer overdueActions;
+    public Integer completedActions;
+    public Integer pendingActions;
+    public Integer reviewsDue;
+    
+    // Trend Analysis
+    public Integer newRisksThisMonth;
+    public Integer closedRisksThisMonth;
+    public Integer escalatedRisks;
+    public Double riskTrend; // Percentage change from previous period
+    public String trendDirection; // INCREASING, DECREASING, STABLE
+    
+    // Category Breakdown
+    public Map<RiskRegister.RiskCategory, Integer> risksByCategory;
+    public Map<RiskRegister.RiskStatus, Integer> risksByStatus;
+    public Map<String, Integer> risksByOwner;
+    public Map<String, Integer> risksByProject;
+    
+    // Financial Impact
+    public BigDecimal totalFinancialImpact;
+    public BigDecimal averageFinancialImpact;
+    public BigDecimal highestFinancialImpact;
+    
+    // Risk Management Effectiveness
+    public Double mitigationEffectiveness;
+    public Double controlEffectiveness;
+    public Double riskReductionPercentage;
+    
+    // Time-based Analysis
+    public Double averageTimeToResolve; // Days
+    public Double averageTimeToEscalate; // Days
+    public Integer overdueDays; // Total overdue days across all risks
+    
+    // Compliance Statistics
+    public Integer complianceRisks;
+    public Integer regulatoryBreaches;
+    public Map<RegulatoryRequirement, Integer> risksByRegulation;
+    
+    // Metadata
+    public LocalDateTime lastUpdated;
+    public LocalDateTime calculationTime;
+    public String calculatedBy;
+    public String reportingPeriod;
+    
+    public RiskSummaryStats() {
+        this.risksByCategory = new HashMap<>();
+        this.risksByStatus = new HashMap<>();
+        this.risksByOwner = new HashMap<>();
+        this.risksByProject = new HashMap<>();
+        this.risksByRegulation = new HashMap<>();
+        this.lastUpdated = LocalDateTime.now();
+        this.totalFinancialImpact = BigDecimal.ZERO;
+        this.averageFinancialImpact = BigDecimal.ZERO;
+        this.highestFinancialImpact = BigDecimal.ZERO;
+    }
+    
+    // Calculated Properties
+    public Integer getTotalActiveRisks() {
+        return totalRisks - (closedRisks != null ? closedRisks : 0);
+    }
+    
+    public Double getCriticalRiskPercentage() {
+        if (totalRisks == null || totalRisks == 0) return 0.0;
+        return (criticalRisks != null ? criticalRisks.doubleValue() : 0.0) / totalRisks * 100;
+    }
+    
+    public Double getHighRiskPercentage() {
+        if (totalRisks == null || totalRisks == 0) return 0.0;
+        return (highRisks != null ? highRisks.doubleValue() : 0.0) / totalRisks * 100;
+    }
+    
+    public Double getActionCompletionRate() {
+        if (totalActions == null || totalActions == 0) return 100.0;
+        return (completedActions != null ? completedActions.doubleValue() : 0.0) / totalActions * 100;
+    }
+    
+    public String getRiskTrendDirection() {
+        if (riskTrend == null) return "NO_DATA";
+        if (riskTrend > 5) return "INCREASING";
+        if (riskTrend < -5) return "DECREASING";
+        return "STABLE";
+    }
+    
+    public String getOverallRiskHealth() {
+        double criticalPercentage = getCriticalRiskPercentage();
+        double completionRate = getActionCompletionRate();
+        
+        if (criticalPercentage > 20 || completionRate < 70) return "POOR";
+        if (criticalPercentage > 10 || completionRate < 85) return "FAIR";
+        if (criticalPercentage > 5 || completionRate < 95) return "GOOD";
+        return "EXCELLENT";
+    }
+    
+    // Builder Pattern for Easy Construction
+    public static class Builder {
+        private RiskSummaryStats stats = new RiskSummaryStats();
+        
+        public Builder totalRisks(Integer total) { stats.totalRisks = total; return this; }
+        public Builder activeRisks(Integer active) { stats.activeRisks = active; return this; }
+        public Builder averageRiskScore(Double avg) { stats.averageRiskScore = avg; return this; }
+        public Builder criticalRisks(Integer critical) { stats.criticalRisks = critical; return this; }
+        public Builder highRisks(Integer high) { stats.highRisks = high; return this; }
+        public Builder overdueActions(Integer overdue) { stats.overdueActions = overdue; return this; }
+        public Builder riskTrend(Double trend) { stats.riskTrend = trend; return this; }
+        public Builder financialImpact(BigDecimal impact) { stats.totalFinancialImpact = impact; return this; }
+        public Builder calculatedBy(String by) { stats.calculatedBy = by; return this; }
+        
+        public RiskSummaryStats build() {
+            stats.calculationTime = LocalDateTime.now();
+            return stats;
+        }
+    }
+}
+
+// RiskAppetiteReport.java - Complete standalone class for risk appetite reporting
+public class RiskAppetiteReport {
+    public String reportId;
+    public String reportTitle;
+    public DateRange reportingPeriod;
+    public LocalDateTime generatedDate;
+    public String generatedBy;
+    
+    // Overall Status
+    public RiskAppetiteStatus overallStatus;
+    public String executiveSummary;
+    public Double overallUtilization;
+    public String statusReason;
+    
+    // Breaches and Violations
+    public List<RiskAppetiteBreach> riskAppetiteBreaches;
+    public Integer totalBreaches;
+    public Integer criticalBreaches;
+    public Integer resolvedBreaches;
+    public Double breachRate;
+    
+    // Category Analysis
+    public Map<RiskRegister.RiskCategory, CategoryRiskAppetite> categoryAnalysis;
+    public List<RiskRegister.RiskCategory> categoriesExceedingAppetite;
+    public List<RiskRegister.RiskCategory> categoriesNearLimit;
+    
+    // Trend Analysis
+    public RiskAppetiteTrend trendAnalysis;
+    public List<RiskAppetiteHistoricalData> historicalData;
+    public String forecastAnalysis;
+    
+    // Recommendations
+    public List<RiskAppetiteRecommendation> recommendations;
+    public List<RiskAppetiteAction> immediateActions;
+    public List<RiskAppetiteAction> strategicActions;
+    
+    // Metrics and KPIs
+    public RiskAppetiteMetrics metrics;
+    public Map<String, Object> kpiData;
+    
+    // Compliance and Governance
+    public List<RiskAppetiteException> approvedExceptions;
+    public List<RiskAppetiteViolation> policyViolations;
+    public String boardApprovalStatus;
+    
+    public RiskAppetiteReport() {
+        this.reportId = "RAR-" + System.currentTimeMillis();
+        this.reportTitle = "Risk Appetite Report";
+        this.generatedDate = LocalDateTime.now();
+        this.riskAppetiteBreaches = new ArrayList<>();
+        this.categoryAnalysis = new HashMap<>();
+        this.categoriesExceedingAppetite = new ArrayList<>();
+        this.categoriesNearLimit = new ArrayList<>();
+        this.recommendations = new ArrayList<>();
+        this.immediateActions = new ArrayList<>();
+        this.strategicActions = new ArrayList<>();
+        this.historicalData = new ArrayList<>();
+        this.approvedExceptions = new ArrayList<>();
+        this.policyViolations = new ArrayList<>();
+        this.kpiData = new HashMap<>();
+    }
+    
+    // Enums and Inner Classes
+    public enum RiskAppetiteStatus {
+        WITHIN_APPETITE("Within Risk Appetite", "#28a745"),
+        APPROACHING_LIMITS("Approaching Risk Appetite Limits", "#ffc107"),
+        EXCEEDING_APPETITE("Exceeding Risk Appetite", "#fd7e14"),
+        SIGNIFICANTLY_OVER("Significantly Over Risk Appetite", "#dc3545"),
+        POLICY_VIOLATION("Risk Appetite Policy Violation", "#6f42c1");
+        
+        private final String label;
+        private final String color;
+        
+        RiskAppetiteStatus(String label, String color) {
+            this.label = label;
+            this.color = color;
+        }
+        
+        public String getLabel() { return label; }
+        public String getColor() { return color; }
+    }
+    
+    public static class RiskAppetiteBreach {
+        public String breachId;
+        public Long riskId;
+        public String riskTitle;
+        public RiskRegister.RiskCategory category;
+        public Integer currentRiskScore;
+        public Integer appetiteThreshold;
+        public Integer breachAmount;
+        public Double breachPercentage;
+        public LocalDate breachDate;
+        public LocalDate firstBreachDate;
+        public Integer breachDurationDays;
+        public BreachSeverity severity;
+        public BreachStatus status;
+        public String businessJustification;
+        public LocalDate expectedResolutionDate;
+        public List<String> mitigationActions;
+        public String escalationLevel;
+        public String approvedBy;
+        public String comments;
+        
+        public RiskAppetiteBreach() {
+            this.breachId = "BRH-" + UUID.randomUUID().toString().substring(0, 8);
+            this.mitigationActions = new ArrayList<>();
+            this.status = BreachStatus.OPEN;
+        }
+        
+        public enum BreachSeverity {
+            MINOR("Minor", "up to 20% over appetite", 1),
+            MODERATE("Moderate", "21-50% over appetite", 2),
+            MAJOR("Major", "51-100% over appetite", 3),
+            CRITICAL("Critical", "over 100% over appetite", 4),
+            EXTREME("Extreme", "over 200% over appetite", 5);
+            
+            private final String label;
+            private final String description;
+            private final int severityLevel;
+            
+            BreachSeverity(String label, String description, int severityLevel) {
+                this.label = label;
+                this.description = description;
+                this.severityLevel = severityLevel;
+            }
+            
+            public String getLabel() { return label; }
+            public String getDescription() { return description; }
+            public int getSeverityLevel() { return severityLevel; }
+        }
+        
+        public enum BreachStatus {
+            OPEN("Open"),
+            ACKNOWLEDGED("Acknowledged"),
+            UNDER_REVIEW("Under Review"),
+            APPROVED_EXCEPTION("Approved Exception"),
+            MITIGATED("Mitigated"),
+            RESOLVED("Resolved");
+            
+            private final String label;
+            BreachStatus(String label) { this.label = label; }
+            public String getLabel() { return label; }
+        }
+        
+        public void calculateSeverityAndDuration() {
+            // Calculate severity based on breach percentage
+            if (breachPercentage != null) {
+                if (breachPercentage > 200) severity = BreachSeverity.EXTREME;
+                else if (breachPercentage > 100) severity = BreachSeverity.CRITICAL;
+                else if (breachPercentage > 50) severity = BreachSeverity.MAJOR;
+                else if (breachPercentage > 20) severity = BreachSeverity.MODERATE;
+                else severity = BreachSeverity.MINOR;
+            }
+            
+            // Calculate duration
+            if (firstBreachDate != null) {
+                breachDurationDays = (int) ChronoUnit.DAYS.between(firstBreachDate, LocalDate.now());
+            }
+        }
+    }
+    
+    public static class CategoryRiskAppetite {
+        public RiskRegister.RiskCategory category;
+        public String categoryName;
+        public Integer appetiteThreshold;
+        public Integer currentAverageRisk;
+        public Integer currentMaxRisk;
+        public Integer riskCount;
+        public Integer breachCount;
+        public Double utilizationPercentage;
+        public AppetiteStatus status;
+        public String statusDescription;
+        public String recommendation;
+        public List<String> topRisks;
+        public List<String> breachedRisks;
+        public TrendDirection trendDirection;
+        public Double monthlyChange;
+        
+        public CategoryRiskAppetite() {
+            this.topRisks = new ArrayList<>();
+            this.breachedRisks = new ArrayList<>();
+        }
+        
+        public enum AppetiteStatus {
+            WELL_WITHIN("Well Within Appetite", "#28a745", 0.5),
+            APPROACHING("Approaching Appetite", "#ffc107", 0.8),
+            AT_APPETITE("At Appetite", "#fd7e14", 1.0),
+            EXCEEDING("Exceeding Appetite", "#dc3545", 1.2),
+            SIGNIFICANTLY_OVER("Significantly Over", "#6f42c1", Double.MAX_VALUE);
+            
+            private final String label;
+            private final String color;
+            private final double threshold;
+            
+            AppetiteStatus(String label, String color, double threshold) {
+                this.label = label;
+                this.color = color;
+                this.threshold = threshold;
+            }
+            
+            public String getLabel() { return label; }
+            public String getColor() { return color; }
+            public double getThreshold() { return threshold; }
+        }
+        
+        public enum TrendDirection {
+            IMPROVING("Improving", "↓"),
+            STABLE("Stable", "→"),
+            DETERIORATING("Deteriorating", "↑"),
+            VOLATILE("Volatile", "↕");
+            
+            private final String description;
+            private final String symbol;
+            
+            TrendDirection(String description, String symbol) {
+                this.description = description;
+                this.symbol = symbol;
+            }
+            
+            public String getDescription() { return description; }
+            public String getSymbol() { return symbol; }
+        }
+        
+        public void calculateStatusAndTrend() {
+            if (utilizationPercentage != null) {
+                for (AppetiteStatus statusOption : AppetiteStatus.values()) {
+                    if (utilizationPercentage <= statusOption.threshold * 100) {
+                        status = statusOption;
+                        break;
+                    }
+                }
+                if (status == null) status = AppetiteStatus.SIGNIFICANTLY_OVER;
+            }
+            
+            if (monthlyChange != null) {
+                if (Math.abs(monthlyChange) < 2) trendDirection = TrendDirection.STABLE;
+                else if (monthlyChange < -2) trendDirection = TrendDirection.IMPROVING;
+                else if (monthlyChange > 10) trendDirection = TrendDirection.VOLATILE;
+                else trendDirection = TrendDirection.DETERIORATING;
+            }
+        }
+    }
+    
+    public static class RiskAppetiteTrend {
+        public List<MonthlyAppetiteData> monthlyData;
+        public TrendDirection overallDirection;
+        public String trendAnalysis;
+        public Double volatilityIndex;
+        public String forecast;
+        public Double correlationWithMarket;
+        public List<String> trendDrivers;
+        
+        public RiskAppetiteTrend() {
+            this.monthlyData = new ArrayList<>();
+            this.trendDrivers = new ArrayList<>();
+        }
+        
+        public enum TrendDirection {
+            STRONGLY_IMPROVING("Strongly Improving"),
+            IMPROVING("Improving"),
+            STABLE("Stable"),
+            DETERIORATING("Deteriorating"),
+            STRONGLY_DETERIORATING("Strongly Deteriorating");
+            
+            private final String description;
+            TrendDirection(String description) { this.description = description; }
+            public String getDescription() { return description; }
+        }
+        
+        public static class MonthlyAppetiteData {
+            public String month;
+            public Integer year;
+            public Integer totalBreaches;
+            public Double averageUtilization;
+            public Integer newBreaches;
+            public Integer resolvedBreaches;
+            public Double riskScore;
+            public Integer riskCount;
+            public Double utilizationChange;
+            public String significantEvents;
+        }
+    }
+    
+    public static class RiskAppetiteRecommendation {
+        public String recommendationId;
+        public String title;
+        public String recommendation;
+        public RiskRegister.RiskCategory affectedCategory;
+        public RecommendationType type;
+        public RecommendationPriority priority;
+        public String rationale;
+        public String expectedImpact;
+        public LocalDate suggestedImplementation;
+        public String responsibleParty;
+        public BigDecimal estimatedCost;
+        public String successMetrics;
+        public List<String> dependencies;
+        public String riskIfNotImplemented;
+        
+        public RiskAppetiteRecommendation() {
+            this.recommendationId = "REC-" + UUID.randomUUID().toString().substring(0, 8);
+            this.dependencies = new ArrayList<>();
+        }
+        
+        public enum RecommendationType {
+            POLICY_CHANGE("Risk Policy Change"),
+            APPETITE_ADJUSTMENT("Risk Appetite Adjustment"),
+            CONTROL_ENHANCEMENT("Control Enhancement"),
+            RESOURCE_ALLOCATION("Resource Allocation"),
+            PROCESS_IMPROVEMENT("Process Improvement"),
+            SYSTEM_UPGRADE("System Upgrade"),
+            TRAINING("Training and Awareness"),
+            GOVERNANCE("Governance Enhancement");
+            
+            private final String label;
+            RecommendationType(String label) { this.label = label; }
+            public String getLabel() { return label; }
+        }
+        
+        public enum RecommendationPriority {
+            IMMEDIATE("Immediate Action Required", 1),
+            HIGH("High Priority", 2),
+            MEDIUM("Medium Priority", 3),
+            LOW("Low Priority", 4),
+            STRATEGIC("Strategic Initiative", 5);
+            
+            private final String label;
+            private final int priorityLevel;
+            
+            RecommendationPriority(String label, int priorityLevel) {
+                this.label = label;
+                this.priorityLevel = priorityLevel;
+            }
+            
+            public String getLabel() { return label; }
+            public int getPriorityLevel() { return priorityLevel; }
+        }
+    }
+    
+    public static class RiskAppetiteMetrics {
+        public Integer totalRisksMonitored;
+        public Integer risksWithinAppetite;
+        public Integer risksExceedingAppetite;
+        public Double overallUtilization;
+        public Integer daysWithBreaches;
+        public BigDecimal totalExposure;
+        public BigDecimal appetiteLimit;
+        public Double riskVelocity; // Rate of risk level change
+        public Integer criticalBreaches;
+        public Double averageTimeToResolve;
+        public Double breachFrequency;
+        public Double controlEffectiveness;
+        public String benchmarkComparison;
+        
+        public Double getComplianceRate() {
+            if (totalRisksMonitored == null || totalRisksMonitored == 0) return 100.0;
+            return (risksWithinAppetite.doubleValue() / totalRisksMonitored) * 100;
+        }
+        
+        public String getRiskVelocityTrend() {
+            if (riskVelocity == null) return "STABLE";
+            if (riskVelocity > 0.1) return "ACCELERATING";
+            if (riskVelocity < -0.1) return "DECELERATING";
+            return "STABLE";
+        }
+    }
+    
+    // Additional supporting classes
+    public static class RiskAppetiteHistoricalData {
+        public LocalDate date;
+        public Double utilizationRate;
+        public Integer breachCount;
+        public String significantEvents;
+    }
+    
+    public static class RiskAppetiteAction {
+        public String actionId;
+        public String description;
+        public String assignedTo;
+        public LocalDate dueDate;
+        public String priority;
+        public String status;
+    }
+    
+    public static class RiskAppetiteException {
+        public String exceptionId;
+        public String description;
+        public String approvedBy;
+        public LocalDate approvalDate;
+        public LocalDate expiryDate;
+    }
+    
+    public static class RiskAppetiteViolation {
+        public String violationId;
+        public String description;
+        public String severity;
+        public LocalDate identifiedDate;
+        public String status;
+    }
+}
+
+// EmailService.java - Complete standalone email service
+@ApplicationScoped
+public class EmailService {
+    
+    private static final Logger logger = LoggerFactory.getLogger(EmailService.class);
+    
+    // Configuration Properties
+    @ConfigProperty(name = "app.email.enabled", defaultValue = "true")
+    boolean emailEnabled;
+    
+    @ConfigProperty(name = "app.email.from")
+    Optional<String> fromAddress;
+    
+    @ConfigProperty(name = "app.email.smtp.host")
+    Optional<String> smtpHost;
+    
+    @ConfigProperty(name = "app.email.smtp.port", defaultValue = "587")
+    int smtpPort;
+    
+    @ConfigProperty(name = "app.email.smtp.username")
+    Optional<String> smtpUsername;
+    
+    @ConfigProperty(name = "app.email.smtp.password")
+    Optional<String> smtpPassword;
+    
+    @ConfigProperty(name = "app.email.smtp.tls", defaultValue = "true")
+    boolean smtpTls;
+    
+    @ConfigProperty(name = "app.email.template.base-url", defaultValue = "http://localhost:8080")
+    String baseUrl;
+    
+    @ConfigProperty(name = "app.email.retry.max-attempts", defaultValue = "3")
+    int maxRetryAttempts;
+    
+    @ConfigProperty(name = "app.email.batch.size", defaultValue = "50")
+    int batchSize;
+    
+    // Dependencies
+    @Inject
+    @Channel("email-queue")
+    Emitter<EmailMessage> emailEmitter;
+    
+    // Internal State
+    private final Map<String, EmailTemplate> emailTemplates = new ConcurrentHashMap<>();
+    private final ExecutorService emailExecutor = Executors.newFixedThreadPool(5);
+    private final ScheduledExecutorService retryScheduler = Executors.newScheduledThreadPool(2);
+    private Properties smtpProperties;
+    
+    @PostConstruct
+    public void initializeEmailService() {
+        setupSMTPProperties();
+        loadEmailTemplates();
+        logger.info("Email service initialized. Enabled: {}, SMTP Host: {}", 
+                   emailEnabled, smtpHost.orElse("not configured"));
+    }
+    
+    @PreDestroy
+    public void cleanup() {
+        emailExecutor.shutdown();
+        retryScheduler.shutdown();
+        try {
+            if (!emailExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
+                emailExecutor.shutdownNow();
+            }
+            if (!retryScheduler.awaitTermination(10, TimeUnit.SECONDS)) {
+                retryScheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+    
+    // Primary Email Sending Methods
+    public CompletableFuture<EmailResult> sendNotificationEmail(NotificationMessage notification) {
+        if (!emailEnabled || !isValidConfiguration()) {
+            logger.warn("Email service is disabled or not properly configured");
+            return CompletableFuture.completedFuture(
+                new EmailResult(false, "Email service not configured", notification.id));
+        }
+        
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                EmailMessage email = createEmailFromNotification(notification);
+                return sendEmailInternal(email);
+            } catch (Exception e) {
+                logger.error("Failed to send notification email for ID: " + notification.id, e);
+                return new EmailResult(false, e.getMessage(), notification.id);
+            }
+        }, emailExecutor);
+    }
+    
+    public CompletableFuture<List<EmailResult>> sendBulkEmails(List<NotificationMessage> notifications) {
+        if (!emailEnabled || notifications.isEmpty()) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
+        
+        return CompletableFuture.supplyAsync(() -> {
+            List<EmailResult> results = new ArrayList<>();
+            
+            // Process in batches
+            for (int i = 0; i < notifications.size(); i += batchSize) {
+                List<NotificationMessage> batch = notifications.subList(
+                    i, Math.min(i + batchSize, notifications.size()));
+                
+                List<CompletableFuture<EmailResult>> batchFutures = batch.stream()
+                    .filter(this::shouldSendEmail)
+                    .map(this::sendNotificationEmail)
+                    .collect(Collectors.toList());
+                
+                // Wait for batch completion
+                try {
+                    CompletableFuture.allOf(batchFutures.toArray(new CompletableFuture[0])).get();
+                    for (CompletableFuture<EmailResult> future : batchFutures) {
+                        results.add(future.get());
+                    }
+                } catch (InterruptedException | ExecutionException e) {
+                    logger.error("Error processing email batch", e);
+                }
+                
+                // Brief pause between batches to avoid overwhelming SMTP server
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            
+            logger.info("Completed bulk email sending: {} total, {} successful", 
+                       results.size(), results.stream().mapToInt(r -> r.success ? 1 : 0).sum());
+            return results;
+        }, emailExecutor);
+    }
+    
+    public EmailResult sendCustomEmail(String to, String subject, String body, String templateId) {
+        if (!emailEnabled) {
+            return new EmailResult(false, "Email service disabled", null);
+        }
+        
+        EmailMessage email = new EmailMessage();
+        email.to = List.of(to);
+        email.from = fromAddress.orElse("noreply@company.com");
+        email.subject = subject;
+        email.body = templateId != null ? applyTemplate(body, templateId, new HashMap<>()) : body;
+        email.priority = EmailPriority.NORMAL;
+        email.timestamp = LocalDateTime.now();
+        
+        return sendEmailInternal(email);
+    }
+    
+    public EmailResult sendEmailWithAttachments(String to, String subject, String body, 
+                                              List<EmailAttachment> attachments, String templateId) {
+        if (!emailEnabled) {
+            return new EmailResult(false, "Email service disabled", null);
+        }
+        
+        EmailMessage email = new EmailMessage();
+        email.to = List.of(to);
+        email.from = fromAddress.orElse("noreply@company.com");
+        email.subject = subject;
+        email.body = templateId != null ? applyTemplate(body, templateId, new HashMap<>()) : body;
+        email.attachments = attachments;
+        email.priority = EmailPriority.NORMAL;
+        
+        return sendEmailInternal(email);
+    }
+    
+    public void scheduleEmailRetry(EmailMessage email, int attempt) {
+        if (attempt >= maxRetryAttempts) {
+            logger.warn("Max retry attempts exceeded for email to: {}", email.to);
+            return;
+        }
+        
+        // Exponential backoff: 2^attempt minutes
+        long delayMinutes = (long) Math.pow(2, attempt);
+        
+        retryScheduler.schedule(() -> {
+            logger.info("Retrying email send (attempt {}) to: {}", attempt + 1, email.to);
+            EmailResult result = sendEmailInternal(email);
+            if (!result.success) {
+                scheduleEmailRetry(email, attempt + 1);
+            }
+        }, delayMinutes, TimeUnit.MINUTES);
+    }
+    
+    // Template Management
+    public void registerTemplate(String templateId, EmailTemplate template) {
+        emailTemplates.put(templateId, template);
+        logger.info("Registered email template: {}", templateId);
+    }
+    
+    public Optional<EmailTemplate> getTemplate(String templateId) {
+        return Optional.ofNullable(emailTemplates.get(templateId));
+    }
+    
+    public List<String> getAvailableTemplates() {
+        return new ArrayList<>(emailTemplates.keySet());
+    }
+    
+    // Internal Implementation Methods
+    private EmailResult sendEmailInternal(EmailMessage emailMessage) {
+        if (!isValidConfiguration()) {
+            return new EmailResult(false, "Invalid email configuration", emailMessage.notificationId);
+        }
+        
+        try {
+            Session session = createEmailSession();
+            MimeMessage message = createMimeMessage(session, emailMessage);
+            
+            logger.debug("Sending email to: {} with subject: {}", emailMessage.to, emailMessage.subject);
+            Transport.send(message);
+            
+            emailMessage.status = EmailStatus.SENT;
+            emailMessage.sentDate = LocalDateTime.now();
+            
+            logger.info("Email sent successfully to: {}", emailMessage.to);
+            return new EmailResult(true, "Email sent successfully", emailMessage.notificationId);
+            
+        } catch (MessagingException e) {
+            logger.error("Failed to send email to: " + emailMessage.to, e);
+            emailMessage.status = EmailStatus.FAILED;
+            emailMessage.errorMessage = e.getMessage();
+            
+            // Schedule retry for transient errors
+            if (isTransientError(e)) {
+                scheduleEmailRetry(emailMessage, emailMessage.retryCount);
+                emailMessage.retryCount++;
+            }
+            
+            return new EmailResult(false, e.getMessage(), emailMessage.notificationId);
+        } catch (Exception e) {
+            logger.error("Unexpected error sending email to: " + emailMessage.to, e);
+            return new EmailResult(false, "Unexpected error: " + e.getMessage(), emailMessage.notificationId);
+        }
+    }
+    
+    private Session createEmailSession() {
+        Authenticator authenticator = null;
+        if (smtpUsername.isPresent() && smtpPassword.isPresent()) {
+            authenticator = new Authenticator() {
+                @Override
+                protected PasswordAuthentication getPasswordAuthentication() {
+                    return new PasswordAuthentication(smtpUsername.get(), smtpPassword.get());
+                }
+            };
+        }
+        
+        return Session

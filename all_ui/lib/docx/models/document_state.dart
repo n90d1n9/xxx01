@@ -1,0 +1,123 @@
+import 'package:flutter_quill/flutter_quill.dart' as quill;
+
+import 'collaboration_user.dart';
+import 'document_theme.dart';
+import 'spell_check_error.dart';
+import 'page_layout.dart';
+import 'page_settings.dart';
+import 'footnote.dart';
+import 'document_table.dart';
+import 'chart_data.dart';
+import 'drawing_data.dart';
+import 'document_metadata.dart';
+import 'document_version.dart';
+
+class DocumentState {
+  final quill.QuillController controller;
+  final DocumentMetadata metadata;
+  final bool hasUnsavedChanges;
+  final bool isLoading;
+  final String? errorMessage;
+  final List<DocumentVersion> versions;
+  final int currentVersionIndex;
+  final bool isAIProcessing;
+  final String? aiResult;
+  final bool isSyncing;
+  final DateTime? lastSyncTime;
+  final List<DocumentTable> tables;
+  final List<ChartData> charts;
+  final List<DrawingData> drawings;
+  final PageSettings pageSettings;
+  final PageLayout currentLayout;
+  final List<Footnote> footnotes;
+  final int currentPage;
+  final int totalPages;
+  final List<CollaborationUser> collaborators;
+  final bool isCollaborationEnabled;
+  final DocumentTheme? currentTheme;
+  final List<SpellCheckError> spellErrors;
+  final bool spellCheckEnabled;
+  DocumentState({
+    required this.controller,
+    required this.metadata,
+    this.hasUnsavedChanges = false,
+    this.isLoading = false,
+    this.errorMessage,
+    this.versions = const [],
+    this.currentVersionIndex = -1,
+    this.isAIProcessing = false,
+    this.aiResult,
+    this.isSyncing = false,
+    this.lastSyncTime,
+    this.tables = const [],
+    this.charts = const [],
+    this.drawings = const [],
+    this.pageSettings = const PageSettings(),
+    this.currentLayout = PageLayout.print,
+    this.footnotes = const [],
+    this.currentPage = 1,
+    this.totalPages = 1,
+    this.collaborators = const [],
+    this.isCollaborationEnabled = false,
+    DocumentTheme? currentTheme,
+    this.spellErrors = const [],
+    this.spellCheckEnabled = false,
+  }) : currentTheme = currentTheme ?? DocumentTheme.predefinedThemes[0];
+
+  DocumentState copyWith({
+    quill.QuillController? controller,
+    DocumentMetadata? metadata,
+    bool? hasUnsavedChanges,
+    bool? isLoading,
+    String? errorMessage,
+    bool clearError = false,
+    List<DocumentVersion>? versions,
+    int? currentVersionIndex,
+    bool? isAIProcessing,
+    String? aiResult,
+    bool clearAIResult = false,
+    bool? isSyncing,
+    DateTime? lastSyncTime,
+    List<DocumentTable>? tables,
+    List<ChartData>? charts,
+    List<DrawingData>? drawings,
+    PageSettings? pageSettings,
+    PageLayout? currentLayout,
+    List<Footnote>? footnotes,
+    int? currentPage,
+    int? totalPages,
+    List<CollaborationUser>? collaborators,
+    bool? isCollaborationEnabled,
+    DocumentTheme? currentTheme,
+    List<SpellCheckError>? spellErrors,
+    bool? spellCheckEnabled,
+  }) {
+    return DocumentState(
+      controller: controller ?? this.controller,
+      metadata: metadata ?? this.metadata,
+      hasUnsavedChanges: hasUnsavedChanges ?? this.hasUnsavedChanges,
+      isLoading: isLoading ?? this.isLoading,
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      versions: versions ?? this.versions,
+      currentVersionIndex: currentVersionIndex ?? this.currentVersionIndex,
+      isAIProcessing: isAIProcessing ?? this.isAIProcessing,
+      aiResult: clearAIResult ? null : (aiResult ?? this.aiResult),
+      isSyncing: isSyncing ?? this.isSyncing,
+      lastSyncTime: lastSyncTime ?? this.lastSyncTime,
+      tables: tables ?? this.tables,
+      charts: charts ?? this.charts,
+      drawings: drawings ?? this.drawings,
+      pageSettings: pageSettings ?? this.pageSettings,
+      currentLayout: currentLayout ?? this.currentLayout,
+      footnotes: footnotes ?? this.footnotes,
+      currentPage: currentPage ?? this.currentPage,
+      totalPages: totalPages ?? this.totalPages,
+      collaborators: collaborators ?? this.collaborators,
+      isCollaborationEnabled:
+          isCollaborationEnabled ?? this.isCollaborationEnabled,
+      currentTheme: currentTheme ?? this.currentTheme,
+      spellErrors: spellErrors ?? this.spellErrors,
+      spellCheckEnabled: spellCheckEnabled ?? this.spellCheckEnabled,
+    );
+  }
+}

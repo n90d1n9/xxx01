@@ -1,0 +1,621 @@
+I'll help you create a Flutter pattern lock screen with Riverpod for state management. Here's a complete implementation:
+
+## 1. Add Dependencies
+
+First, add these to your `pubspec.yaml`:
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  riverpod: ^2.4.9
+  hooks_riverpod: ^2.4.9
+  flutter_hooks: ^0.20.5
+```
+
+## 2. Create the Pattern Lock Provider
+
+```dart
+// lib/providers/pattern_lock_provider.dart
+import 'package:riverpod/riverpod.dart';
+import 'dart:math';
+
+enum PatternStatus { initial, drawing, completed, error }
+
+class PatternLockState {
+  final List<int> selectedPoints;
+  final PatternStatus status;
+  final String? errorMessage;
+
+  PatternLockState({
+    required this.selectedPoints,
+    required this.status,
+    this.errorMessage,
+  });
+
+  PatternLockState copyWith({
+    List<int>? selectedPoints,
+    PatternStatus? status,
+    String? errorMessage,
+  }) {
+    return PatternLockState(
+      selectedPoints: selectedPoints ?? this.selectedPoints,
+      status: status ?? this.status,
+      errorMessage: errorMessage,
+    );
+  }
+
+  bool get isValid => selectedPoints.length >= 4; // Minimum 4 points
+}
+
+class PatternLockNotifier extends StateNotifier<PatternLockState> {
+  PatternLockNotifier() : super(PatternLockState(
+    selectedPoints: [],
+    status: PatternStatus.initial,
+  ));
+
+  static const int gridSize = 3; // 3x3 grid
+  static const int minPoints = 4;
+
+  void startDrawing() {
+    if (state.status != PatternStatus.completed) {
+      state = state.copyWith(
+        selectedPoints: [],
+        status: PatternStatus.drawing,
+        errorMessage: null,
+      );
+    }
+  }
+
+  void addPoint(int pointIndex) {
+    if (state.status != PatternStatus.drawing) return;
+
+    // Check if point is already selected
+    if (state.selectedPoints.contains(pointIndex)) return;
+
+    // Check if the move is valid (adjacent points)
+    if (state.selectedPoints.isNotEmpty) {
+      final lastPoint = state.selectedPoints.last;
+      if (!isValidMove(lastPoint, pointIndex)) return;
+    }
+
+    final newSelectedPoints = List<int>.from(state.selectedPoints)..add(pointIndex);
+    
+    state = state.copyWith(
+      selectedPoints: newSelectedPoints,
+    );
+  }
+
+  void completeDrawing() {
+    if (state.selectedPoints.length < minPoints) {
+      state = state.copyWith(
+        status: PatternStatus.error,
+        errorMessage: 'Connect at least 4 points',
+      );
+    } else {
+      state = state.copyWith(
+        status: PatternStatus.completed,
+      );
+    }
+  }
+
+  void reset() {
+    state = PatternLockState(
+      selectedPoints: [],
+      status: PatternStatus.initial,
+    );
+  }
+
+  void setError(String message) {
+    state = state.copyWith(
+      status: PatternStatus.error,
+      errorMessage: message,
+    );
+  }
+
+  bool isValidMove(int from, int to) {
+    // Get coordinates
+    final fromRow = from ~/ gridSize;
+    final fromCol = from % gridSize;
+    final toRow = to ~/ gridSize;
+    final toCol = to % gridSize;
+
+    // Check if adjacent (including diagonals)
+    final rowDiff = (toRow - fromRow).abs();
+    final colDiff = (toCol - fromCol).abs();
+
+    return rowDiff <= 1 && colDiff <= 1;
+  }
+
+  bool verifyPattern(List<int> savedPattern) {
+    if (state.selectedPoints.length != savedPattern.length) return false;
+    
+    for (int i = 0; i < state.selectedPoints.length; i++) {
+      if (state.selectedPoints[i] != savedPattern[i]) return false;
+    }
+    return true;
+  }
+}
+
+final patternLockProvider = StateNotifierProvider<PatternLockNotifier, PatternLockState>((ref) {
+  return PatternLockNotifier();
+});
+```
+
+## 3. Create the Pattern Lock Widget
+
+```dart
+// lib/widgets/pattern_lock.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:vector_math/vector_math_64.dart' as vector;
+import '../providers/pattern_lock_provider.dart';
+
+class PatternLock extends HookConsumerWidget {
+  final double size;
+  final Function(String)? onPatternCompleted;
+  final bool isSettingPattern;
+  final List<int>? savedPattern;
+
+  const PatternLock({
+    Key? key,
+    this.size = 300,
+    this.onPatternCompleted,
+    this.isSettingPattern = true,
+    this.savedPattern,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final patternState = ref.watch(patternLockProvider);
+    final notifier = ref.read(patternLockProvider.notifier);
+    
+    final dotSize = size / 10;
+    final spacing = (size - (dotSize * 3)) / 2;
+
+    // Hook for touch position
+    final touchPosition = useState<Offset?>(null);
+    final gestureActive = useState<bool>(false);
+
+    return GestureDetector(
+      onPanStart: (details) {
+        if (isSettingPattern || savedPattern != null) {
+          notifier.startDrawing();
+          gestureActive.value = true;
+          _handleTouch(details.localPosition, size, dotSize, spacing, notifier);
+        }
+      },
+      onPanUpdate: (details) {
+        if (gestureActive.value) {
+          _handleTouch(details.localPosition, size, dotSize, spacing, notifier);
+        }
+      },
+      onPanEnd: (_) {
+        if (gestureActive.value) {
+          notifier.completeDrawing();
+          gestureActive.value = false;
+          touchPosition.value = null;
+
+          if (!isSettingPattern && savedPattern != null) {
+            final isValid = notifier.verifyPattern(savedPattern!);
+            if (!isValid) {
+              notifier.setError('Wrong pattern');
+              Future.delayed(const Duration(milliseconds: 500), () {
+                notifier.reset();
+              });
+            } else {
+              onPatternCompleted?.call('success');
+            }
+          } else if (isSettingPattern && patternState.status == PatternStatus.completed) {
+            onPatternCompleted?.call(patternState.selectedPoints.join('-'));
+          }
+        }
+      },
+      onPanCancel: () {
+        if (gestureActive.value) {
+          notifier.completeDrawing();
+          gestureActive.value = false;
+          touchPosition.value = null;
+        }
+      },
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: CustomPaint(
+          painter: PatternPainter(
+            selectedPoints: patternState.selectedPoints,
+            status: patternState.status,
+            touchPosition: touchPosition.value,
+            dotSize: dotSize,
+            spacing: spacing,
+            gridSize: 3,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleTouch(Offset position, double size, double dotSize, double spacing, PatternLockNotifier notifier) {
+    for (int row = 0; row < 3; row++) {
+      for (int col = 0; col < 3; col++) {
+        final dotCenter = Offset(
+          (col * (dotSize + spacing)) + dotSize / 2 + spacing / 2,
+          (row * (dotSize + spacing)) + dotSize / 2 + spacing / 2,
+        );
+
+        final distance = (position - dotCenter).distance;
+        if (distance <= dotSize / 2) {
+          final pointIndex = row * 3 + col;
+          notifier.addPoint(pointIndex);
+          break;
+        }
+      }
+    }
+  }
+}
+
+class PatternPainter extends CustomPainter {
+  final List<int> selectedPoints;
+  final PatternStatus status;
+  final Offset? touchPosition;
+  final double dotSize;
+  final double spacing;
+  final int gridSize;
+
+  PatternPainter({
+    required this.selectedPoints,
+    required this.status,
+    this.touchPosition,
+    required this.dotSize,
+    required this.spacing,
+    required this.gridSize,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final dotPaint = Paint()
+      ..style = PaintingStyle.fill;
+
+    final linePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round;
+
+    // Set colors based on status
+    switch (status) {
+      case PatternStatus.error:
+        dotPaint.color = Colors.red.shade200;
+        linePaint.color = Colors.red.shade400;
+        break;
+      case PatternStatus.completed:
+        dotPaint.color = Colors.green.shade200;
+        linePaint.color = Colors.green.shade400;
+        break;
+      default:
+        dotPaint.color = Colors.blue.shade200;
+        linePaint.color = Colors.blue.shade400;
+    }
+
+    // Draw lines between selected points
+    if (selectedPoints.length >= 2) {
+      for (int i = 0; i < selectedPoints.length - 1; i++) {
+        final start = _getPointPosition(selectedPoints[i]);
+        final end = _getPointPosition(selectedPoints[i + 1]);
+        canvas.drawLine(start, end, linePaint);
+      }
+    }
+
+    // Draw line to current touch position
+    if (touchPosition != null && selectedPoints.isNotEmpty) {
+      final lastPoint = _getPointPosition(selectedPoints.last);
+      canvas.drawLine(lastPoint, touchPosition!, linePaint);
+    }
+
+    // Draw dots
+    for (int i = 0; i < gridSize * gridSize; i++) {
+      final position = _getPointPosition(i);
+      
+      // Draw outer circle
+      final outerPaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = selectedPoints.contains(i) 
+            ? (status == PatternStatus.error ? Colors.red.shade100 : Colors.blue.shade100)
+            : Colors.grey.shade300;
+      
+      canvas.drawCircle(position, dotSize / 2, outerPaint);
+
+      // Draw inner circle
+      final innerPaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = selectedPoints.contains(i)
+            ? (status == PatternStatus.error ? Colors.red : Colors.blue)
+            : Colors.grey.shade500;
+      
+      canvas.drawCircle(position, dotSize / 4, innerPaint);
+
+      // Draw number for order
+      if (selectedPoints.contains(i)) {
+        final order = selectedPoints.indexOf(i) + 1;
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: order.toString(),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: dotSize / 3,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        );
+        textPainter.layout();
+        textPainter.paint(
+          canvas,
+          position - Offset(textPainter.width / 2, textPainter.height / 2),
+        );
+      }
+    }
+  }
+
+  Offset _getPointPosition(int index) {
+    final row = index ~/ gridSize;
+    final col = index % gridSize;
+    
+    return Offset(
+      (col * (dotSize + spacing)) + dotSize / 2 + spacing / 2,
+      (row * (dotSize + spacing)) + dotSize / 2 + spacing / 2,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant PatternPainter oldDelegate) {
+    return oldDelegate.selectedPoints != selectedPoints ||
+           oldDelegate.status != status ||
+           oldDelegate.touchPosition != touchPosition;
+  }
+}
+```
+
+## 4. Usage Examples
+
+### Pattern Setup Screen
+
+```dart
+// lib/screens/pattern_setup_screen.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import '../widgets/pattern_lock.dart';
+import '../providers/pattern_lock_provider.dart';
+
+class PatternSetupScreen extends ConsumerStatefulWidget {
+  @override
+  _PatternSetupScreenState createState() => _PatternSetupScreenState();
+}
+
+class _PatternSetupScreenState extends ConsumerState<PatternSetupScreen> {
+  String? firstPattern;
+  bool step2 = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final patternState = ref.watch(patternLockProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(step2 ? 'Confirm Pattern' : 'Set Pattern'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              step2 
+                  ? 'Draw your pattern again to confirm'
+                  : 'Draw your unlock pattern',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 40),
+            PatternLock(
+              size: 300,
+              onPatternCompleted: (pattern) {
+                if (!step2) {
+                  // First pattern entry
+                  if (patternState.selectedPoints.length >= 4) {
+                    setState(() {
+                      firstPattern = pattern;
+                      step2 = true;
+                    });
+                    ref.read(patternLockProvider.notifier).reset();
+                  }
+                } else {
+                  // Confirm pattern
+                  if (firstPattern == pattern) {
+                    // Save pattern
+                    print('Pattern saved: $pattern');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Pattern saved successfully!')),
+                    );
+                    Navigator.pop(context, pattern);
+                  } else {
+                    ref.read(patternLockProvider.notifier).setError('Patterns do not match');
+                    Future.delayed(Duration(milliseconds: 500), () {
+                      setState(() {
+                        step2 = false;
+                        firstPattern = null;
+                      });
+                      ref.read(patternLockProvider.notifier).reset();
+                    });
+                  }
+                }
+              },
+            ),
+            if (patternState.errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  patternState.errorMessage!,
+                  style: TextStyle(color: Colors.red, fontSize: 16),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+### Pattern Login Screen
+
+```dart
+// lib/screens/pattern_login_screen.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import '../widgets/pattern_lock.dart';
+import '../providers/pattern_lock_provider.dart';
+
+class PatternLoginScreen extends ConsumerWidget {
+  // This should come from secure storage in real app
+  final List<int> savedPattern = [0, 1, 2, 5, 8]; // Example pattern
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final patternState = ref.watch(patternLockProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Unlock App'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.lock_outline,
+              size: 80,
+              color: Colors.blue,
+            ),
+            SizedBox(height: 20),
+            Text(
+              'Draw your pattern',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 40),
+            PatternLock(
+              size: 300,
+              isSettingPattern: false,
+              savedPattern: savedPattern,
+              onPatternCompleted: (result) {
+                if (result == 'success') {
+                  // Navigate to home screen
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Unlocked successfully!')),
+                  );
+                }
+              },
+            ),
+            if (patternState.errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  patternState.errorMessage!,
+                  style: TextStyle(color: Colors.red, fontSize: 16),
+                ),
+              ),
+            TextButton(
+              onPressed: () {
+                ref.read(patternLockProvider.notifier).reset();
+              },
+              child: Text('Reset'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+## 5. Main App Setup
+
+```dart
+// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'screens/pattern_setup_screen.dart';
+import 'screens/pattern_login_screen.dart';
+
+void main() {
+  runApp(
+    ProviderScope(
+      child: MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Pattern Lock Demo',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+      ),
+      home: HomeScreen(),
+    );
+  }
+}
+
+class HomeScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Pattern Lock Demo'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => PatternSetupScreen()),
+                );
+              },
+              child: Text('Set Pattern'),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => PatternLoginScreen()),
+                );
+              },
+              child: Text('Unlock with Pattern'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+This implementation provides:
+
+1. **Riverpod State Management**: Clean separation of pattern logic and UI
+2. **3x3 Grid Pattern**: Standard pattern lock layout
+3. **Visual Feedback**: Shows numbers, lines, and colors based on state
+4. **Validation**: Minimum 4 points required, pattern verification
+5. **Error Handling**: Visual feedback for wrong patterns
+6. **Setup Flow**: Pattern creation and confirmation
+7. **Login Flow**: Pattern verification
+
+The pattern is saved as a hyphen-separated string of indices (e.g., "0-1-2-5-8") which you can store securely using flutter_secure_storage in production.

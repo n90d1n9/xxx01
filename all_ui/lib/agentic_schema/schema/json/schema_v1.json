@@ -1,0 +1,587 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AI Agent Builder Schema",
+  "description": "Complete framework-agnostic schema for building AI agents with visual/low-code tools",
+  "version": "1.0.0",
+  
+  "definitions": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    
+    "position": {
+      "type": "object",
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"}
+      },
+      "required": ["x", "y"]
+    },
+    
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "createdAt": {"type": "string", "format": "date-time"},
+        "updatedAt": {"type": "string", "format": "date-time"},
+        "createdBy": {"type": "string"},
+        "version": {"type": "string"},
+        "tags": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "description": {"type": "string"},
+        "notes": {"type": "string"}
+      }
+    },
+    
+    "variable": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "name": {"type": "string"},
+        "type": {
+          "enum": ["string", "number", "boolean", "array", "object", "null", "any"]
+        },
+        "defaultValue": {},
+        "scope": {
+          "enum": ["global", "agent", "workflow", "node", "local"]
+        },
+        "persistent": {"type": "boolean"},
+        "encrypted": {"type": "boolean"},
+        "validation": {
+          "type": "object",
+          "properties": {
+            "required": {"type": "boolean"},
+            "min": {"type": "number"},
+            "max": {"type": "number"},
+            "pattern": {"type": "string"},
+            "custom": {"type": "string"}
+          }
+        }
+      },
+      "required": ["id", "name", "type"]
+    },
+    
+    "llmConfig": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "enum": ["openai", "anthropic", "google", "cohere", "azure", "aws", "huggingface", "ollama", "custom"]
+        },
+        "model": {"type": "string"},
+        "apiKey": {"type": "string"},
+        "apiEndpoint": {"type": "string"},
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "temperature": {"type": "number", "minimum": 0, "maximum": 2},
+            "maxTokens": {"type": "integer", "minimum": 1},
+            "topP": {"type": "number", "minimum": 0, "maximum": 1},
+            "topK": {"type": "integer"},
+            "frequencyPenalty": {"type": "number"},
+            "presencePenalty": {"type": "number"},
+            "stopSequences": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "systemPrompt": {"type": "string"}
+          }
+        },
+        "fallbackModels": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "retryConfig": {
+          "type": "object",
+          "properties": {
+            "maxRetries": {"type": "integer"},
+            "backoffMultiplier": {"type": "number"},
+            "timeout": {"type": "integer"}
+          }
+        }
+      },
+      "required": ["provider", "model"]
+    },
+    
+    "tool": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "name": {"type": "string"},
+        "type": {
+          "enum": ["function", "api", "database", "mcp", "web_search", "code_execution", "custom"]
+        },
+        "description": {"type": "string"},
+        "enabled": {"type": "boolean"},
+        "config": {
+          "type": "object",
+          "properties": {
+            "endpoint": {"type": "string"},
+            "method": {"enum": ["GET", "POST", "PUT", "DELETE", "PATCH"]},
+            "headers": {"type": "object"},
+            "authentication": {
+              "type": "object",
+              "properties": {
+                "type": {"enum": ["none", "basic", "bearer", "apiKey", "oauth2", "custom"]},
+                "credentials": {"type": "object"}
+              }
+            },
+            "inputSchema": {"type": "object"},
+            "outputSchema": {"type": "object"},
+            "timeout": {"type": "integer"},
+            "rateLimit": {
+              "type": "object",
+              "properties": {
+                "requests": {"type": "integer"},
+                "period": {"type": "integer"},
+                "unit": {"enum": ["second", "minute", "hour", "day"]}
+              }
+            }
+          }
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"type": "string"},
+              "required": {"type": "boolean"},
+              "description": {"type": "string"},
+              "defaultValue": {}
+            }
+          }
+        }
+      },
+      "required": ["id", "name", "type"]
+    },
+    
+    "memoryConfig": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": ["none", "buffer", "window", "summary", "vector", "entity", "knowledge_graph"]
+        },
+        "storageBackend": {
+          "enum": ["in_memory", "sqlite", "postgres", "redis", "mongodb", "pinecone", "weaviate", "custom"]
+        },
+        "config": {
+          "type": "object",
+          "properties": {
+            "maxMessages": {"type": "integer"},
+            "windowSize": {"type": "integer"},
+            "summaryInterval": {"type": "integer"},
+            "embeddingModel": {"type": "string"},
+            "similarityThreshold": {"type": "number"},
+            "connectionString": {"type": "string"}
+          }
+        },
+        "retention": {
+          "type": "object",
+          "properties": {
+            "duration": {"type": "integer"},
+            "unit": {"enum": ["minutes", "hours", "days", "weeks", "months"]},
+            "autoCleanup": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    
+    "node": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "type": {
+          "enum": [
+            "start", "end", "llm", "tool", "decision", "loop", "parallel", 
+            "merge", "human_input", "code_execution", "webhook", "schedule",
+            "condition", "switch", "delay", "transform", "validator", "router"
+          ]
+        },
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "position": {"$ref": "#/definitions/position"},
+        "config": {
+          "type": "object",
+          "properties": {
+            "llmConfig": {"$ref": "#/definitions/llmConfig"},
+            "tool": {"$ref": "#/definitions/tool"},
+            "prompt": {"type": "string"},
+            "promptTemplate": {
+              "type": "object",
+              "properties": {
+                "template": {"type": "string"},
+                "variables": {
+                  "type": "array",
+                  "items": {"type": "string"}
+                }
+              }
+            },
+            "condition": {
+              "type": "object",
+              "properties": {
+                "expression": {"type": "string"},
+                "operator": {"enum": ["==", "!=", ">", "<", ">=", "<=", "contains", "startsWith", "endsWith", "regex", "custom"]},
+                "value": {},
+                "logic": {"enum": ["and", "or", "not"]}
+              }
+            },
+            "loopConfig": {
+              "type": "object",
+              "properties": {
+                "maxIterations": {"type": "integer"},
+                "breakCondition": {"type": "string"},
+                "iterateOver": {"type": "string"}
+              }
+            },
+            "parallelConfig": {
+              "type": "object",
+              "properties": {
+                "maxConcurrency": {"type": "integer"},
+                "waitForAll": {"type": "boolean"},
+                "aggregationStrategy": {"enum": ["merge", "array", "first", "custom"]}
+              }
+            },
+            "transformConfig": {
+              "type": "object",
+              "properties": {
+                "type": {"enum": ["javascript", "python", "jinja2", "jsonpath", "custom"]},
+                "script": {"type": "string"},
+                "mapping": {"type": "object"}
+              }
+            },
+            "validationConfig": {
+              "type": "object",
+              "properties": {
+                "schema": {"type": "object"},
+                "onFailure": {"enum": ["stop", "retry", "skip", "fallback"]},
+                "fallbackValue": {}
+              }
+            },
+            "humanInputConfig": {
+              "type": "object",
+              "properties": {
+                "formSchema": {"type": "object"},
+                "timeout": {"type": "integer"},
+                "notificationChannels": {
+                  "type": "array",
+                  "items": {"enum": ["email", "sms", "push", "webhook"]}
+                }
+              }
+            }
+          }
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"type": "string"},
+              "source": {"type": "string"},
+              "required": {"type": "boolean"}
+            }
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"type": "string"},
+              "mapping": {"type": "string"}
+            }
+          }
+        },
+        "errorHandling": {
+          "type": "object",
+          "properties": {
+            "strategy": {"enum": ["stop", "retry", "skip", "fallback", "custom"]},
+            "maxRetries": {"type": "integer"},
+            "retryDelay": {"type": "integer"},
+            "fallbackNode": {"type": "string"},
+            "onError": {"type": "string"}
+          }
+        },
+        "metadata": {"$ref": "#/definitions/metadata"}
+      },
+      "required": ["id", "type", "name", "position"]
+    },
+    
+    "edge": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "source": {"type": "string"},
+        "target": {"type": "string"},
+        "sourceHandle": {"type": "string"},
+        "targetHandle": {"type": "string"},
+        "type": {
+          "enum": ["default", "conditional", "fallback", "loop"]
+        },
+        "condition": {
+          "type": "object",
+          "properties": {
+            "expression": {"type": "string"},
+            "priority": {"type": "integer"}
+          }
+        },
+        "label": {"type": "string"},
+        "animated": {"type": "boolean"},
+        "metadata": {"$ref": "#/definitions/metadata"}
+      },
+      "required": ["id", "source", "target"]
+    },
+    
+    "workflow": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "nodes": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/node"}
+        },
+        "edges": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/edge"}
+        },
+        "variables": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/variable"}
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {"enum": ["manual", "schedule", "webhook", "event", "message"]},
+              "config": {"type": "object"}
+            }
+          }
+        },
+        "metadata": {"$ref": "#/definitions/metadata"}
+      },
+      "required": ["id", "name", "nodes"]
+    },
+    
+    "agent": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "type": {
+          "enum": ["conversational", "task", "autonomous", "reactive", "multi_agent"]
+        },
+        "status": {
+          "enum": ["draft", "active", "paused", "archived"]
+        },
+        "llmConfig": {"$ref": "#/definitions/llmConfig"},
+        "memoryConfig": {"$ref": "#/definitions/memoryConfig"},
+        "tools": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/tool"}
+        },
+        "workflows": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/workflow"}
+        },
+        "personality": {
+          "type": "object",
+          "properties": {
+            "tone": {"enum": ["professional", "casual", "friendly", "formal", "humorous", "custom"]},
+            "style": {"type": "string"},
+            "guidelines": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "exampleConversations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "user": {"type": "string"},
+                  "assistant": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "multimodal": {"type": "boolean"},
+            "streaming": {"type": "boolean"},
+            "functionCalling": {"type": "boolean"},
+            "codeExecution": {"type": "boolean"},
+            "webBrowsing": {"type": "boolean"},
+            "fileHandling": {
+              "type": "object",
+              "properties": {
+                "upload": {"type": "boolean"},
+                "supportedTypes": {
+                  "type": "array",
+                  "items": {"type": "string"}
+                },
+                "maxSize": {"type": "integer"}
+              }
+            }
+          }
+        },
+        "safety": {
+          "type": "object",
+          "properties": {
+            "contentFiltering": {"type": "boolean"},
+            "piiDetection": {"type": "boolean"},
+            "toxicityThreshold": {"type": "number"},
+            "allowedTopics": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "blockedTopics": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "moderationRules": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          }
+        },
+        "analytics": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "metrics": {
+              "type": "array",
+              "items": {"enum": ["latency", "tokens", "cost", "success_rate", "user_satisfaction"]}
+            },
+            "logging": {
+              "type": "object",
+              "properties": {
+                "level": {"enum": ["none", "error", "warn", "info", "debug"]},
+                "destination": {"type": "string"}
+              }
+            }
+          }
+        },
+        "deployment": {
+          "type": "object",
+          "properties": {
+            "environment": {"enum": ["development", "staging", "production"]},
+            "scalingConfig": {
+              "type": "object",
+              "properties": {
+                "minInstances": {"type": "integer"},
+                "maxInstances": {"type": "integer"},
+                "autoscale": {"type": "boolean"}
+              }
+            },
+            "endpoints": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {"enum": ["rest", "graphql", "websocket", "grpc"]},
+                  "url": {"type": "string"},
+                  "authentication": {"type": "object"}
+                }
+              }
+            }
+          }
+        },
+        "integrations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {"type": "string"},
+              "name": {"type": "string"},
+              "config": {"type": "object"},
+              "enabled": {"type": "boolean"}
+            }
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "properties": {
+            "roles": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string"},
+                  "permissions": {
+                    "type": "array",
+                    "items": {"enum": ["read", "write", "execute", "delete", "admin"]}
+                  }
+                }
+              }
+            },
+            "users": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "userId": {"type": "string"},
+                  "role": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "metadata": {"$ref": "#/definitions/metadata"}
+      },
+      "required": ["id", "name", "type", "llmConfig"]
+    }
+  },
+  
+  "type": "object",
+  "properties": {
+    "project": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "metadata": {"$ref": "#/definitions/metadata"}
+      },
+      "required": ["id", "name"]
+    },
+    "agents": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/agent"}
+    },
+    "sharedResources": {
+      "type": "object",
+      "properties": {
+        "variables": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/variable"}
+        },
+        "tools": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/tool"}
+        },
+        "llmConfigs": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/llmConfig"}
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "version": {"type": "string"},
+        "schemaVersion": {"type": "string"},
+        "exportFormat": {"enum": ["flutter", "react", "python", "nodejs", "generic"]},
+        "customSettings": {"type": "object"}
+      }
+    }
+  },
+  "required": ["project", "agents"]
+}

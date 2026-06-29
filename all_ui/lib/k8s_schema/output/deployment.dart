@@ -1,0 +1,39 @@
+import 'object_meta.dart';
+import 'deployment_spec.dart';
+import 'deployment_status.dart';
+
+class Deployment {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final DeploymentSpec spec;
+  final DeploymentStatus? status;
+  Deployment({
+    this.apiVersion = 'apps/v1',
+    this.kind = 'Deployment',
+    required this.metadata,
+    required this.spec,
+    this.status,
+  });
+  factory Deployment.fromJson(Map<String, dynamic> json) {
+    return Deployment(
+      apiVersion: json['apiVersion'] ?? 'apps/v1',
+      kind: json['kind'] ?? 'Deployment',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      spec: DeploymentSpec.fromJson(json['spec']),
+      status:
+          json['status'] != null
+              ? DeploymentStatus.fromJson(json['status'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      'spec': spec.toJson(),
+      if (status != null) 'status': status!.toJson(),
+    };
+  }
+}

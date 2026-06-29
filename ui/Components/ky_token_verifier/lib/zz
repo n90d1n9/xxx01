@@ -1,0 +1,497 @@
+I'll add a token verification widget that can be used alongside or after pattern authentication. Here's the complete implementation with token verification:
+
+## 1. Create Token Provider
+
+```dart
+// lib/providers/token_provider.dart
+import 'package:riverpod/riverpod.dart';
+
+enum TokenStatus { initial, verifying, valid, invalid, expired }
+
+class TokenState {
+  final String? token;
+  final TokenStatus status;
+  final DateTime? expiresAt;
+  final String? errorMessage;
+
+  TokenState({
+    this.token,
+    required this.status,
+    this.expiresAt,
+    this.errorMessage,
+  });
+
+  TokenState copyWith({
+    String? token,
+    TokenStatus? status,
+    DateTime? expiresAt,
+    String? errorMessage,
+  }) {
+    return TokenState(
+      token: token ?? this.token,
+      status: status ?? this.status,
+      expiresAt: expiresAt ?? this.expiresAt,
+      errorMessage: errorMessage,
+    );
+  }
+
+  bool get isValid => status == TokenStatus.valid;
+  bool get isExpired => status == TokenStatus.expired;
+}
+
+class TokenNotifier extends StateNotifier<TokenState> {
+  TokenNotifier() : super(TokenState(status: TokenStatus.initial));
+
+  // Simulate token verification
+  Future<void> verifyToken(String token) async {
+    state = state.copyWith(status: TokenStatus.verifying, errorMessage: null);
+
+    // Simulate API call delay
+    await Future.delayed(const Duration(seconds: 1));
+
+    // Simple validation logic - in real app, this would call your backend
+    if (token.length >= 10 && token.startsWith('valid_')) {
+      state = state.copyWith(
+        token: token,
+        status: TokenStatus.valid,
+        expiresAt: DateTime.now().add(const Duration(hours: 24)),
+      );
+    } else if (token == 'expired_token') {
+      state = state.copyWith(
+        status: TokenStatus.expired,
+        errorMessage: 'Token has expired',
+      );
+    } else {
+      state = state.copyWith(
+        status: TokenStatus.invalid,
+        errorMessage: 'Invalid token',
+      );
+    }
+  }
+
+  // Refresh token
+  Future<void> refreshToken() async {
+    if (state.token == null) return;
+
+    state = state.copyWith(status: TokenStatus.verifying);
+
+    // Simulate token refresh
+    await Future.delayed(const Duration(seconds: 1));
+
+    // In real app, this would call your refresh token endpoint
+    state = state.copyWith(
+      token: 'valid_${DateTime.now().millisecondsSinceEpoch}',
+      status: TokenStatus.valid,
+      expiresAt: DateTime.now().add(const Duration(hours: 24)),
+    );
+  }
+
+  // Clear token (logout)
+  void clearToken() {
+    state = TokenState(status: TokenStatus.initial);
+  }
+
+  // Check if token needs refresh (expiring soon)
+  bool needsRefresh() {
+    if (state.expiresAt == null) return false;
+    return state.expiresAt!.difference(DateTime.now()).inMinutes < 30;
+  }
+}
+
+final tokenProvider = StateNotifierProvider<TokenNotifier, TokenState>((ref) {
+  return TokenNotifier();
+});
+```
+
+## 2. Create Token Verification Widget
+
+```dart
+// lib/widgets/token_verification_widget.dart
+
+```
+
+## 3. Create Combined Authentication Widget
+
+```dart
+// lib/widgets/pattern_token_auth.dart
+
+```
+
+## 4. Create Authentication Screen
+
+```dart
+// lib/screens/authentication_screen.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import '../widgets/pattern_token_auth.dart';
+import '../providers/pattern_lock_provider.dart';
+import '../providers/token_provider.dart';
+
+class AuthenticationScreen extends ConsumerStatefulWidget {
+  final AuthMode mode;
+  final List<int>? savedPattern;
+
+  const AuthenticationScreen({
+    Key? key,
+    this.mode = AuthMode.both,
+    this.savedPattern,
+  }) : super(key: key);
+
+  @override
+  _AuthenticationScreenState createState() => _AuthenticationScreenState();
+}
+
+class _AuthenticationScreenState extends ConsumerState<AuthenticationScreen> {
+  bool isAuthenticated = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_getTitle()),
+        elevation: 0,
+      ),
+      body: isAuthenticated
+          ? _buildAuthenticatedContent()
+          : _buildAuthContent(),
+    );
+  }
+
+  String _getTitle() {
+    if (isAuthenticated) return 'Welcome!';
+    
+    switch (widget.mode) {
+      case AuthMode.pattern:
+        return 'Pattern Authentication';
+      case AuthMode.token:
+        return 'Token Verification';
+      case AuthMode.both:
+        return 'Secure Access';
+    }
+  }
+
+  Widget _buildAuthContent() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // App logo/icon
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.security,
+                size: 50,
+                color: Colors.blue,
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // Description
+            Text(
+              _getDescription(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 40),
+
+            // Authentication widget
+            PatternTokenAuth(
+              mode: widget.mode,
+              savedPattern: widget.savedPattern,
+              onAuthenticationSuccess: () {
+                setState(() {
+                  isAuthenticated = true;
+                });
+              },
+              onPatternSaved: (pattern) {
+                // Save pattern to secure storage
+                print('New pattern saved: $pattern');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Pattern saved successfully!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getDescription() {
+    switch (widget.mode) {
+      case AuthMode.pattern:
+        return 'Draw your pattern to access the app';
+      case AuthMode.token:
+        return 'Enter your verification token';
+      case AuthMode.both:
+        return 'Two-factor authentication required\nComplete both steps to continue';
+    }
+  }
+
+  Widget _buildAuthenticatedContent() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.check_circle,
+            size: 100,
+            color: Colors.green,
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Authentication Successful!',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'You have successfully authenticated',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 40),
+          ElevatedButton.icon(
+            onPressed: () {
+              // Navigate to main app content
+              Navigator.pushReplacementNamed(context, '/home');
+            },
+            icon: const Icon(Icons.home),
+            label: const Text('Go to Home'),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(200, 50),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: () {
+              ref.read(patternLockProvider.notifier).reset();
+              ref.read(tokenProvider.notifier).clearToken();
+              setState(() {
+                isAuthenticated = false;
+              });
+            },
+            icon: const Icon(Icons.lock_open),
+            label: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+## 5. Update Main App with Routing
+
+```dart
+// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'screens/authentication_screen.dart';
+
+void main() {
+  runApp(
+    ProviderScope(
+      child: MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Secure Auth Demo',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+      ),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const HomeScreen(),
+        '/pattern-auth': (context) => const AuthenticationScreen(
+              mode: AuthMode.pattern,
+            ),
+        '/token-auth': (context) => const AuthenticationScreen(
+              mode: AuthMode.token,
+            ),
+        '/two-factor': (context) => const AuthenticationScreen(
+              mode: AuthMode.both,
+            ),
+        '/home': (context) => const MainAppScreen(),
+      },
+    );
+  }
+}
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Authentication Demo'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'Choose Authentication Method',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 40),
+            _buildAuthButton(
+              context,
+              'Pattern Only',
+              Icons.lock_pattern,
+              Colors.blue,
+              () => Navigator.pushNamed(context, '/pattern-auth'),
+            ),
+            const SizedBox(height: 16),
+            _buildAuthButton(
+              context,
+              'Token Only',
+              Icons.vpn_key,
+              Colors.green,
+              () => Navigator.pushNamed(context, '/token-auth'),
+            ),
+            const SizedBox(height: 16),
+            _buildAuthButton(
+              context,
+              'Two-Factor Auth',
+              Icons.security,
+              Colors.orange,
+              () => Navigator.pushNamed(context, '/two-factor',
+                  arguments: [0, 1, 2, 5, 8] // Example saved pattern
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAuthButton(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onPressed,
+  ) {
+    return SizedBox(
+      width: 250,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        label: Text(label),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 15),
+        ),
+      ),
+    );
+  }
+}
+
+class MainAppScreen extends StatelessWidget {
+  const MainAppScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Main App'),
+        automaticallyImplyLeading: false,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.check_circle_outline,
+              size: 80,
+              color: Colors.green,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Welcome to the App!',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/',
+                  (route) => false,
+                );
+              },
+              child: const Text('Logout'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+## Features Added:
+
+1. **Token Verification Widget**:
+   - Token input field with visibility toggle
+   - Visual status indicators (valid, invalid, expired)
+   - Token expiry display
+   - Refresh token functionality
+   - Auto-verification option
+
+2. **Combined Authentication**:
+   - Two-factor authentication flow
+   - Step-by-step guidance
+   - Error handling and messages
+   - Navigation between steps
+
+3. **Enhanced Security**:
+   - Pattern + token verification
+   - Token expiry management
+   - Automatic refresh detection
+   - Clear session on logout
+
+4. **User Experience**:
+   - Visual progress indicators
+   - Clear status messages
+   - Smooth transitions
+   - Responsive design
+
+5. **Multiple Auth Modes**:
+   - Pattern only
+   - Token only
+   - Two-factor (pattern + token)
+
+The token verification can be integrated with real backend services by replacing the mock verification logic with actual API calls to validate tokens with your server.

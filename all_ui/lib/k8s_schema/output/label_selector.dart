@@ -1,0 +1,28 @@
+import 'label_selector_requirement.dart';
+
+class LabelSelector {
+  final Map<String, String>? matchLabels;
+  final List<LabelSelectorRequirement>? matchExpressions;
+  LabelSelector({this.matchLabels, this.matchExpressions});
+  factory LabelSelector.fromJson(Map<String, dynamic> json) {
+    return LabelSelector(
+      matchLabels:
+          json['matchLabels'] != null
+              ? Map<String, String>.from(json['matchLabels'])
+              : null,
+      matchExpressions:
+          json['matchExpressions'] != null
+              ? (json['matchExpressions'] as List)
+                  .map((e) => LabelSelectorRequirement.fromJson(e))
+                  .toList()
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (matchLabels != null) 'matchLabels': matchLabels,
+      if (matchExpressions != null)
+        'matchExpressions': matchExpressions!.map((e) => e.toJson()).toList(),
+    };
+  }
+}

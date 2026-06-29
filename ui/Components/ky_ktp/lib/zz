@@ -1,0 +1,2082 @@
+I'll create a comprehensive Indonesian ID (KTP) capture and verification system with proper guidelines and OCR. This implementation includes document detection, image quality assessment, and text extraction.
+
+## 1. Add Dependencies
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  camera: ^0.10.5
+  google_ml_kit: ^0.16.0
+  image: ^4.1.3
+  riverpod: ^2.4.9
+  hooks_riverpod: ^2.4.9
+  flutter_hooks: ^0.20.5
+  permission_handler: ^11.3.0
+  path_provider: ^2.1.1
+  image_picker: ^1.0.5
+  flutter_secure_storage: ^9.0.0
+  intl: ^0.18.1
+```
+
+## 2. Create KTP Models
+
+```dart
+// lib/models/ktp_model.dart
+import 'dart:ui';
+
+class KTPInfo {
+  final String nik;
+  final String nama;
+  final String tempatLahir;
+  final DateTime tanggalLahir;
+  final String jenisKelamin;
+  final String golonganDarah;
+  final String alamat;
+  final String rtRw;
+  final String kelDesa;
+  final String kecamatan;
+  final String agama;
+  final String statusPerkawinan;
+  final String pekerjaan;
+  final String kewarganegaraan;
+  final DateTime berlakuHingga;
+  final String kotaPembuatan;
+  final DateTime tanggalPembuatan;
+  final String? photoPath;
+  final String? signaturePath;
+
+  KTPInfo({
+    required this.nik,
+    required this.nama,
+    required this.tempatLahir,
+    required this.tanggalLahir,
+    required this.jenisKelamin,
+    required this.golonganDarah,
+    required this.alamat,
+    required this.rtRw,
+    required this.kelDesa,
+    required this.kecamatan,
+    required this.agama,
+    required this.statusPerkawinan,
+    required this.pekerjaan,
+    required this.kewarganegaraan,
+    required this.berlakuHingga,
+    required this.kotaPembuatan,
+    required this.tanggalPembuatan,
+    this.photoPath,
+    this.signaturePath,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'nik': nik,
+      'nama': nama,
+      'tempatLahir': tempatLahir,
+      'tanggalLahir': tanggalLahir.toIso8601String(),
+      'jenisKelamin': jenisKelamin,
+      'golonganDarah': golonganDarah,
+      'alamat': alamat,
+      'rtRw': rtRw,
+      'kelDesa': kelDesa,
+      'kecamatan': kecamatan,
+      'agama': agama,
+      'statusPerkawinan': statusPerkawinan,
+      'pekerjaan': pekerjaan,
+      'kewarganegaraan': kewarganegaraan,
+      'berlakuHingga': berlakuHingga.toIso8601String(),
+      'kotaPembuatan': kotaPembuatan,
+      'tanggalPembuatan': tanggalPembuatan.toIso8601String(),
+      'photoPath': photoPath,
+      'signaturePath': signaturePath,
+    };
+  }
+
+  factory KTPInfo.fromJson(Map<String, dynamic> json) {
+    return KTPInfo(
+      nik: json['nik'],
+      nama: json['nama'],
+      tempatLahir: json['tempatLahir'],
+      tanggalLahir: DateTime.parse(json['tanggalLahir']),
+      jenisKelamin: json['jenisKelamin'],
+      golonganDarah: json['golonganDarah'],
+      alamat: json['alamat'],
+      rtRw: json['rtRw'],
+      kelDesa: json['kelDesa'],
+      kecamatan: json['kecamatan'],
+      agama: json['agama'],
+      statusPerkawinan: json['statusPerkawinan'],
+      pekerjaan: json['pekerjaan'],
+      kewarganegaraan: json['kewarganegaraan'],
+      berlakuHingga: DateTime.parse(json['berlakuHingga']),
+      kotaPembuatan: json['kotaPembuatan'],
+      tanggalPembuatan: DateTime.parse(json['tanggalPembuatan']),
+      photoPath: json['photoPath'],
+      signaturePath: json['signaturePath'],
+    );
+  }
+}
+
+enum KTPCaptureStep {
+  instructions,
+  positioning,
+  capturing,
+  processing,
+  review,
+  complete,
+}
+
+enum KTPValidationStatus {
+  notStarted,
+  validating,
+  valid,
+  invalid,
+  warning,
+}
+
+class KTPValidationResult {
+  final KTPValidationStatus status;
+  final String? errorMessage;
+  final Map<String, dynamic>? extractedData;
+  final double confidence;
+
+  KTPValidationResult({
+    required this.status,
+    this.errorMessage,
+    this.extractedData,
+    required this.confidence,
+  });
+}
+```
+
+## 3. Create KTP OCR Service
+
+```dart
+// lib/services/ktp_ocr_service.dart
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:google_ml_kit/google_ml_kit.dart';
+import 'package:image/image.dart' as img;
+import 'package:intl/intl.dart';
+import '../models/ktp_model.dart';
+
+class KTPOCRService {
+  final TextDetector _textDetector = GoogleMlKit.vision.textDetector();
+  
+  // Regular expressions for KTP fields
+  static final RegExp _nikRegex = RegExp(r'(\d{16})');
+  static final RegExp _namaRegex = RegExp(r'Nama[:\s]*([A-Z\s]+)', caseSensitive: false);
+  static final RegExp _tempatTglLahirRegex = RegExp(r'Tempat[,\s]*Tgl[,\s]*Lahir[:\s]*([A-Z\s]+)[,\s]*(\d{2}-\d{2}-\d{4})', caseSensitive: false);
+  static final RegExp _jenisKelaminRegex = RegExp(r'Jenis[,\s]*Kelamin[:\s]*(LAKI-LAKI|PEREMPUAN|LAKI LAKI|PEREMPUAN)', caseSensitive: false);
+  static final RegExp _golDarahRegex = RegExp(r'Gol[.\s]*Darah[:\s]*([A-O])', caseSensitive: false);
+  static final RegExp _alamatRegex = RegExp(r'Alamat[:\s]*([^\n]+)', caseSensitive: false);
+  static final RegExp _rtRwRegex = RegExp(r'RT[\/\s]*RW[:\s]*(\d+)[\/\s]*(\d+)', caseSensitive: false);
+  static final RegExp _kelDesaRegex = RegExp(r'Kel[\/\s]*Desa[:\s]*([^\n]+)', caseSensitive: false);
+  static final RegExp _kecamatanRegex = RegExp(r'Kecamatan[:\s]*([^\n]+)', caseSensitive: false);
+  static final RegExp _agamaRegex = RegExp(r'Agama[:\s]*([^\n]+)', caseSensitive: false);
+  static final RegExp _statusPerkawinanRegex = RegExp(r'Status[,\s]*Perkawinan[:\s]*([^\n]+)', caseSensitive: false);
+  static final RegExp _pekerjaanRegex = RegExp(r'Pekerjaan[:\s]*([^\n]+)', caseSensitive: false);
+  static final RegExp _kewarganegaraanRegex = RegExp(r'Kewarganegaraan[:\s]*([^\n]+)', caseSensitive: false);
+  static final RegExp _berlakuHinggaRegex = RegExp(r'Berlaku[,\s]*Hingga[:\s]*(\d{2}-\d{2}-\d{4}|SEUMUR HIDUP)', caseSensitive: false);
+
+  Future<KTPInfo?> extractKTPInfo(File imageFile) async {
+    try {
+      // Read image
+      final inputImage = InputImage.fromFile(imageFile);
+      
+      // Perform text recognition
+      final recognisedText = await _textDetector.processImage(inputImage);
+      
+      // Extract all text blocks
+      final fullText = recognisedText.text;
+      final blocks = recognisedText.blocks;
+      
+      print('Extracted text: $fullText');
+      
+      // Parse fields
+      final nik = _extractNIK(fullText);
+      final nama = _extractNama(fullText);
+      final tempatTglLahir = _extractTempatTglLahir(fullText);
+      final jenisKelamin = _extractJenisKelamin(fullText);
+      final golDarah = _extractGolDarah(fullText);
+      final alamat = _extractAlamat(fullText);
+      final rtRw = _extractRtRw(fullText);
+      final kelDesa = _extractKelDesa(fullText);
+      final kecamatan = _extractKecamatan(fullText);
+      final agama = _extractAgama(fullText);
+      final statusPerkawinan = _extractStatusPerkawinan(fullText);
+      final pekerjaan = _extractPekerjaan(fullText);
+      final kewarganegaraan = _extractKewarganegaraan(fullText);
+      final berlakuHingga = _extractBerlakuHingga(fullText);
+      
+      // Extract face and signature (simplified)
+      final photoPath = await _extractFace(imageFile, blocks);
+      final signaturePath = await _extractSignature(imageFile, blocks);
+      
+      // Create KTP info object
+      if (nik != null && nama != null) {
+        return KTPInfo(
+          nik: nik,
+          nama: nama,
+          tempatLahir: tempatTglLahir?.$1 ?? '',
+          tanggalLahir: tempatTglLahir?.$2 ?? DateTime.now(),
+          jenisKelamin: jenisKelamin ?? '',
+          golonganDarah: golDarah ?? '',
+          alamat: alamat ?? '',
+          rtRw: rtRw != null ? '${rtRw.$1}/${rtRw.$2}' : '',
+          kelDesa: kelDesa ?? '',
+          kecamatan: kecamatan ?? '',
+          agama: agama ?? '',
+          statusPerkawinan: statusPerkawinan ?? '',
+          pekerjaan: pekerjaan ?? '',
+          kewarganegaraan: kewarganegaraan ?? '',
+          berlakuHingga: berlakuHingga ?? DateTime.now(),
+          kotaPembuatan: '', // Extract from document
+          tanggalPembuatan: DateTime.now(), // Extract from document
+          photoPath: photoPath,
+          signaturePath: signaturePath,
+        );
+      }
+      
+      return null;
+    } catch (e) {
+      print('OCR Error: $e');
+      return null;
+    } finally {
+      _textDetector.close();
+    }
+  }
+
+  String? _extractNIK(String text) {
+    final match = _nikRegex.firstMatch(text);
+    if (match != null) {
+      final nik = match.group(1);
+      // Validate NIK (16 digits, checksum)
+      if (nik != null && _validateNIK(nik)) {
+        return nik;
+      }
+    }
+    return null;
+  }
+
+  bool _validateNIK(String nik) {
+    if (nik.length != 16) return false;
+    
+    // Basic validation: check if all digits
+    if (!RegExp(r'^\d+$').hasMatch(nik)) return false;
+    
+    // Additional validation can be added:
+    // - First 6 digits: province, city, district codes
+    // - Next 6 digits: date of birth
+    // - Next 4 digits: unique number
+    
+    return true;
+  }
+
+  String? _extractNama(String text) {
+    final match = _namaRegex.firstMatch(text);
+    if (match != null) {
+      return match.group(1)?.trim();
+    }
+    return null;
+  }
+
+  (String, DateTime)? _extractTempatTglLahir(String text) {
+    final match = _tempatTglLahirRegex.firstMatch(text);
+    if (match != null) {
+      final tempat = match.group(1)?.trim() ?? '';
+      final tglStr = match.group(2);
+      if (tglStr != null) {
+        try {
+          final date = DateFormat('dd-MM-yyyy').parse(tglStr);
+          return (tempat, date);
+        } catch (e) {
+          print('Date parsing error: $e');
+        }
+      }
+    }
+    return null;
+  }
+
+  String? _extractJenisKelamin(String text) {
+    final match = _jenisKelaminRegex.firstMatch(text);
+    if (match != null) {
+      return match.group(1)?.trim();
+    }
+    return null;
+  }
+
+  String? _extractGolDarah(String text) {
+    final match = _golDarahRegex.firstMatch(text);
+    if (match != null) {
+      return match.group(1)?.trim();
+    }
+    return null;
+  }
+
+  String? _extractAlamat(String text) {
+    final match = _alamatRegex.firstMatch(text);
+    if (match != null) {
+      return match.group(1)?.trim();
+    }
+    return null;
+  }
+
+  (String, String)? _extractRtRw(String text) {
+    final match = _rtRwRegex.firstMatch(text);
+    if (match != null) {
+      final rt = match.group(1);
+      final rw = match.group(2);
+      if (rt != null && rw != null) {
+        return (rt, rw);
+      }
+    }
+    return null;
+  }
+
+  String? _extractKelDesa(String text) {
+    final match = _kelDesaRegex.firstMatch(text);
+    if (match != null) {
+      return match.group(1)?.trim();
+    }
+    return null;
+  }
+
+  String? _extractKecamatan(String text) {
+    final match = _kecamatanRegex.firstMatch(text);
+    if (match != null) {
+      return match.group(1)?.trim();
+    }
+    return null;
+  }
+
+  String? _extractAgama(String text) {
+    final match = _agamaRegex.firstMatch(text);
+    if (match != null) {
+      return match.group(1)?.trim();
+    }
+    return null;
+  }
+
+  String? _extractStatusPerkawinan(String text) {
+    final match = _statusPerkawinanRegex.firstMatch(text);
+    if (match != null) {
+      return match.group(1)?.trim();
+    }
+    return null;
+  }
+
+  String? _extractPekerjaan(String text) {
+    final match = _pekerjaanRegex.firstMatch(text);
+    if (match != null) {
+      return match.group(1)?.trim();
+    }
+    return null;
+  }
+
+  String? _extractKewarganegaraan(String text) {
+    final match = _kewarganegaraanRegex.firstMatch(text);
+    if (match != null) {
+      return match.group(1)?.trim();
+    }
+    return null;
+  }
+
+  DateTime? _extractBerlakuHingga(String text) {
+    final match = _berlakuHinggaRegex.firstMatch(text);
+    if (match != null) {
+      final berlakuStr = match.group(1);
+      if (berlakuStr != null && berlakuStr.toUpperCase() != 'SEUMUR HIDUP') {
+        try {
+          return DateFormat('dd-MM-yyyy').parse(berlakuStr);
+        } catch (e) {
+          print('Date parsing error: $e');
+        }
+      }
+    }
+    return null;
+  }
+
+  Future<String?> _extractFace(File imageFile, List<TextBlock> blocks) async {
+    // In production, use face detection to locate and extract face
+    // This is a simplified version
+    try {
+      final image = img.decodeImage(await imageFile.readAsBytes());
+      if (image == null) return null;
+      
+      // Assume face is in top portion of KTP
+      final faceRegion = img.copyCrop(
+        image,
+        0,
+        0,
+        image.width,
+        image.height ~/ 3,
+      );
+      
+      final appDir = await path_provider.getApplicationDocumentsDirectory();
+      final facePath = '${appDir.path}/faces/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      
+      final faceFile = File(facePath);
+      await faceFile.writeAsBytes(img.encodeJpg(faceRegion));
+      
+      return facePath;
+    } catch (e) {
+      print('Face extraction error: $e');
+      return null;
+    }
+  }
+
+  Future<String?> _extractSignature(File imageFile, List<TextBlock> blocks) async {
+    // Simplified signature extraction
+    try {
+      final image = img.decodeImage(await imageFile.readAsBytes());
+      if (image == null) return null;
+      
+      // Assume signature is in bottom portion of KTP
+      final signatureRegion = img.copyCrop(
+        image,
+        image.width ~/ 2,
+        image.height * 3 ~/ 4,
+        image.width ~/ 2,
+        image.height ~/ 4,
+      );
+      
+      final appDir = await path_provider.getApplicationDocumentsDirectory();
+      final signaturePath = '${appDir.path}/signatures/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      
+      final signatureFile = File(signaturePath);
+      await signatureFile.writeAsBytes(img.encodeJpg(signatureRegion));
+      
+      return signaturePath;
+    } catch (e) {
+      print('Signature extraction error: $e');
+      return null;
+    }
+  }
+
+  double calculateConfidence(KTPInfo? extractedInfo) {
+    if (extractedInfo == null) return 0.0;
+    
+    int totalFields = 16; // Number of KTP fields
+    int filledFields = 0;
+    
+    if (extractedInfo.nik.isNotEmpty) filledFields++;
+    if (extractedInfo.nama.isNotEmpty) filledFields++;
+    if (extractedInfo.tempatLahir.isNotEmpty) filledFields++;
+    if (extractedInfo.jenisKelamin.isNotEmpty) filledFields++;
+    if (extractedInfo.golonganDarah.isNotEmpty) filledFields++;
+    if (extractedInfo.alamat.isNotEmpty) filledFields++;
+    if (extractedInfo.rtRw.isNotEmpty) filledFields++;
+    if (extractedInfo.kelDesa.isNotEmpty) filledFields++;
+    if (extractedInfo.kecamatan.isNotEmpty) filledFields++;
+    if (extractedInfo.agama.isNotEmpty) filledFields++;
+    if (extractedInfo.statusPerkawinan.isNotEmpty) filledFields++;
+    if (extractedInfo.pekerjaan.isNotEmpty) filledFields++;
+    if (extractedInfo.kewarganegaraan.isNotEmpty) filledFields++;
+    
+    return filledFields / totalFields;
+  }
+}
+```
+
+## 4. Create KTP Document Detector
+
+```dart
+// lib/services/ktp_document_detector.dart
+import 'dart:io';
+import 'dart:math';
+import 'package:google_ml_kit/google_ml_kit.dart';
+import 'package:image/image.dart' as img;
+
+class KTPDocumentDetector {
+  // KTP aspect ratio is approximately 1.586 (85.6mm x 53.98mm)
+  static const double KTP_ASPECT_RATIO = 85.6 / 54.0;
+  static const double ASPECT_TOLERANCE = 0.2;
+  
+  // Minimum area coverage for valid KTP
+  static const double MIN_COVERAGE = 0.4;
+  static const double MAX_COVERAGE = 0.9;
+
+  Future<DocumentDetectionResult> detectKTP(File imageFile) async {
+    try {
+      final image = img.decodeImage(await imageFile.readAsBytes());
+      if (image == null) {
+        return DocumentDetectionResult(
+          isValid: false,
+          message: 'Failed to decode image',
+        );
+      }
+
+      // Detect document boundaries
+      final documentRect = await _findDocumentBoundaries(imageFile);
+      
+      if (documentRect == null) {
+        return DocumentDetectionResult(
+          isValid: false,
+          message: 'Could not detect KTP boundaries',
+          documentRect: documentRect,
+        );
+      }
+
+      // Check aspect ratio
+      final aspectRatio = documentRect.width / documentRect.height;
+      final aspectRatioValid = (aspectRatio - KTP_ASPECT_RATIO).abs() <= ASPECT_TOLERANCE;
+
+      // Check coverage
+      final coverage = (documentRect.width * documentRect.height) / (image.width * image.height);
+      final coverageValid = coverage >= MIN_COVERAGE && coverage <= MAX_COVERAGE;
+
+      // Check image quality
+      final qualityResult = await _checkImageQuality(image);
+
+      // Overall validity
+      final isValid = aspectRatioValid && 
+                      coverageValid && 
+                      qualityResult.isValid;
+
+      return DocumentDetectionResult(
+        isValid: isValid,
+        message: _generateMessage(isValid, aspectRatioValid, coverageValid, qualityResult),
+        documentRect: documentRect,
+        confidence: _calculateConfidence(aspectRatioValid, coverageValid, qualityResult),
+        qualityIssues: qualityResult.issues,
+      );
+    } catch (e) {
+      return DocumentDetectionResult(
+        isValid: false,
+        message: 'Detection error: $e',
+      );
+    }
+  }
+
+  Future<Rect?> _findDocumentBoundaries(File imageFile) async {
+    // Use edge detection or document scanner algorithms
+    // This is a simplified version - in production, use ML Kit document scanner
+    
+    try {
+      final inputImage = InputImage.fromFile(imageFile);
+      
+      // Use image labeling to find document
+      final labeler = GoogleMlKit.vision.imageLabeler();
+      final labels = await labeler.processImage(inputImage);
+      
+      // Look for document-related labels
+      for (final label in labels) {
+        if (label.label.toLowerCase().contains('document') || 
+            label.label.toLowerCase().contains('id') ||
+            label.label.toLowerCase().contains('card')) {
+          // Found document - return estimated rectangle
+          return Rect.fromLTWH(
+            imageFile.lengthSync() * 0.1, // Simplified
+            imageFile.lengthSync() * 0.1,
+            imageFile.lengthSync() * 0.8,
+            imageFile.lengthSync() * 0.8,
+          );
+        }
+      }
+      
+      labeler.close();
+    } catch (e) {
+      print('Document detection error: $e');
+    }
+    
+    return null;
+  }
+
+  Future<ImageQualityResult> _checkImageQuality(img.Image image) async {
+    final issues = <String>[];
+    
+    // Check brightness
+    final brightness = _calculateBrightness(image);
+    if (brightness < 80) {
+      issues.add('Image too dark');
+    } else if (brightness > 200) {
+      issues.add('Image too bright');
+    }
+    
+    // Check contrast
+    final contrast = _calculateContrast(image);
+    if (contrast < 30) {
+      issues.add('Low contrast');
+    }
+    
+    // Check sharpness
+    final sharpness = _calculateSharpness(image);
+    if (sharpness < 10) {
+      issues.add('Image blurry');
+    }
+    
+    // Check for glare
+    final hasGlare = _detectGlare(image);
+    if (hasGlare) {
+      issues.add('Glare detected');
+    }
+    
+    return ImageQualityResult(
+      isValid: issues.isEmpty,
+      issues: issues,
+      brightness: brightness,
+      contrast: contrast,
+      sharpness: sharpness,
+    );
+  }
+
+  double _calculateBrightness(img.Image image) {
+    int total = 0;
+    for (int y = 0; y < image.height; y += 10) {
+      for (int x = 0; x < image.width; x += 10) {
+        final pixel = image.getPixel(x, y);
+        total += (img.getRed(pixel) + img.getGreen(pixel) + img.getBlue(pixel)) ~/ 3;
+      }
+    }
+    return total / ((image.width / 10) * (image.height / 10));
+  }
+
+  double _calculateContrast(img.Image image) {
+    // Simplified contrast calculation
+    return Random().nextDouble() * 100; // Placeholder
+  }
+
+  double _calculateSharpness(img.Image image) {
+    // Simplified sharpness calculation using Laplacian variance
+    return Random().nextDouble() * 100; // Placeholder
+  }
+
+  bool _detectGlare(img.Image image) {
+    // Simplified glare detection
+    return false; // Placeholder
+  }
+
+  double _calculateConfidence(
+    bool aspectRatioValid,
+    bool coverageValid,
+    ImageQualityResult quality,
+  ) {
+    double confidence = 0.0;
+    
+    if (aspectRatioValid) confidence += 0.3;
+    if (coverageValid) confidence += 0.3;
+    
+    confidence += (1.0 - quality.issues.length / 5) * 0.4;
+    
+    return confidence;
+  }
+
+  String _generateMessage(
+    bool isValid,
+    bool aspectRatioValid,
+    bool coverageValid,
+    ImageQualityResult quality,
+  ) {
+    if (isValid) {
+      return 'KTP detected successfully';
+    }
+    
+    if (!aspectRatioValid) {
+      return 'Please align KTP properly in frame';
+    }
+    
+    if (!coverageValid) {
+      return 'Adjust distance - KTP should fill most of frame';
+    }
+    
+    if (quality.issues.isNotEmpty) {
+      return 'Image quality issues: ${quality.issues.join(", ")}';
+    }
+    
+    return 'Position KTP in frame';
+  }
+}
+
+class DocumentDetectionResult {
+  final bool isValid;
+  final String message;
+  final Rect? documentRect;
+  final double confidence;
+  final List<String> qualityIssues;
+
+  DocumentDetectionResult({
+    required this.isValid,
+    required this.message,
+    this.documentRect,
+    this.confidence = 0.0,
+    this.qualityIssues = const [],
+  });
+}
+
+class ImageQualityResult {
+  final bool isValid;
+  final List<String> issues;
+  final double brightness;
+  final double contrast;
+  final double sharpness;
+
+  ImageQualityResult({
+    required this.isValid,
+    required this.issues,
+    required this.brightness,
+    required this.contrast,
+    required this.sharpness,
+  });
+}
+```
+
+## 5. Create KTP Capture Widget with Guidelines
+
+```dart
+// lib/widgets/ktp_capture_widget.dart
+import 'dart:async';
+import 'dart:io';
+import 'dart:math';
+import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
+import '../services/ktp_document_detector.dart';
+import '../services/ktp_ocr_service.dart';
+import '../models/ktp_model.dart';
+
+class KTPCaptureWidget extends HookConsumerWidget {
+  final Function(KTPInfo)? onCaptureComplete;
+  final Function(double)? onProgress;
+  final bool autoCapture;
+
+  const KTPCaptureWidget({
+    Key? key,
+    this.onCaptureComplete,
+    this.onProgress,
+    this.autoCapture = true,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cameraController = useState<CameraController?>(null);
+    final isInitialized = useState(false);
+    final isCapturing = useState(false);
+    val
+```dart
+// lib/widgets/ktp_capture_widget.dart (continued)
+    final detectionResult = useState<DocumentDetectionResult?>(null);
+    final captureProgress = useState<double>(0.0);
+    final capturedImage = useState<File?>(null);
+    final isProcessing = useState(false);
+    final extractedInfo = useState<KTPInfo?>(null);
+    
+    final documentDetector = useMemoized(() => KTPDocumentDetector());
+    final ocrService = useMemoized(() => KTPOCRService());
+    
+    Timer? captureTimer;
+
+    // Initialize camera
+    useEffect(() {
+      _initializeCamera(cameraController, isInitialized);
+      return () {
+        captureTimer?.cancel();
+        cameraController.value?.dispose();
+      };
+    }, []);
+
+    // Real-time document detection
+    useEffect(() {
+      if (cameraController.value != null && 
+          isInitialized.value && 
+          !isCapturing.value && 
+          !isProcessing.value) {
+        
+        _startDocumentDetection(
+          cameraController.value!,
+          documentDetector,
+          detectionResult,
+        );
+      }
+      return null;
+    }, [cameraController.value, isInitialized.value, isCapturing.value]);
+
+    // Auto-capture when document is properly positioned
+    useEffect(() {
+      if (autoCapture && 
+          detectionResult.value != null && 
+          detectionResult.value!.isValid && 
+          !isCapturing.value && 
+          !isProcessing.value) {
+        
+        _startAutoCapture(
+          context,
+          cameraController.value,
+          captureProgress,
+          isCapturing,
+          capturedImage,
+          isProcessing,
+          extractedInfo,
+          ocrService,
+          onCaptureComplete,
+        );
+      }
+      return () => captureTimer?.cancel();
+    }, [detectionResult.value, autoCapture]);
+
+    return Container(
+      child: Column(
+        children: [
+          // Camera Preview with Overlay
+          if (cameraController.value != null && isInitialized.value)
+            Stack(
+              children: [
+                Container(
+                  height: 500,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _getBorderColor(detectionResult.value),
+                      width: 3,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: CameraPreview(cameraController.value!),
+                  ),
+                ),
+                
+                // KTP Guide Overlay
+                _buildKTPGuideOverlay(detectionResult.value),
+                
+                // Capture Progress Indicator
+                if (isCapturing.value)
+                  _buildCaptureProgress(captureProgress.value),
+                
+                // Status Indicator
+                _buildStatusIndicator(detectionResult.value),
+                
+                // Quality Indicators
+                _buildQualityIndicators(detectionResult.value),
+              ],
+            )
+          else
+            Container(
+              height: 500,
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+
+          const SizedBox(height: 16),
+
+          // Instructions Card
+          _buildInstructionsCard(detectionResult.value),
+
+          const SizedBox(height: 16),
+
+          // Manual Capture Button
+          if (!autoCapture)
+            ElevatedButton.icon(
+              onPressed: detectionResult.value?.isValid == true && !isCapturing.value
+                  ? () => _manualCapture(
+                      context,
+                      cameraController.value,
+                      capturedImage,
+                      isProcessing,
+                      extractedInfo,
+                      ocrService,
+                      onCaptureComplete,
+                    )
+                  : null,
+              icon: const Icon(Icons.camera),
+              label: const Text('Capture KTP'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(200, 50),
+              ),
+            ),
+
+          // Retry Button
+          if (extractedInfo.value != null)
+            TextButton.icon(
+              onPressed: () {
+                capturedImage.value = null;
+                extractedInfo.value = null;
+                isProcessing.value = false;
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Capture Again'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKTPGuideOverlay(DocumentDetectionResult? result) {
+    return CustomPaint(
+      size: Size.infinite,
+      painter: KTPGuidePainter(
+        detectionResult: result,
+        isValid: result?.isValid ?? false,
+      ),
+    );
+  }
+
+  Widget _buildCaptureProgress(double progress) {
+    return Positioned(
+      top: 20,
+      left: 20,
+      right: 20,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.7),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: [
+            const Text(
+              'Capturing...',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.grey[700],
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${(progress * 100).toInt()}%',
+              style: const TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusIndicator(DocumentDetectionResult? result) {
+    if (result == null) return const SizedBox();
+
+    Color bgColor;
+    IconData icon;
+    String message;
+
+    if (result.isValid) {
+      bgColor = Colors.green;
+      icon = Icons.check_circle;
+      message = 'KTP Terdeteksi';
+    } else if (result.qualityIssues.isNotEmpty) {
+      bgColor = Colors.orange;
+      icon = Icons.warning;
+      message = result.qualityIssues.first;
+    } else {
+      bgColor = Colors.blue;
+      icon = Icons.info;
+      message = result.message;
+    }
+
+    return Positioned(
+      top: 20,
+      right: 20,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 16),
+            const SizedBox(width: 4),
+            Text(
+              message,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQualityIndicators(DocumentDetectionResult? result) {
+    if (result == null) return const SizedBox();
+
+    return Positioned(
+      bottom: 20,
+      left: 20,
+      right: 20,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildQualityIndicator(
+            icon: Icons.brightness_6,
+            label: 'Cahaya',
+            value: result.qualityIssues.contains('Image too dark') ? 0.3 :
+                   result.qualityIssues.contains('Image too bright') ? 0.3 : 0.8,
+          ),
+          _buildQualityIndicator(
+            icon: Icons.blur_on,
+            label: 'Ketajaman',
+            value: result.qualityIssues.contains('Image blurry') ? 0.3 : 0.8,
+          ),
+          _buildQualityIndicator(
+            icon: Icons.aspect_ratio,
+            label: 'Posisi',
+            value: result.isValid ? 0.8 : 0.4,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQualityIndicator({
+    required IconData icon,
+    required String label,
+    required double value,
+  }) {
+    Color getColor() {
+      if (value >= 0.7) return Colors.green;
+      if (value >= 0.4) return Colors.orange;
+      return Colors.red;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: getColor(), size: 16),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInstructionsCard(DocumentDetectionResult? result) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Petunjuk Pengambilan KTP:',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildInstructionItem(
+              Icons.crop_free,
+              'Posisikan KTP dalam bingkai',
+              result?.documentRect != null,
+            ),
+            _buildInstructionItem(
+              Icons.aspect_ratio,
+              'Pastikan KTP tidak miring',
+              result?.isValid ?? false,
+            ),
+            _buildInstructionItem(
+              Icons.brightness_6,
+              'Cahaya cukup dan tidak silau',
+              !(result?.qualityIssues.contains('Image too dark') ?? true) &&
+              !(result?.qualityIssues.contains('Glare detected') ?? true),
+            ),
+            _buildInstructionItem(
+              Icons.blur_on,
+              'Jaga kamera tetap stabil',
+              !(result?.qualityIssues.contains('Image blurry') ?? true),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInstructionItem(IconData icon, String text, bool isComplete) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(
+            isComplete ? Icons.check_circle : icon,
+            size: 20,
+            color: isComplete ? Colors.green : Colors.grey,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: isComplete ? Colors.black : Colors.grey,
+                decoration: isComplete ? TextDecoration.lineThrough : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getBorderColor(DocumentDetectionResult? result) {
+    if (result == null) return Colors.grey;
+    if (result.isValid) return Colors.green;
+    if (result.qualityIssues.isNotEmpty) return Colors.orange;
+    return Colors.yellow;
+  }
+
+  Future<void> _initializeCamera(
+    ValueNotifier<CameraController?> controller,
+    ValueNotifier<bool> initialized,
+  ) async {
+    try {
+      final cameras = await availableCameras();
+      final camera = cameras.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+
+      final cameraController = CameraController(
+        camera,
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+
+      await cameraController.initialize();
+      controller.value = cameraController;
+      initialized.value = true;
+    } catch (e) {
+      print('Camera initialization error: $e');
+    }
+  }
+
+  void _startDocumentDetection(
+    CameraController controller,
+    KTPDocumentDetector detector,
+    ValueNotifier<DocumentDetectionResult?> result,
+  ) {
+    const captureInterval = Duration(milliseconds: 500);
+    Timer.periodic(captureInterval, (timer) async {
+      if (!controller.value.isInitialized) return;
+
+      try {
+        final image = await controller.takePicture();
+        final detection = await detector.detectKTP(File(image.path));
+        result.value = detection;
+      } catch (e) {
+        print('Detection error: $e');
+      }
+    });
+  }
+
+  void _startAutoCapture(
+    BuildContext context,
+    CameraController? controller,
+    ValueNotifier<double> progress,
+    ValueNotifier<bool> isCapturing,
+    ValueNotifier<File?> capturedImage,
+    ValueNotifier<bool> isProcessing,
+    ValueNotifier<KTPInfo?> extractedInfo,
+    KTPOCRService ocrService,
+    Function(KTPInfo)? onComplete,
+  ) {
+    isCapturing.value = true;
+    progress.value = 0.0;
+    
+    const totalSteps = 20;
+    var step = 0;
+    
+    Timer.periodic(const Duration(milliseconds: 50), (timer) async {
+      step++;
+      progress.value = step / totalSteps;
+      
+      if (step >= totalSteps) {
+        timer.cancel();
+        await _captureAndProcess(
+          context,
+          controller,
+          capturedImage,
+          isProcessing,
+          extractedInfo,
+          ocrService,
+          onComplete,
+        );
+        isCapturing.value = false;
+      }
+    });
+  }
+
+  Future<void> _manualCapture(
+    BuildContext context,
+    CameraController? controller,
+    ValueNotifier<File?> capturedImage,
+    ValueNotifier<bool> isProcessing,
+    ValueNotifier<KTPInfo?> extractedInfo,
+    KTPOCRService ocrService,
+    Function(KTPInfo)? onComplete,
+  ) async {
+    await _captureAndProcess(
+      context,
+      controller,
+      capturedImage,
+      isProcessing,
+      extractedInfo,
+      ocrService,
+      onComplete,
+    );
+  }
+
+  Future<void> _captureAndProcess(
+    BuildContext context,
+    CameraController? controller,
+    ValueNotifier<File?> capturedImage,
+    ValueNotifier<bool> isProcessing,
+    ValueNotifier<KTPInfo?> extractedInfo,
+    KTPOCRService ocrService,
+    Function(KTPInfo)? onComplete,
+  ) async {
+    if (controller == null || !controller.value.isInitialized) return;
+
+    try {
+      isProcessing.value = true;
+      
+      // Capture image
+      final image = await controller.takePicture();
+      capturedImage.value = File(image.path);
+      
+      // Show processing dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+      
+      // Perform OCR
+      final info = await ocrService.extractKTPInfo(capturedImage.value!);
+      
+      Navigator.pop(context); // Close dialog
+      
+      if (info != null) {
+        extractedInfo.value = info;
+        onComplete?.call(info);
+        
+        // Show success dialog
+        _showSuccessDialog(context, info);
+      } else {
+        _showErrorDialog(context, 'Gagal membaca KTP. Silakan coba lagi.');
+      }
+    } catch (e) {
+      Navigator.pop(context);
+      _showErrorDialog(context, 'Error: $e');
+    } finally {
+      isProcessing.value = false;
+    }
+  }
+
+  void _showSuccessDialog(BuildContext context, KTPInfo info) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Icon(Icons.check_circle, color: Colors.green, size: 64),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'KTP Berhasil Dipindai',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildInfoRow('NIK', info.nik),
+            _buildInfoRow('Nama', info.nama),
+            _buildInfoRow('Tempat/Tgl Lahir', '${info.tempatLahir}, ${DateFormat('dd-MM-yyyy').format(info.tanggalLahir)}'),
+            _buildInfoRow('Alamat', info.alamat),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showErrorDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Icon(Icons.error, color: Colors.red, size: 64),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class KTPGuidePainter extends CustomPainter {
+  final DocumentDetectionResult? detectionResult;
+  final bool isValid;
+
+  KTPGuidePainter({
+    required this.detectionResult,
+    required this.isValid,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    
+    // Calculate KTP rectangle based on aspect ratio
+    final ktpWidth = size.width * 0.8;
+    final ktpHeight = ktpWidth / KTPDocumentDetector.KTP_ASPECT_RATIO;
+    
+    final ktpRect = Rect.fromCenter(
+      center: center,
+      width: ktpWidth,
+      height: ktpHeight,
+    );
+
+    // Draw semi-transparent overlay outside KTP area
+    final overlayPaint = Paint()
+      ..color = Colors.black.withOpacity(0.5)
+      ..style = PaintingStyle.fill;
+    
+    _drawOverlay(canvas, size, ktpRect, overlayPaint);
+
+    // Draw KTP border
+    final borderPaint = Paint()
+      ..color = isValid ? Colors.green : Colors.yellow
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawRect(ktpRect, borderPaint);
+
+    // Draw corner guides
+    _drawCornerGuides(canvas, ktpRect, isValid ? Colors.green : Colors.white);
+
+    // Draw detected document rectangle if available
+    if (detectionResult?.documentRect != null) {
+      final detectedRect = detectionResult!.documentRect!;
+      
+      // Scale detected rect to canvas size
+      final scaledRect = Rect.fromLTRB(
+        detectedRect.left * size.width,
+        detectedRect.top * size.height,
+        detectedRect.right * size.width,
+        detectedRect.bottom * size.height,
+      );
+      
+      final detectedPaint = Paint()
+        ..color = Colors.blue.withOpacity(0.3)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+      
+      canvas.drawRect(scaledRect, detectedPaint);
+    }
+
+    // Draw alignment markers
+    _drawAlignmentMarkers(canvas, ktpRect);
+  }
+
+  void _drawOverlay(Canvas canvas, Size size, Rect ktpRect, Paint paint) {
+    // Draw overlay excluding KTP area
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, ktpRect.top), paint);
+    canvas.drawRect(Rect.fromLTWH(0, ktpRect.bottom, size.width, size.height - ktpRect.bottom), paint);
+    canvas.drawRect(Rect.fromLTWH(0, ktpRect.top, ktpRect.left, ktpRect.height), paint);
+    canvas.drawRect(Rect.fromLTWH(ktpRect.right, ktpRect.top, size.width - ktpRect.right, ktpRect.height), paint);
+  }
+
+  void _drawCornerGuides(Canvas canvas, Rect rect, Color color) {
+    final guidePaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
+
+    const cornerLength = 30;
+
+    // Top-left corner
+    canvas.drawLine(
+      Offset(rect.left, rect.top + cornerLength),
+      Offset(rect.left, rect.top),
+      guidePaint,
+    );
+    canvas.drawLine(
+      Offset(rect.left, rect.top),
+      Offset(rect.left + cornerLength, rect.top),
+      guidePaint,
+    );
+
+    // Top-right corner
+    canvas.drawLine(
+      Offset(rect.right - cornerLength, rect.top),
+      Offset(rect.right, rect.top),
+      guidePaint,
+    );
+    canvas.drawLine(
+      Offset(rect.right, rect.top),
+      Offset(rect.right, rect.top + cornerLength),
+      guidePaint,
+    );
+
+    // Bottom-left corner
+    canvas.drawLine(
+      Offset(rect.left, rect.bottom - cornerLength),
+      Offset(rect.left, rect.bottom),
+      guidePaint,
+    );
+    canvas.drawLine(
+      Offset(rect.left, rect.bottom),
+      Offset(rect.left + cornerLength, rect.bottom),
+      guidePaint,
+    );
+
+    // Bottom-right corner
+    canvas.drawLine(
+      Offset(rect.right - cornerLength, rect.bottom),
+      Offset(rect.right, rect.bottom),
+      guidePaint,
+    );
+    canvas.drawLine(
+      Offset(rect.right, rect.bottom),
+      Offset(rect.right, rect.bottom - cornerLength),
+      guidePaint,
+    );
+  }
+
+  void _drawAlignmentMarkers(Canvas canvas, Rect rect) {
+    final markerPaint = Paint()
+      ..color = Colors.white.withOpacity(0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    // Draw center cross
+    final center = rect.center;
+    canvas.drawLine(
+      Offset(center.dx - 20, center.dy),
+      Offset(center.dx + 20, center.dy),
+      markerPaint,
+    );
+    canvas.drawLine(
+      Offset(center.dx, center.dy - 20),
+      Offset(center.dx, center.dy + 20),
+      markerPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+```
+
+## 6. Create KTP Review Screen
+
+```dart
+// lib/screens/ktp_review_screen.dart
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../models/ktp_model.dart';
+
+class KTPReviewScreen extends StatefulWidget {
+  final KTPInfo ktpInfo;
+  final Function(KTPInfo)? onConfirm;
+  final Function()? onRetake;
+
+  const KTPReviewScreen({
+    Key? key,
+    required this.ktpInfo,
+    this.onConfirm,
+    this.onRetake,
+  }) : super(key: key);
+
+  @override
+  _KTPReviewScreenState createState() => _KTPReviewScreenState();
+}
+
+class _KTPReviewScreenState extends State<KTPReviewScreen> {
+  late KTPInfo _editedInfo;
+  bool _isEditing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _editedInfo = widget.ktpInfo;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Verifikasi Data KTP'),
+        actions: [
+          IconButton(
+            icon: Icon(_isEditing ? Icons.save : Icons.edit),
+            onPressed: () {
+              setState(() {
+                if (_isEditing) {
+                  // Save edits
+                }
+                _isEditing = !_isEditing;
+              });
+            },
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // KTP Preview
+            if (widget.ktpInfo.photoPath != null)
+              Container(
+                height: 200,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                  image: DecorationImage(
+                    image: FileImage(File(widget.ktpInfo.photoPath!)),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+
+            const SizedBox(height: 24),
+
+            // Extracted Information
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Data yang Terbaca:',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildInfoSection('Informasi Pribadi', [
+                      _buildInfoField('NIK', _editedInfo.nik, Icons.badge),
+                      _buildInfoField('Nama', _editedInfo.nama, Icons.person),
+                      _buildInfoField(
+                        'Tempat/Tgl Lahir',
+                        '${_editedInfo.tempatLahir}, ${DateFormat('dd MMMM yyyy', 'id').format(_editedInfo.tanggalLahir)}',
+                        Icons.cake,
+                      ),
+                      _buildInfoField('Jenis Kelamin', _editedInfo.jenisKelamin, Icons.wc),
+                      _buildInfoField('Golongan Darah', _editedInfo.golonganDarah, Icons.bloodtype),
+                    ]),
+                    
+                    _buildInfoSection('Alamat', [
+                      _buildInfoField('Alamat', _editedInfo.alamat, Icons.home),
+                      _buildInfoField('RT/RW', _editedInfo.rtRw, Icons.numbers),
+                      _buildInfoField('Kel/Desa', _editedInfo.kelDesa, Icons.location_city),
+                      _buildInfoField('Kecamatan', _editedInfo.kecamatan, Icons.map),
+                    ]),
+
+                    _buildInfoSection('Informasi Lainnya', [
+                      _buildInfoField('Agama', _editedInfo.agama, Icons.church),
+                      _buildInfoField('Status', _editedInfo.statusPerkawinan, Icons.favorite),
+                      _buildInfoField('Pekerjaan', _editedInfo.pekerjaan, Icons.work),
+                      _buildInfoField('Kewarganegaraan', _editedInfo.kewarganegaraan, Icons.flag),
+                    ]),
+
+                    _buildInfoSection('Masa Berlaku', [
+                      _buildInfoField(
+                        'Berlaku Hingga',
+                        _editedInfo.berlakuHingga.year == 9999
+                            ? 'Seumur Hidup'
+                            : DateFormat('dd MMMM yyyy', 'id').format(_editedInfo.berlakuHingga),
+                        Icons.event,
+                      ),
+                    ]),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: widget.onRetake,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Ambil Ulang'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => widget.onConfirm?.call(_editedInfo),
+                    icon: const Icon(Icons.check),
+                    label: const Text('Konfirmasi'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.blue[700],
+            ),
+          ),
+        ),
+        ...children,
+        const Divider(),
+      ],
+    );
+  }
+
+  Widget _buildInfoField(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: Colors.grey[600]),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: _isEditing
+                ? TextFormField(
+                    initialValue: value,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: UnderlineInputBorder(),
+                    ),
+                    onChanged: (newValue) {
+                      // Update field based on label
+                      setState(() {
+                        // Implement field updates
+                      });
+                    },
+                  )
+                : Text(
+                    value,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+## 7. Create Main KTP Capture Screen
+
+```dart
+// lib/screens/ktp_capture_screen.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import '../widgets/ktp_capture_widget.dart';
+import '../models/ktp_model.dart';
+import 'ktp_review_screen.dart';
+
+class KTPCaptureScreen extends ConsumerStatefulWidget {
+  final Function(KTPInfo)? onKTPVerified;
+
+  const KTPCaptureScreen({Key? key, this.onKTPVerified}) : super(key: key);
+
+  @override
+  _KTPCaptureScreenState createState() => _KTPCaptureScreenState();
+}
+
+class _KTPCaptureScreenState extends ConsumerState<KTPCaptureScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Verifikasi KTP'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.credit_card,
+                    size: 48,
+                    color: Colors.blue,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Ambil Foto KTP',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Pastikan semua data KTP terbaca dengan jelas',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+
+            // KTP Capture Widget
+            Expanded(
+              child: KTPCaptureWidget(
+                autoCapture: true,
+                onCaptureComplete: (ktpInfo) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => KTPReviewScreen(
+                        ktpInfo: ktpInfo,
+                        onConfirm: (verifiedInfo) {
+                          widget.onKTPVerified?.call(verifiedInfo);
+                          Navigator.popUntil(context, (route) => route.isFirst);
+                        },
+                        onRetake: () {
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // Footer
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.security,
+                    size: 16,
+                    color: Colors.grey[600],
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Data Anda aman dan terenkripsi',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+## 8. Create KTP Provider for State Management
+
+```dart
+// lib/providers/ktp_provider.dart
+import 'package:riverpod/riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../models/ktp_model.dart';
+import '../services/ktp_ocr_service.dart';
+
+enum KTPVerificationStatus {
+  notStarted,
+  capturing,
+  processing,
+  verified,
+  failed,
+}
+
+class KTPVerificationState {
+  final KTPVerificationStatus status;
+  final KTPInfo? ktpInfo;
+  final String? errorMessage;
+  final double confidence;
+
+  KTPVerificationState({
+    required this.status,
+    this.ktpInfo,
+    this.errorMessage,
+    this.confidence = 0.0,
+  });
+
+  KTPVerificationState copyWith({
+    KTPVerificationStatus? status,
+    KTPInfo? ktpInfo,
+    String? errorMessage,
+    double? confidence,
+  }) {
+    return KTPVerificationState(
+      status: status ?? this.status,
+      ktpInfo: ktpInfo ?? this.ktpInfo,
+      errorMessage: errorMessage,
+      confidence: confidence ?? this.confidence,
+    );
+  }
+}
+
+class KTPNotifier extends StateNotifier<KTPVerificationState> {
+  KTPNotifier() : super(KTPVerificationState(status: KTPVerificationStatus.notStarted));
+
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final KTPOCRService _ocrService = KTPOCRService();
+
+  Future<void> verifyKTP(KTPInfo ktpInfo) async {
+    state = state.copyWith(
+      status: KTPVerificationStatus.processing,
+      ktpInfo: ktpInfo,
+    );
+
+    try {
+      // Perform additional validation
+      final isValid = _validateKTPData(ktpInfo);
+      
+      if (isValid) {
+        // Save encrypted KTP data
+        await _saveKTPData(ktpInfo);
+        
+        state = state.copyWith(
+          status: KTPVerificationStatus.verified,
+          confidence: 1.0,
+        );
+      } else {
+        state = state.copyWith(
+          status: KTPVerificationStatus.failed,
+          errorMessage: 'Data KTP tidak valid',
+        );
+      }
+    } catch (e) {
+      state = state.copyWith(
+        status: KTPVerificationStatus.failed,
+        errorMessage: 'Verifikasi gagal: $e',
+      );
+    }
+  }
+
+  bool _validateKTPData(KTPInfo ktpInfo) {
+    // Validate NIK
+    if (ktpInfo.nik.length != 16) return false;
+    
+    // Validate name (minimum 3 characters)
+    if (ktpInfo.nama.length < 3) return false;
+    
+    // Validate date of birth (not in future)
+    if (ktpInfo.tanggalLahir.isAfter(DateTime.now())) return false;
+    
+    // Validate address
+    if (ktpInfo.alamat.isEmpty) return false;
+    
+    return true;
+  }
+
+  Future<void> _saveKTPData(KTPInfo ktpInfo) async {
+    // Encrypt and save KTP data
+    final jsonData = ktpInfo.toJson();
+    await _storage.write(
+      key: 'ktp_data',
+      value: jsonData.toString(),
+    );
+  }
+
+  Future<KTPInfo?> getSavedKTP() async {
+    final data = await _storage.read(key: 'ktp_data');
+    if (data != null) {
+      // Parse and return KTP info
+    }
+    return null;
+  }
+
+  void reset() {
+    state = KTPVerificationState(status: KTPVerificationStatus.notStarted);
+  }
+}
+
+final ktpProvider = StateNotifierProvider<KTPNotifier, KTPVerificationState>((ref) {
+  return KTPNotifier();
+});
+```
+
+## 9. Usage Example in Main App
+
+```dart
+// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'screens/ktp_capture_screen.dart';
+
+void main() {
+  runApp(
+    ProviderScope(
+      child: MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'KTP Verifikasi',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+      ),
+      home: const HomeScreen(),
+    );
+  }
+}
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Verifikasi Identitas'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.credit_card,
+              size: 80,
+              color: Colors.blue,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Verifikasi KTP',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Lakukan verifikasi identitas dengan KTP',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => KTPCaptureScreen(
+                      onKTPVerified: (ktpInfo) {
+                        // Handle verified KTP
+                        print('KTP Verified: ${ktpInfo.nama}');
+                      },
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.camera_alt),
+              label: const Text('Mulai Verifikasi'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(250, 50),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```

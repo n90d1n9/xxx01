@@ -1,0 +1,381 @@
+{
+    "menuItems": [
+        {
+            "id": "infobaaru",
+            "title": "Info Baru",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "info-list",
+                    "title": "Daftar Info Baru",
+                    "icon": "list",
+                    "route": "/info"
+                },
+                {
+                    "id": "info-add",
+                    "title": "Tambah Info Baru",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/info-add"
+                }
+            ]
+        },
+        {
+            "id": "quote",
+            "title": "Quote",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "quote-list",
+                    "title": "Daftar Quote",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/quote"
+                },
+                {
+                    "id": "quote-add",
+                    "title": "Tambah Quote",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/quote-detail"
+                }
+            ]
+        },
+        {
+            "id": "event",
+            "title": "Event",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "event-list",
+                    "title": "Daftar Event",
+                    "icon": "list",
+                    "route": "/event"
+                },
+                {
+                    "id": "event-add",
+                    "title": "Tambah Event",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/event-add"
+                }
+            ]
+        },
+        {
+            "id": "youtube",
+            "title": "Youtube",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "youtube-dash",
+                    "title": "Dashboard",
+                    "icon": "list",
+                    "route": "/youtubedashboard"
+                },
+                {
+                    "id": "youtube-list",
+                    "title": "Daftar Channel",
+                    "icon": "list",
+                    "route": "/youtube"
+                },
+                {
+                    "id": "youtube-add",
+                    "title": "Tambah Channel",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/youtube-add"
+                }
+            ]
+        },
+        {
+            "id": "mutabanat",
+            "title": "Kitab Mutabanat",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "mutabanat-list",
+                    "title": "Daftar Kitab Mutabanat",
+                    "icon": "list",
+                    "route": "/mutabanat"
+                },{
+                    "id": "mutabanat-add",
+                    "title": "Tambah Kitab Mutabanat",
+                    "icon": "list",
+                    "route": "/mutabanat-add"
+                }
+            ]
+        },
+       
+        {
+            "id": "kitab",
+            "title": "Kitab",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "kitab-list",
+                    "title": "Daftar Kitab",
+                    "icon": "list",
+                    "route": "/kitab"
+                },{
+                    "id": "kitab-add",
+                    "title": "Tambah Kitab",
+                    "icon": "list",
+                    "route": "/kitab-add"
+                }
+            ]
+        },
+        {
+            "id": "media",
+            "title": "Media Dakwah",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "media-list",
+                    "title": "Daftar Media Dakwah",
+                    "icon": "list",
+                    "route": "/media"
+                },{
+                    "id": "media-add",
+                    "title": "Tambah Media Dakwah",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/media-add"
+                }
+            ]
+        },
+        {
+            "id": "htiweb",
+            "title": "Web HTI",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "hti-list",
+                    "title": "Daftar Web HTI",
+                    "icon": "list",
+                    "route": "/hti"
+                },{
+                    "id": "hti-add",
+                    "title": "Tambah Artikel",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/hti-add"
+                }
+            ]
+        },
+
+
+        {
+            "id": "alwaie",
+            "title": "Alwaie",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "alwaie-list",
+                    "title": "Daftar Alwaie",
+                    "icon": "list",
+                    "route": "/alwaie"
+                },{
+                    "id": "alwaie-add",
+                    "title": "Tambah Artikel",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/hti-add"
+                }
+            ]
+        },
+        {
+            "id": "mu",
+            "title": "Media Umat",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "mu-list",
+                    "title": "Daftar Media Umat",
+                    "icon": "list",
+                    "route": "/mu"
+                },{
+                    "id": "mu-add",
+                    "title": "Tambah Artikel",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/mu-add"
+                }
+            ]
+        },
+        {
+            "id": "kaffah",
+            "title": "Buletin Kaffah",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "kaffah-list",
+                    "title": "Daftar Buletin Kaffah",
+                    "icon": "list",
+                    "route": "/kaffah"
+                },{
+                    "id": "kaffah-add",
+                    "title": "Tambah Artikel",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/kaffah-add"
+                }
+            ]
+        },
+        {
+            "id": "multimedia",
+            "title": "Multimedia",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "multimedia-list",
+                    "title": "Gallery Multimedia",
+                    "icon": "list",
+                    "route": "/multimedia"
+                },
+                {
+                    "id": "gambar-add",
+                    "title": "Tambah Gambar",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/gambar-add"
+                },
+                {
+                    "id": "video-add",
+                    "title": "Tambah Video",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/video-add"
+                },
+                {
+                    "id": "audio-add",
+                    "title": "Tambah Audio",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/audio-add"
+                }
+            ]
+        },
+        {
+            "id": "feedback",
+            "title": "Feedback",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "feedback-list",
+                    "title": "Daftar Feedback",
+                    "icon": "list",
+                    "route": "/feedback"
+                },
+                {
+                    "id": "feedback-add",
+                    "title": "Tambah Feedback",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/feedback-add"
+                }
+            ]
+        },
+        {
+            "id": "hijri",
+            "title": "Hijriah",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "hijriah",
+                    "title": "Hijriah",
+                    "icon": "list",
+                    "route": "/hijri"
+                }
+               
+            ]
+        },
+        {
+            "id": "iklan",
+            "title": "Iklan",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "iklan-list",
+                    "title": "Daftar Iklan",
+                    "icon": "list",
+                    "route": "/iklan"
+                },{
+                    "id": "iklan-add",
+                    "title": "Tambah Iklan",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/iklan-detail"
+                },
+                {
+                    "id": "iklan-flash-list",
+                    "title": "Daftar Iklan Flash",
+                    "icon": "list",
+                    "route": "/iklan"
+                },{
+                    "id": "iklan-flash-add",
+                    "title": "Tambah Iklan Flash",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/iklan-flash-add"
+                }
+            ]
+        },
+        {
+            "id": "shop",
+            "title": "shop",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "iklan-list",
+                    "title": "Toko",
+                    "icon": "list",
+                    "route": "/iklan"
+                },{
+                    "id": "iklan-add",
+                    "title": "Tambah Toko",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/iklan-detail"
+                },
+                {
+                    "id": "iklan-flash-list",
+                    "title": "Daftar Iklan Flash",
+                    "icon": "list",
+                    "route": "/iklan"
+                },{
+                    "id": "iklan-flash-add",
+                    "title": "Tambah Iklan Flash",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/iklan-flash-add"
+                }
+            ]
+        },
+        {
+            "id": "frame",
+            "title": "One Frame",
+            "icon": "people",
+            "children": [
+                {
+                    "id": "frame-list",
+                    "title": "Daftar frame",
+                    "icon": "list",
+                    "route": "/frame"
+                },
+                {
+                    "id": "frame-add",
+                    "title": "Tambah Frame",
+                    "roles": ["ADMIN", "EDITOR"],
+                    "icon": "list",
+                    "route": "/frame-add"
+                },
+                {
+                    "id": "frame-cetak",
+                    "title": "Cetak Frame",
+                    "icon": "list",
+                    "route": "/frame-cetak"
+                }
+            ]
+        }
+    ]
+}

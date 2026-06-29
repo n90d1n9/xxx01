@@ -1,0 +1,42 @@
+faraid_config:
+  version: "1.0"
+  inheritance_systems:
+    hanafi:
+      name: "Hanafi"
+      phases:
+        - name: "reset"
+          priority: 100
+        - name: "fixed_shares" 
+          priority: 90
+        - name: "residuary"
+          priority: 70
+        - name: "special_cases"
+          priority: 50
+        - name: "finalization"
+          priority: 10
+      
+      heir_types:
+        wife:
+          fixed_share: "1/8"
+          conditions: ["has_children == true"]
+        husband:
+          fixed_share: "1/4" 
+          conditions: ["has_children == true"]
+        daughter:
+          fixed_share: "1/2"
+          conditions: ["is_single == true", "has_sons == false"]
+          residuary_ratio: 1
+        son:
+          residuary_ratio: 2
+      
+      calculations:
+        - name: "has_children"
+          expression: "sonCount > 0 || daughterCount > 0"
+        - name: "has_sons" 
+          expression: "sonCount > 0"
+        - name: "is_single"
+          expression: "daughterCount == 1"
+        - name: "total_fixed_shares"
+          expression: "wifeShare + husbandShare + daughterShare"
+        - name: "remaining_after_fixed"
+          expression: "1 - total_fixed_shares"

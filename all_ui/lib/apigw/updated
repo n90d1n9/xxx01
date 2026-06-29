@@ -1,0 +1,394 @@
+// First, let's create the GatewayStatus model class
+
+// models/gateway_status.dart
+
+// Next, let's update the ApiGatewayService to return the GatewayStatus object
+
+// services/api_gateway_service.dart (Modified method)
+class ApiGatewayService {
+  // ... existing code
+  
+  
+  // ... existing code
+}
+
+// Now let's update the GatewayStatusNotifier to use the GatewayStatus model
+
+// providers/gateway_status_provider.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
+import '../models/gateway_status.dart';
+import '../services/api_gateway_service.dart';
+
+// Define the provider for ApiGatewayService if it doesn't exist yet
+final apiServiceProvider = Provider<ApiGatewayService>((ref) {
+  return ApiGatewayService();
+});
+
+// Define a proper state class for gateway status
+class GatewayStatusState {
+  final bool isLoading;
+  final GatewayStatus? data;
+  final String? errorMessage;
+  final DateTime? lastUpdated;
+
+  const GatewayStatusState({
+    this.isLoading = false,
+    this.data,
+    this.errorMessage,
+    this.lastUpdated,
+  });
+
+  GatewayStatusState copyWith({
+    bool? isLoading,
+    GatewayStatus? data,
+    String? errorMessage,
+    DateTime? lastUpdated,
+  }) {
+    return GatewayStatusState(
+      isLoading: isLoading ?? this.isLoading,
+      data: data ?? this.data,
+      errorMessage: errorMessage ?? this.errorMessage,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+    );
+  }
+}
+
+// Gateway status notifier with proper error handling and refresh capability
+class GatewayStatusNotifier extends StateNotifier<GatewayStatusState> {
+  final ApiGatewayService _apiService;
+  Timer? _refreshTimer;
+  
+  GatewayStatusNotifier(this._apiService) : super(const GatewayStatusState(isLoading: true)) {
+    fetchStatus(); // Initial fetch
+  }
+
+  Future<void> fetchStatus() async {
+    if (state.isLoading) return; // Prevent concurrent requests
+    
+    state = state.copyWith(isLoading: true);
+    
+    try {
+      final status = await _apiService.getGatewayStatus();
+      state = GatewayStatusState(
+        isLoading: false,
+        data: status,
+        lastUpdated: DateTime.now(),
+      );
+    } catch (e) {
+      state = GatewayStatusState(
+        isLoading: false,
+        data: state.data, // Keep old data if available
+        errorMessage: e.toString(),
+        lastUpdated: state.lastUpdated,
+      );
+    }
+  }
+
+  // Set up automatic refresh
+  void startPeriodicRefresh(Duration interval) {
+    stopPeriodicRefresh();
+    _refreshTimer = Timer.periodic(interval, (_) => fetchStatus());
+  }
+
+  void stopPeriodicRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+  }
+
+  @override
+  void dispose() {
+    stopPeriodicRefresh();
+    super.dispose();
+  }
+}
+
+// The enhanced provider
+final gatewayStatusProvider = StateNotifierProvider<GatewayStatusNotifier, GatewayStatusState>((ref) {
+  final apiService = ref.watch(apiServiceProvider);
+  final notifier = GatewayStatusNotifier(apiService);
+  // Auto-refresh every 30 seconds
+  notifier.startPeriodicRefresh(const Duration(seconds: 30));
+  return notifier;
+});
+
+// Additional provider to get just the status data
+final gatewayStatusDataProvider = Provider<GatewayStatus?>((ref) {
+  return ref.watch(gatewayStatusProvider).data;
+});
+
+// Here's how you might update your UI component to use the new GatewayStatus model
+class GatewayStatusDisplay extends ConsumerWidget {
+  const GatewayStatusDisplay({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statusState = ref.watch(gatewayStatusProvider);
+    
+    // Show loading state
+    if (statusState.isLoading && statusState.data == null) {
+      return const ShimmerStatusCards();
+    }
+    
+    // Show error state if there's an error and no data
+    if (statusState.errorMessage != null && statusState.data == null) {
+      return ErrorDisplay(
+        message: statusState.errorMessage!,
+        onRetry: () => ref.read(gatewayStatusProvider.notifier).fetchStatus(),
+      );
+    }
+    
+    // Show data (could be stale data while refreshing)
+    if (statusState.data != null) {
+      return Column(
+        children: [
+          // Status cards
+          _buildStatusCards(statusState.data!),
+          
+          // Show a refreshing indicator if we have data but are also loading
+          if (statusState.isLoading)
+            const LinearProgressIndicator(minHeight: 2),
+            
+          // Last updated info
+          if (statusState.lastUpdated != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Text(
+                'Last updated: ${_formatDateTime(statusState.lastUpdated!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            
+          // Show error banner if we have both data and an error
+          if (statusState.errorMessage != null)
+            Container(
+              margin: const EdgeInsets.only(top: 8.0),
+              padding: const EdgeInsets.all(8.0),
+              color: Colors.red.withValues(alpha: 0.1),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning, color: Colors.red, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(statusState.errorMessage!, style: const TextStyle(color: Colors.red))),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: 16),
+                    onPressed: () => ref.read(gatewayStatusProvider.notifier).fetchStatus(),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      );
+    }
+    
+    return const Text('No status data available');
+  }
+
+  Widget _buildStatusCards(GatewayStatus status) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildStatusCard(
+            title: 'Status',
+            value: status.isOnline ? 'Online' : 'Offline',
+            icon: Icons.power_settings_new,
+            iconColor: status.isOnline ? Colors.green : Colors.red,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildStatusCard(
+            title: 'Response Time',
+            value: '${status.averageResponseTime.toStringAsFixed(2)} ms',
+            icon: Icons.speed,
+            iconColor: const Color(0xFF6366F1),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildStatusCard(
+            title: 'Success Rate',
+            value: '${(status.successRate * 100).toStringAsFixed(1)}%',
+            icon: Icons.check_circle_outline,
+            iconColor: _getSuccessRateColor(status.successRate),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildStatusCard(
+            title: 'Total Endpoints',
+            value: status.totalEndpoints.toString(),
+            icon: Icons.api,
+            iconColor: const Color(0xFF6366F1),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildStatusCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color iconColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: iconColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Color _getSuccessRateColor(double rate) {
+    if (rate >= 0.98) return Colors.green;
+    if (rate >= 0.95) return const Color(0xFF22C55E);
+    if (rate >= 0.90) return Colors.orange;
+    return Colors.red;
+  }
+  
+  String _formatDateTime(DateTime dt) {
+    return '${dt.hour}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}';
+  }
+}
+
+// Helper widget for error display
+class ErrorDisplay extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const ErrorDisplay({
+    Key? key,
+    required this.message,
+    required this.onRetry,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline, size: 48, color: Colors.red),
+          const SizedBox(height: 16),
+          Text('Failed to load status: $message'),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// A shimmer loading widget for status cards
+class ShimmerStatusCards extends StatelessWidget {
+  const ShimmerStatusCards({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: List.generate(
+        4,
+        (index) => Expanded(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: index > 0 && index < 3 ? 8.0 : 0),
+            child: _buildShimmerCard(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShimmerCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 80,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: 60,
+            height: 20,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

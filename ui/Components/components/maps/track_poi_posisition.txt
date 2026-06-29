@@ -1,0 +1,156 @@
+To find Points of Interest (POI) near the user's location on a map using Flutter, Google Maps API, and Riverpod, you can follow these steps. You'll need to use the google_maps_flutter package for displaying maps, geolocator for obtaining the user's current location, and dio for making HTTP requests to the Google Places API.
+
+Here's a step-by-step guide:
+
+1. Add Dependencies: Ensure you have the necessary packages in your pubspec.yaml.
+
+   
+    dependencies:
+      flutter:
+        sdk: flutter
+      flutter_riverpod: ^2.0.0
+      google_maps_flutter: ^2.1.4
+      geolocator: ^9.0.1
+      dio: ^4.0.6
+    2. Request Permissions: Ensure you have location permissions set up in your AndroidManifest.xml and Info.plist.
+
+3. Enable Google Places API: Ensure you have enabled the Google Places API in your Google Cloud Console and obtained the API key.
+
+4. Define State: Create a class to hold the POI data.
+
+   
+    class POI {
+      final String name;
+      final double latitude;
+      final double longitude;
+
+      POI({required this.name, required this.latitude, required this.longitude});
+    }
+
+    class POIState {
+      final List<POI> pois;
+
+      POIState({required this.pois});
+    }
+    5. Create a StateNotifier: Define a POINotifier to manage the POI state and fetch POIs from the Google Places API.
+
+   
+    import 'package:flutter_riverpod/flutter_riverpod.dart';
+    import 'package:geolocator/geolocator.dart';
+    import 'package:dio/dio.dart';
+
+    class POINotifier extends StateNotifier<POIState> {
+      POINotifier() : super(POIState(pois: [])) {
+        _init();
+      }
+
+      Future<void> _init() async {
+        await _determinePosition();
+        await _fetchPOIs();
+      }
+
+      Future<void> _determinePosition() async {
+        bool serviceEnabled;
+        LocationPermission permission;
+
+        serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          return Future.error('Location services are disabled.');
+        }
+
+        permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+          if (permission == LocationPermission.denied) {
+            return Future.error('Location permissions are denied');
+          }
+        }
+
+        if (permission == LocationPermission.deniedForever) {
+          return Future.error(
+              'Location permissions are permanently denied, we cannot request permissions.');
+        }
+
+        Position position = await Geolocator.getCurrentPosition();
+        await _fetchPOIs(position.latitude, position.longitude);
+      }
+
+      Future<void> _fetchPOIs(double latitude, double longitude) async {
+        final apiKey = 'YOUR_GOOGLE_API_KEY';
+        final url = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
+            '?location=$latitude,$longitude&radius=1500&type=point_of_interest&key=$apiKey';
+
+        final response = await Dio().get(url);
+
+        if (response.statusCode == 200) {
+          final data = response.data['results'] as List;
+          final pois = data.map((item) {
+            return POI(
+              name: item['name'],
+              latitude: item['geometry']['location']['lat'],
+              longitude: item['geometry']['location']['lng'],
+            );
+          }).toList();
+
+          state = POIState(pois: pois);
+        } else {
+          throw Exception('Failed to load POIs');
+        }
+      }
+    }
+    6. Create a Provider: Set up a StateNotifierProvider for the POINotifier.
+
+   
+    final poiProvider = StateNotifierProvider<POINotifier, POIState>((ref) {
+      return POINotifier();
+    });
+    7. Build the UI: Use the provider in your UI to display the user's position and the POIs on a Google Map.
+
+    `dart
+    import 'package:flutter/material.dart';
+    import 'package:flutter_riverpod/flutter_riverpod.dart';
+    import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+void main() {
+      runApp(ProviderScope(child: MyApp()));
+    }
+
+    class MyApp extends StatelessWidget {
+      @override
+      Widget build(BuildContext context) {
+        return MaterialApp(
+          home: MapScreen(),
+        );
+      }
+    }
+
+    class MapScreen extends ConsumerWidget {
+      @override
+      Widget build(BuildContext context, ScopedReader watch) {
+        final poiState = watch(poiProvider);
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text('POI Near Me'),
+          ),
+          body: GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: LatLng(0.0, 0.0),
+              zoom: 15,
+            ),
+            markers: poiState.pois.map((poi) {
+              return Marker(
+                markerId: MarkerId(poi.name),
+                position: LatLng(poi.latitude, poi.longitude),
+                infoWindow: InfoWindow(title: poi.name),
+              );
+            }).toSet(),
+            myLocationEnabled: true,
+            myLocationButtonEnabled: true,
+          ),
+        );
+      }
+    }
+    `
+
+Replace `'YOUR_GOOGLE_API_KEY'` with your actual Google API key. This example integrates the Google Places API to find POIs near the user's current location and displays them on a Google Map using Riverpod for state management.

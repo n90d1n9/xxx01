@@ -1,0 +1,2 @@
+
+class PersistentVolumeStatus {final String? phase; final String? message; final String? reason; PersistentVolumeStatus({this.phase, this.message, this.reason}); factory PersistentVolumeStatus.fromJson(Map<String, dynamic> json) {return PersistentVolumeStatus(phase: json['phase'], message: json['message'], reason: json['reason']);} Map<String, dynamic> toJson() {return {if (phase != null) 'phase' : phase, if (message != null) 'message' : message, if (reason != null) 'reason' : reason};}}

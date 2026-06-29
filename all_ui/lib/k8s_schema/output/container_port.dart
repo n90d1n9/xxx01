@@ -1,0 +1,32 @@
+class ContainerPort {
+  final String? name;
+  final int containerPort;
+  final int? hostPort;
+  final String? protocol;
+  final String? hostIP;
+  ContainerPort({
+    this.name,
+    required this.containerPort,
+    this.hostPort,
+    this.protocol,
+    this.hostIP,
+  });
+  factory ContainerPort.fromJson(Map<String, dynamic> json) {
+    return ContainerPort(
+      name: json['name'],
+      containerPort: json['containerPort'],
+      hostPort: json['hostPort'],
+      protocol: json['protocol'],
+      hostIP: json['hostIP'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (name != null) 'name': name,
+      'containerPort': containerPort,
+      if (hostPort != null) 'hostPort': hostPort,
+      if (protocol != null) 'protocol': protocol,
+      if (hostIP != null) 'hostIP': hostIP,
+    };
+  }
+}

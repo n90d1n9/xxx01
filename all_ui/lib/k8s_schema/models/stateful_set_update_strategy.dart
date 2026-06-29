@@ -1,0 +1,2 @@
+
+class StatefulSetUpdateStrategy {final String? type; final RollingUpdateStatefulSetStrategy? rollingUpdate; StatefulSetUpdateStrategy({this.type, this.rollingUpdate}); factory StatefulSetUpdateStrategy.fromJson(Map<String, dynamic> json) {return StatefulSetUpdateStrategy(type: json['type'], rollingUpdate: json['rollingUpdate'] != null ? RollingUpdateStatefulSetStrategy.fromJson(json['rollingUpdate']) : null);} Map<String, dynamic> toJson() {return {if (type != null) 'type' : type, if (rollingUpdate != null) 'rollingUpdate' : rollingUpdate!.toJson()};}}

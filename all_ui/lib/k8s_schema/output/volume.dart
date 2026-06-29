@@ -1,0 +1,103 @@
+import 'host_path_volume_source.dart';
+import 'empty_dir_volume_source.dart';
+import 'secret_volume_source.dart';
+import 'config_map_volume_source.dart';
+import 'persistent_volume_claim_volume_source.dart';
+import 'downward_apivolume_source.dart';
+import 'projected_volume_source.dart';
+import 'nfsvolume_source.dart';
+import 'awselastic_block_store_volume_source.dart';
+import 'gcepersistent_disk_volume_source.dart';
+
+class Volume {
+  final String name;
+  final HostPathVolumeSource? hostPath;
+  final EmptyDirVolumeSource? emptyDir;
+  final SecretVolumeSource? secret;
+  final ConfigMapVolumeSource? configMap;
+  final PersistentVolumeClaimVolumeSource? persistentVolumeClaim;
+  final DownwardAPIVolumeSource? downwardAPI;
+  final ProjectedVolumeSource? projected;
+  final NFSVolumeSource? nfs;
+  final AWSElasticBlockStoreVolumeSource? awsElasticBlockStore;
+  final GCEPersistentDiskVolumeSource? gcePersistentDisk;
+  Volume({
+    required this.name,
+    this.hostPath,
+    this.emptyDir,
+    this.secret,
+    this.configMap,
+    this.persistentVolumeClaim,
+    this.downwardAPI,
+    this.projected,
+    this.nfs,
+    this.awsElasticBlockStore,
+    this.gcePersistentDisk,
+  });
+  factory Volume.fromJson(Map<String, dynamic> json) {
+    return Volume(
+      name: json['name'],
+      hostPath:
+          json['hostPath'] != null
+              ? HostPathVolumeSource.fromJson(json['hostPath'])
+              : null,
+      emptyDir:
+          json['emptyDir'] != null
+              ? EmptyDirVolumeSource.fromJson(json['emptyDir'])
+              : null,
+      secret:
+          json['secret'] != null
+              ? SecretVolumeSource.fromJson(json['secret'])
+              : null,
+      configMap:
+          json['configMap'] != null
+              ? ConfigMapVolumeSource.fromJson(json['configMap'])
+              : null,
+      persistentVolumeClaim:
+          json['persistentVolumeClaim'] != null
+              ? PersistentVolumeClaimVolumeSource.fromJson(
+                json['persistentVolumeClaim'],
+              )
+              : null,
+      downwardAPI:
+          json['downwardAPI'] != null
+              ? DownwardAPIVolumeSource.fromJson(json['downwardAPI'])
+              : null,
+      projected:
+          json['projected'] != null
+              ? ProjectedVolumeSource.fromJson(json['projected'])
+              : null,
+      nfs: json['nfs'] != null ? NFSVolumeSource.fromJson(json['nfs']) : null,
+      awsElasticBlockStore:
+          json['awsElasticBlockStore'] != null
+              ? AWSElasticBlockStoreVolumeSource.fromJson(
+                json['awsElasticBlockStore'],
+              )
+              : null,
+      gcePersistentDisk:
+          json['gcePersistentDisk'] != null
+              ? GCEPersistentDiskVolumeSource.fromJson(
+                json['gcePersistentDisk'],
+              )
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      if (hostPath != null) 'hostPath': hostPath!.toJson(),
+      if (emptyDir != null) 'emptyDir': emptyDir!.toJson(),
+      if (secret != null) 'secret': secret!.toJson(),
+      if (configMap != null) 'configMap': configMap!.toJson(),
+      if (persistentVolumeClaim != null)
+        'persistentVolumeClaim': persistentVolumeClaim!.toJson(),
+      if (downwardAPI != null) 'downwardAPI': downwardAPI!.toJson(),
+      if (projected != null) 'projected': projected!.toJson(),
+      if (nfs != null) 'nfs': nfs!.toJson(),
+      if (awsElasticBlockStore != null)
+        'awsElasticBlockStore': awsElasticBlockStore!.toJson(),
+      if (gcePersistentDisk != null)
+        'gcePersistentDisk': gcePersistentDisk!.toJson(),
+    };
+  }
+}

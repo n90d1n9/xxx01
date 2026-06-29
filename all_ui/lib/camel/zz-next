@@ -1,0 +1,804 @@
+// ============================================================================
+// PRIORITY 1: ADVANCED TESTING & DEBUGGING
+// ============================================================================
+
+class AdvancedDebugger {
+  final Map<String, List<Breakpoint>> breakpoints = {};
+  final Map<String, dynamic> variables = {};
+  DebugState currentState = DebugState.idle;
+
+  /// Set a breakpoint on a node
+  void setBreakpoint(String nodeId, {String? condition}) {
+    breakpoints.putIfAbsent(nodeId, () => []).add(
+      Breakpoint(
+        nodeId: nodeId,
+        condition: condition,
+        enabled: true,
+      ),
+    );
+  }
+
+  /// Execute route with debugging
+  Future<DebugSession> debugRoute(
+    IntegrationRoute route,
+    Map<String, dynamic> input,
+  ) async {
+    final session = DebugSession(
+      routeId: route.id,
+      startTime: DateTime.now(),
+    );
+
+    currentState = DebugState.running;
+
+    for (final node in route.nodes) {
+      // Check if we should pause at this node
+      if (await _shouldBreak(node.id, variables)) {
+        currentState = DebugState.paused;
+        session.pausedAt = node.id;
+        
+        // Wait for user to continue
+        await _waitForContinue();
+      }
+
+      // Execute node and capture state
+      final stepResult = await _executeNode(node, variables);
+      session.steps.add(stepResult);
+      
+      // Update variables
+      variables[node.id] = stepResult.output;
+    }
+
+    currentState = DebugState.completed;
+    session.endTime = DateTime.now();
+    return session;
+  }
+
+  Future<bool> _shouldBreak(String nodeId, Map<String, dynamic> vars) async {
+    final bps = breakpoints[nodeId];
+    if (bps == null || bps.isEmpty) return false;
+
+    for (final bp in bps) {
+      if (!bp.enabled) continue;
+      
+      if (bp.condition != null) {
+        // Evaluate condition
+        final result = _evaluateCondition(bp.condition!, vars);
+        if (result) return true;
+      } else {
+        return true; // Unconditional breakpoint
+      }
+    }
+
+    return false;
+  }
+
+  bool _evaluateCondition(String condition, Map<String, dynamic> vars) {
+    // Simple condition evaluation
+    // In production, use proper expression parser
+    return true;
+  }
+
+  Future<void> _waitForContinue() async {
+    // Wait for user to press continue
+    await Future.delayed(Duration.zero);
+  }
+
+  Future<DebugStepResult> _executeNode(
+    NodeCard node,
+    Map<String, dynamic> input,
+  ) async {
+    final startTime = DateTime.now();
+    
+    try {
+      // Simulate node execution
+      final output = {'processed': true, 'input': input};
+      
+      return DebugStepResult(
+        nodeId: node.id,
+        nodeName: node.name,
+        input: input,
+        output: output,
+        duration: DateTime.now().difference(startTime),
+        success: true,
+      );
+    } catch (e) {
+      return DebugStepResult(
+        nodeId: node.id,
+        nodeName: node.name,
+        input: input,
+        output: null,
+        duration: DateTime.now().difference(startTime),
+        success: false,
+        error: e.toString(),
+      );
+    }
+  }
+
+  /// Step over (execute current node and move to next)
+  Future<void> stepOver() async {
+    if (currentState != DebugState.paused) return;
+    currentState = DebugState.stepping;
+    // Execute current node
+    currentState = DebugState.paused;
+  }
+
+  /// Step into (enter node execution details)
+  Future<void> stepInto() async {
+    if (currentState != DebugState.paused) return;
+    currentState = DebugState.steppingInto;
+    // Enter detailed execution
+    currentState = DebugState.paused;
+  }
+
+  /// Continue execution
+  void continueExecution() {
+    if (currentState == DebugState.paused) {
+      currentState = DebugState.running;
+    }
+  }
+
+  /// Stop debugging
+  void stop() {
+    currentState = DebugState.stopped;
+    variables.clear();
+  }
+
+  /// Get variable value at specific node
+  dynamic getVariable(String nodeId, String varName) {
+    final nodeVars = variables[nodeId];
+    return nodeVars?[varName];
+  }
+
+  /// Inspect all variables at node
+  Map<String, dynamic> inspectVariables(String nodeId) {
+    return Map.from(variables[nodeId] ?? {});
+  }
+}
+
+enum DebugState {
+  idle,
+  running,
+  paused,
+  stepping,
+  steppingInto,
+  stopped,
+  completed,
+}
+
+class Breakpoint {
+  final String nodeId;
+  final String? condition;
+  final bool enabled;
+  final int hitCount;
+
+  Breakpoint({
+    required this.nodeId,
+    this.condition,
+    this.enabled = true,
+    this.hitCount = 0,
+  });
+}
+
+class DebugSession {
+  final String routeId;
+  final DateTime startTime;
+  DateTime? endTime;
+  String? pausedAt;
+  final List<DebugStepResult> steps = [];
+
+  DebugSession({
+    required this.routeId,
+    required this.startTime,
+  });
+
+  Duration get duration => (endTime ?? DateTime.now()).difference(startTime);
+}
+
+class DebugStepResult {
+  final String nodeId;
+  final String nodeName;
+  final Map<String, dynamic> input;
+  final dynamic output;
+  final Duration duration;
+  final bool success;
+  final String? error;
+
+  DebugStepResult({
+    required this.nodeId,
+    required this.nodeName,
+    required this.input,
+    required this.output,
+    required this.duration,
+    required this.success,
+    this.error,
+  });
+}
+
+// ============================================================================
+// PRIORITY 2: VISUAL DATA FLOW TRACER
+// ============================================================================
+
+class DataFlowTracer {
+  /// Trace data through entire route
+  Future<DataTrace> traceData(
+    dynamic input,
+    IntegrationRoute route,
+  ) async {
+    final trace = DataTrace(
+      routeId: route.id,
+      startTime: DateTime.now(),
+      initialData: input,
+    );
+
+    dynamic currentData = input;
+
+    for (final node in route.nodes) {
+      final stepTrace = await _traceNode(node, currentData);
+      trace.steps.add(stepTrace);
+      
+      if (stepTrace.transformations.isNotEmpty) {
+        trace.totalTransformations += stepTrace.transformations.length;
+      }
+      
+      currentData = stepTrace.outputData;
+    }
+
+    trace.endTime = DateTime.now();
+    trace.finalData = currentData;
+    
+    return trace;
+  }
+
+  Future<NodeTrace> _traceNode(
+    NodeCard node,
+    dynamic inputData,
+  ) async {
+    final transformations = <DataTransformation>[];
+    dynamic currentData = inputData;
+
+    // Detect transformations based on node type
+    if (node.type == 'data-mapper') {
+      final mappings = node.config['mappings'] as List? ?? [];
+      
+      for (final mapping in mappings) {
+        final sourcePath = mapping['sourcePath'];
+        final targetPath = mapping['targetPath'];
+        
+        final transformation = DataTransformation(
+          type: TransformationType.mapping,
+          sourcePath: sourcePath,
+          targetPath: targetPath,
+          beforeValue: _getValueByPath(currentData, sourcePath),
+          afterValue: _getValueByPath(currentData, targetPath),
+          operation: 'Map $sourcePath → $targetPath',
+        );
+        
+        transformations.add(transformation);
+      }
+    } else if (node.type == 'content-based-router') {
+      transformations.add(DataTransformation(
+        type: TransformationType.routing,
+        operation: 'Content-based routing',
+        beforeValue: currentData,
+        afterValue: currentData,
+      ));
+    }
+
+    return NodeTrace(
+      nodeId: node.id,
+      nodeName: node.name,
+      nodeType: node.type,
+      inputData: inputData,
+      outputData: currentData,
+      transformations: transformations,
+      timestamp: DateTime.now(),
+    );
+  }
+
+  dynamic _getValueByPath(dynamic data, String path) {
+    if (data is! Map) return null;
+    
+    final parts = path.split('.');
+    dynamic current = data;
+    
+    for (final part in parts) {
+      if (current is Map) {
+        current = current[part];
+      } else {
+        return null;
+      }
+    }
+    
+    return current;
+  }
+
+  /// Generate visual data lineage
+  DataLineage generateLineage(DataTrace trace) {
+    final nodes = <LineageNode>[];
+    final edges = <LineageEdge>[];
+
+    for (var i = 0; i < trace.steps.length; i++) {
+      final step = trace.steps[i];
+      
+      nodes.add(LineageNode(
+        id: step.nodeId,
+        label: step.nodeName,
+        type: step.nodeType,
+        transformations: step.transformations.length,
+      ));
+
+      if (i > 0) {
+        edges.add(LineageEdge(
+          from: trace.steps[i - 1].nodeId,
+          to: step.nodeId,
+          transformations: step.transformations,
+        ));
+      }
+    }
+
+    return DataLineage(
+      nodes: nodes,
+      edges: edges,
+      totalTransformations: trace.totalTransformations,
+    );
+  }
+
+  /// Show data diff between two points
+  DataDiff diffData(dynamic before, dynamic after) {
+    final changes = <DataChange>[];
+
+    if (before is Map && after is Map) {
+      // Compare maps
+      final allKeys = {...before.keys, ...after.keys};
+      
+      for (final key in allKeys) {
+        if (!before.containsKey(key)) {
+          changes.add(DataChange(
+            type: ChangeType.added,
+            path: key,
+            newValue: after[key],
+          ));
+        } else if (!after.containsKey(key)) {
+          changes.add(DataChange(
+            type: ChangeType.removed,
+            path: key,
+            oldValue: before[key],
+          ));
+        } else if (before[key] != after[key]) {
+          changes.add(DataChange(
+            type: ChangeType.modified,
+            path: key,
+            oldValue: before[key],
+            newValue: after[key],
+          ));
+        }
+      }
+    }
+
+    return DataDiff(changes: changes);
+  }
+}
+
+class DataTrace {
+  final String routeId;
+  final DateTime startTime;
+  DateTime? endTime;
+  final dynamic initialData;
+  dynamic finalData;
+  final List<NodeTrace> steps = [];
+  int totalTransformations = 0;
+
+  DataTrace({
+    required this.routeId,
+    required this.startTime,
+    required this.initialData,
+  });
+
+  Duration get duration => (endTime ?? DateTime.now()).difference(startTime);
+}
+
+class NodeTrace {
+  final String nodeId;
+  final String nodeName;
+  final String nodeType;
+  final dynamic inputData;
+  final dynamic outputData;
+  final List<DataTransformation> transformations;
+  final DateTime timestamp;
+
+  NodeTrace({
+    required this.nodeId,
+    required this.nodeName,
+    required this.nodeType,
+    required this.inputData,
+    required this.outputData,
+    required this.transformations,
+    required this.timestamp,
+  });
+}
+
+class DataTransformation {
+  final TransformationType type;
+  final String? sourcePath;
+  final String? targetPath;
+  final dynamic beforeValue;
+  final dynamic afterValue;
+  final String operation;
+
+  DataTransformation({
+    required this.type,
+    this.sourcePath,
+    this.targetPath,
+    this.beforeValue,
+    this.afterValue,
+    required this.operation,
+  });
+}
+
+enum TransformationType {
+  mapping,
+  filtering,
+  enrichment,
+  aggregation,
+  splitting,
+  routing,
+  validation,
+}
+
+class DataLineage {
+  final List<LineageNode> nodes;
+  final List<LineageEdge> edges;
+  final int totalTransformations;
+
+  DataLineage({
+    required this.nodes,
+    required this.edges,
+    required this.totalTransformations,
+  });
+}
+
+class LineageNode {
+  final String id;
+  final String label;
+  final String type;
+  final int transformations;
+
+  LineageNode({
+    required this.id,
+    required this.label,
+    required this.type,
+    required this.transformations,
+  });
+}
+
+class LineageEdge {
+  final String from;
+  final String to;
+  final List<DataTransformation> transformations;
+
+  LineageEdge({
+    required this.from,
+    required this.to,
+    required this.transformations,
+  });
+}
+
+class DataDiff {
+  final List<DataChange> changes;
+
+  DataDiff({required this.changes});
+
+  int get addedCount => changes.where((c) => c.type == ChangeType.added).length;
+  int get removedCount => changes.where((c) => c.type == ChangeType.removed).length;
+  int get modifiedCount => changes.where((c) => c.type == ChangeType.modified).length;
+}
+
+class DataChange {
+  final ChangeType type;
+  final String path;
+  final dynamic oldValue;
+  final dynamic newValue;
+
+  DataChange({
+    required this.type,
+    required this.path,
+    this.oldValue,
+    this.newValue,
+  });
+}
+
+enum ChangeType { added, removed, modified }
+
+// ============================================================================
+// PRIORITY 3: SMART AUTO-COMPLETE & AI ASSISTANCE
+// ============================================================================
+
+class SmartAssistant {
+  /// Suggest next component based on context
+  List<ComponentSuggestion> suggestNextComponent(
+    IntegrationRoute route,
+    String currentNodeId,
+  ) {
+    final suggestions = <ComponentSuggestion>[];
+    final currentNode = route.nodes.firstWhere((n) => n.id == currentNodeId);
+
+    // Analyze current node type and suggest logical next steps
+    switch (currentNode.type) {
+      case 'rest-endpoint':
+        suggestions.addAll([
+          ComponentSuggestion(
+            component: 'guardrail',
+            reason: 'Validate incoming data',
+            confidence: 0.9,
+          ),
+          ComponentSuggestion(
+            component: 'data-mapper',
+            reason: 'Transform request data',
+            confidence: 0.85,
+          ),
+          ComponentSuggestion(
+            component: 'content-based-router',
+            reason: 'Route based on request type',
+            confidence: 0.75,
+          ),
+        ]);
+        break;
+
+      case 'data-mapper':
+        suggestions.addAll([
+          ComponentSuggestion(
+            component: 'validator',
+            reason: 'Validate transformed data',
+            confidence: 0.85,
+          ),
+          ComponentSuggestion(
+            component: 'kafka',
+            reason: 'Send to message queue',
+            confidence: 0.7,
+          ),
+          ComponentSuggestion(
+            component: 'database',
+            reason: 'Persist to database',
+            confidence: 0.8,
+          ),
+        ]);
+        break;
+
+      case 'content-based-router':
+        suggestions.addAll([
+          ComponentSuggestion(
+            component: 'log',
+            reason: 'Log routing decision',
+            confidence: 0.6,
+          ),
+          ComponentSuggestion(
+            component: 'enricher',
+            reason: 'Enrich routed messages',
+            confidence: 0.65,
+          ),
+        ]);
+        break;
+    }
+
+    // Sort by confidence
+    suggestions.sort((a, b) => b.confidence.compareTo(a.confidence));
+    return suggestions.take(5).toList();
+  }
+
+  /// Auto-complete expressions
+  List<String> autoCompleteExpression(
+    String partial,
+    ExpressionContext context,
+  ) {
+    final suggestions = <String>[];
+
+    // Common expression patterns
+    if (partial.startsWith('\${')) {
+      suggestions.addAll([
+        '\${body}',
+        '\${header.}',
+        '\${property.}',
+        '\${exchangeId}',
+        '\${routeId}',
+      ]);
+    } else if (partial.contains('body.')) {
+      // Suggest fields from body schema
+      if (context.bodySchema != null) {
+        final fields = _extractFields(context.bodySchema!);
+        suggestions.addAll(fields.map((f) => '\${body.$f}'));
+      }
+    } else if (partial.contains('header.')) {
+      // Suggest common headers
+      suggestions.addAll([
+        '\${header.ContentType}',
+        '\${header.Authorization}',
+        '\${header.Accept}',
+      ]);
+    }
+
+    // Filter by partial match
+    return suggestions
+        .where((s) => s.toLowerCase().contains(partial.toLowerCase()))
+        .toList();
+  }
+
+  List<String> _extractFields(Map<String, dynamic> schema) {
+    final fields = <String>[];
+    
+    if (schema['properties'] is Map) {
+      final props = schema['properties'] as Map;
+      fields.addAll(props.keys.cast<String>());
+    }
+    
+    return fields;
+  }
+
+  /// Generate route from natural language description
+  Future<IntegrationRoute> generateRouteFromDescription(
+    String description,
+  ) async {
+    // This would use an LLM to generate the route
+    // For now, return a simple pattern-matched route
+    
+    if (description.contains('REST') && description.contains('database')) {
+      return _generateRestToDbRoute();
+    } else if (description.contains('file') && description.contains('kafka')) {
+      return _generateFileToKafkaRoute();
+    }
+    
+    // Default simple route
+    return _generateSimpleRoute(description);
+  }
+
+  IntegrationRoute _generateRestToDbRoute() {
+    return IntegrationRoute(
+      id: 'generated_${DateTime.now().millisecondsSinceEpoch}',
+      name: 'REST to Database',
+      description: 'Auto-generated from description',
+      nodes: [
+        NodeCard(
+          id: '1',
+          type: 'rest-endpoint',
+          name: 'REST API',
+          icon: Icons.api,
+          color: Colors.blue,
+          position: const Offset(100, 100),
+          config: {'method': 'POST', 'path': '/api/data'},
+        ),
+        NodeCard(
+          id: '2',
+          type: 'sql',
+          name: 'Save to DB',
+          icon: Icons.storage,
+          color: Colors.teal,
+          position: const Offset(350, 100),
+          config: {},
+        ),
+      ],
+      connections: [
+        Connection(id: 'c1', from: '1', to: '2'),
+      ],
+      transformations: const [],
+      metadata: {'generated': true},
+    );
+  }
+
+  IntegrationRoute _generateFileToKafkaRoute() {
+    return IntegrationRoute(
+      id: 'generated_${DateTime.now().millisecondsSinceEpoch}',
+      name: 'File to Kafka',
+      description: 'Auto-generated from description',
+      nodes: [
+        NodeCard(
+          id: '1',
+          type: 'file',
+          name: 'File Input',
+          icon: Icons.folder,
+          color: Colors.amber,
+          position: const Offset(100, 100),
+          config: {},
+        ),
+        NodeCard(
+          id: '2',
+          type: 'kafka',
+          name: 'Kafka Producer',
+          icon: Icons.message,
+          color: Colors.green,
+          position: const Offset(350, 100),
+          config: {},
+        ),
+      ],
+      connections: [
+        Connection(id: 'c1', from: '1', to: '2'),
+      ],
+      transformations: const [],
+      metadata: {'generated': true},
+    );
+  }
+
+  IntegrationRoute _generateSimpleRoute(String description) {
+    return IntegrationRoute(
+      id: 'generated_${DateTime.now().millisecondsSinceEpoch}',
+      name: 'Generated Route',
+      description: description,
+      nodes: [],
+      connections: const [],
+      transformations: const [],
+      metadata: {'generated': true, 'description': description},
+    );
+  }
+
+  /// Suggest fixes for validation errors
+  Future<List<FixSuggestion>> suggestFixes(ValidationResult validation) async {
+    final fixes = <FixSuggestion>[];
+
+    for (final issue in validation.errors) {
+      switch (issue.category) {
+        case IssueCategory.configuration:
+          if (issue.message.contains('Required parameter')) {
+            fixes.add(FixSuggestion(
+              issue: issue,
+              title: 'Add missing parameter',
+              description: 'Set default value for required parameter',
+              autoFixAvailable: true,
+            ));
+          }
+          break;
+
+        case IssueCategory.connections:
+          if (issue.message.contains('not connected')) {
+            fixes.add(FixSuggestion(
+              issue: issue,
+              title: 'Connect orphaned node',
+              description: 'Suggest logical connections',
+              autoFixAvailable: false,
+            ));
+          }
+          break;
+
+        default:
+          break;
+      }
+    }
+
+    return fixes;
+  }
+}
+
+class ComponentSuggestion {
+  final String component;
+  final String reason;
+  final double confidence;
+
+  ComponentSuggestion({
+    required this.component,
+    required this.reason,
+    required this.confidence,
+  });
+}
+
+class ExpressionContext {
+  final Map<String, dynamic>? bodySchema;
+  final Map<String, String>? headers;
+  final String? currentExpression;
+
+  ExpressionContext({
+    this.bodySchema,
+    this.headers,
+    this.currentExpression,
+  });
+}
+
+class FixSuggestion {
+  final ValidationIssue issue;
+  final String title;
+  final String description;
+  final bool autoFixAvailable;
+
+  FixSuggestion({
+    required this.issue,
+    required this.title,
+    required this.description,
+    required this.autoFixAvailable,
+  });
+}

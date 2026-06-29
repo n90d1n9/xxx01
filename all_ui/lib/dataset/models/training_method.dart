@@ -1,0 +1,18 @@
+enum TrainingMethod {
+  fullFineTuning,
+  lora,
+  qlora,
+  prefixTuning,
+  pTuning,
+  adaptiveLora,
+  dpo,
+  rlhf,
+  continualLearning,
+  knowledgeDistillation,
+  mixtureOfExperts,
+  sparseFineTuning,
+  chainOfThought,
+  selfConsistency,
+  treeOfThoughts,
+  reflexion,
+}

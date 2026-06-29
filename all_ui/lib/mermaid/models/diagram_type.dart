@@ -1,0 +1,30 @@
+enum DiagramType {
+  flowchart,
+  sequence,
+  classDiagram,
+  stateDiagram,
+  erDiagram,
+  gantt,
+  pie,
+  quadrant,
+  gitGraph,
+  mindmap,
+  timeline,
+  journey,
+}
+
+enum EdgeType {
+  solid,
+  dotted,
+  thick,
+  arrow,
+  openArrow,
+  circle,
+  cross,
+  inheritance,
+  aggregation,
+  association,
+  dependency,
+  implementation,
+  composition,
+}

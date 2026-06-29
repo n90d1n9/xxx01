@@ -1,0 +1,316 @@
+trailing: const Icon(Icons.arrow_forward),
+                  onTap: () async {
+                    final readingMode = await prefsAsync.whenOrNull(
+                      data: (prefs) => prefs.readingMode,
+                    );
+                    
+                    if (readingMode == ReadingMode.pageByPage) {
+                      final page = await ref
+                          .read(quranServiceProvider)
+                          .getPageForSurah(lastRead['surahNumber']!);
+                      if (context.mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => QuranPageScreen(
+                              initialPage: page,
+                              initialAyah: lastRead['ayahNumber'],
+                            ),
+                          ),
+                        );
+                      }
+                    } else {
+                      if (context.mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SurahReadingScreen(
+                              surah: surah,
+                              initialAyah: lastRead['ayahNumber'],
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+              );
+            },
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: surahs.length,
+              itemBuilder: (context, index) {
+                final surah = surahs[index];
+                return ListTile(
+                  leading: CircleAvatar(
+                    child: Text('${surah.number}'),
+                  ),
+                  title: Text(
+                    surah.name,
+                    style: const TextStyle(
+                      fontFamily: 'Scheherazade',
+                      fontSize: 22,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${surah.englishName} - ${surah.englishNameTranslation}\n'
+                    '${surah.numberOfAyahs} verses • ${surah.revelationType}',
+                  ),
+                  isThreeLine: true,
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    final readingMode = await prefsAsync.whenOrNull(
+                      data: (prefs) => prefs.readingMode,
+                    );
+                    
+                    if (readingMode == ReadingMode.pageByPage) {
+                      final page = await ref
+                          .read(quranServiceProvider)
+                          .getPageForSurah(surah.number);
+                      if (context.mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => QuranPageScreen(
+                              initialPage: page,
+                            ),
+                          ),
+                        );
+                      }
+                    } else {
+                      if (context.mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                SurahReadingScreen(surah: surah),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(child: Text('Error: $error')),
+    );
+  }
+}
+
+
+
+],
+      examples: ['الْحَقّ', 'الْبَيْت', 'أَحَد'],
+      priority: 7,
+    ),
+    
+    // ========== MADD RULES ==========
+    'madd_tabii': TajweedRule(
+      id: 'madd_tabii',
+      name: 'Madd Tabii',
+      arabicName: 'مد طبيعي',
+      description: 'Natural prolongation for 2 counts',
+      detailedExplanation: '''When a Madd letter (ا و ي) is preceded by its corresponding 
+short vowel and not followed by hamzah or sukoon, elongate for 2 counts.''',
+      color: const Color(0xFF00BCD4),
+      category: TajweedCategory.madd,
+      patterns: [r'َا', r'ُو', r'ِي', r'ى'],
+      examples: ['قَالَ', 'يَقُولُ', 'قِيلَ'],
+      priority: 5,
+    ),
+    
+    'madd_wajib': TajweedRule(
+      id: 'madd_wajib',
+      name: 'Madd Wajib Muttasil',
+      arabicName: 'مد واجب متصل',
+      description: 'Obligatory connected prolongation (4-5 counts)',
+      detailedExplanation: '''When a Madd letter is followed by hamzah in the same word, 
+elongate for 4-5 counts. This is obligatory (wajib).''',
+      color: const Color(0xFF0097A7),
+      category: TajweedCategory.madd,
+      patterns: [r'[او]ءَ', r'[او]ءُ', r'[او]ءِ', r'يءَ', r'يءُ', r'يءِ'],
+      examples: ['جَاءَ', 'سُوءَ', 'شَيْءٍ'],
+      priority: 12,
+    ),
+    
+    'madd_jaiz': TajweedRule(
+      id: 'madd_jaiz',
+      name: 'Madd Jaiz Munfasil',
+      arabicName: 'مد جائز منفصل',
+      description: 'Permissible disconnected prolongation (2-5 counts)',
+      detailedExplanation: '''When a Madd letter ends a word and hamzah starts the next word, 
+elongate for 2-5 counts. This is permissible (jaiz).''',
+      color: const Color(0xFF26C6DA),
+      category: TajweedCategory.madd,
+      patterns: [r'[اوي]\s+[أإ]'],
+      examples: ['إِنَّا أَعْطَيْنَاكَ', 'قُوا أَنفُسَكُمْ'],
+      priority: 11,
+    ),
+    
+    'madd_lazim': TajweedRule(
+      id: 'madd_lazim',
+      name: 'Madd Lazim',
+      arabicName: 'مد لازم',
+      description: 'Necessary prolongation (6 counts)',
+      detailedExplanation: '''When a Madd letter is followed by a doubled/emphasized letter 
+(mushaddad) or two sukoons, elongate for 6 counts. This is necessary (lazim).''',
+      color: const Color(0xFF006064),
+      category: TajweedCategory.madd,
+      patterns: [r'[او]ّ', r'يّ', r'[او]ْ[^و]', r'[او]ْْ'],
+      examples: ['الصَّاخَّةُ', 'الْحَاقَّةُ', 'دَابَّةٍ'],
+      priority: 13,
+    ),
+    
+    'madd_arid': TajweedRule(
+      id: 'madd_arid',
+      name: 'Madd Arid Lissukun',
+      arabicName: 'مد عارض للسكون',
+      description: 'Prolongation when stopping (2-6 counts)',
+      detailedExplanation: '''When stopping on a word that has a Madd letter before the last letter, 
+you may elongate for 2, 4, or 6 counts.''',
+      color: const Color(0xFF4DD0E1),
+      category: TajweedCategory.madd,
+      patterns: [r'[اوي][^اوي\s]
+
+
+
+
+
+
+        ],
+      examples: ['الْعَالَمِينَ', 'الْمُتَّقِينَ'],
+      priority: 6,
+    ),
+    
+    // ========== LAM RULES ==========
+    'lam_shamsiyyah': TajweedRule(
+      id: 'lam_shamsiyyah',
+      name: 'Lam Shamsiyyah',
+      arabicName: 'لام شمسية',
+      description: 'Silent Lam when followed by sun letters',
+      detailedExplanation: '''When Alif-Lam (ال) is followed by one of the 14 sun letters 
+(ت ث د ذ ر ز س ش ص ض ط ظ ل ن), the Lam is silent and the following letter is doubled.''',
+      color: const Color(0xFFFFEB3B),
+      category: TajweedCategory.lam,
+      patterns: [r'الْ[تثدذرزسشصضطظلن]'],
+      examples: ['الشَّمْس', 'الرَّحْمَن', 'النَّاس'],
+      priority: 10,
+    ),
+    
+    'lam_qamariyyah': TajweedRule(
+      id: 'lam_qamariyyah',
+      name: 'Lam Qamariyyah',
+      arabicName: 'لام قمرية',
+      description: 'Pronounced Lam when followed by moon letters',
+      detailedExplanation: '''When Alif-Lam (ال) is followed by one of the 14 moon letters 
+(ء ب ج ح خ ع غ ف ق ك م ه و ي), the Lam is pronounced clearly.''',
+      color: const Color(0xFFFFF176),
+      category: TajweedCategory.lam,
+      patterns: [r'الْ[ءبجحخعغفقكمهوي]'],
+      examples: ['الْقَمَر', 'الْبَيْت', 'الْعَالَمِين'],
+      priority: 10,
+    ),
+    
+    // ========== RA RULES ==========
+    'ra_tafkhim': TajweedRule(
+      id: 'ra_tafkhim',
+      name: 'Ra Tafkhim',
+      arabicName: 'راء مفخمة',
+      description: 'Thick/Heavy pronunciation of ر',
+      detailedExplanation: '''ر is pronounced thick (heavy) when it has fatha, damma, 
+or when preceded by fatha/damma, or in specific positions.''',
+      color: const Color(0xFFFF5722),
+      category: TajweedCategory.ra,
+      patterns: [r'رَ', r'رُ', r'َر', r'ُر'],
+      examples: ['رَبّ', 'رُسُل', 'قَرْيَة'],
+      priority: 6,
+    ),
+    
+    'ra_tarqiq': TajweedRule(
+      id: 'ra_tarqiq',
+      name: 'Ra Tarqiq',
+      arabicName: 'راء مرققة',
+      description: 'Thin/Light pronunciation of ر',
+      detailedExplanation: '''ر is pronounced thin (light) when it has kasra, 
+or when preceded by kasra and followed by sukoon or weak letter.''',
+      color: const Color(0xFFFF7043),
+      category: TajweedCategory.ra,
+      patterns: [r'رِ', r'ِر'],
+      examples: ['رِزْق', 'فِرْعَوْن'],
+      priority: 6,
+    ),
+    
+    // ========== MISCELLANEOUS ==========
+    'ghunnah': TajweedRule(
+      id: 'ghunnah',
+      name: 'Ghunnah Mushaddadah',
+      arabicName: 'غنة مشددة',
+      description: 'Strong nasal sound with doubled ن or م',
+      detailedExplanation: '''When ن or م is emphasized/doubled (has shaddah), 
+produce a strong nasal sound held for 2 counts.''',
+      color: const Color(0xFF4CAF50),
+      category: TajweedCategory.misc,
+      patterns: [r'نّ', r'مّ'],
+      examples: ['إِنَّ', 'ثُمَّ', 'جَنَّات'],
+      priority: 8,
+    ),
+    
+    'hamzat_wasl': TajweedRule(
+      id: 'hamzat_wasl',
+      name: 'Hamzat Al-Wasl',
+      arabicName: 'همزة الوصل',
+      description: 'Connecting hamzah (silent when continuing)',
+      detailedExplanation: '''Hamzat Al-Wasl (ٱ) is pronounced only when starting, 
+but silent when continuing from the previous word.''',
+      color: const Color(0xFF795548),
+      category: TajweedCategory.misc,
+      patterns: [r'ٱ'],
+      examples: ['ٱلْحَمْدُ', 'ٱقْرَأْ'],
+      priority: 5,
+    ),
+    
+    'saktah': TajweedRule(
+      id: 'saktah',
+      name: 'Saktah',
+      arabicName: 'سكتة',
+      description: 'Brief pause without taking breath',
+      detailedExplanation: '''A very brief pause (about 1/2 count) without taking breath, 
+marked with ۘ symbol in some mushafs.''',
+      color: const Color(0xFF9E9E9E),
+      category: TajweedCategory.misc,
+      patterns: [r'ۘ'],
+      examples: ['عِوَجَاۘ قَيِّمًا', 'مَرْقَدِنَاۘ هَٰذَا'],
+      priority: 9,
+    ),
+  };
+
+  static List<TajweedRule> getAllRules() {
+    return _rules.values.toList()..sort((a, b) => b.priority.compareTo(a.priority));
+  }
+
+  static TajweedRule? getRule(String id) {
+    return _rules[id];
+  }
+
+  static List<TajweedRule> getRulesByCategory(TajweedCategory category) {
+    return _rules.values.where((rule) => rule.category == category).toList()
+      ..sort((a, b) => b.priority.compareTo(a.priority));
+  }
+
+  static List<String> getAllRuleIds() {
+    return _rules.keys.toList();
+  }
+  
+  static Map<TajweedCategory, List<TajweedRule>> getRulesGroupedByCategory() {
+    final Map<TajweedCategory, List<TajweedRule>> grouped = {};
+    for (var category in TajweedCategory.values) {
+      grouped[category] = getRulesByCategory(category);
+    }
+    return grouped;
+  }
+}

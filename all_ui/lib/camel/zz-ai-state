@@ -1,0 +1,837 @@
+// ============================================================================
+// ENHANCED STATE MANAGEMENT FOR CAMEL INTEGRATION
+// ============================================================================
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// ============================================================================
+// INTEGRATION ROUTE PROVIDERS
+// ============================================================================
+
+/// Provider for complete integration routes (enhanced WNode)
+final integrationRoutesProvider = 
+    StateNotifierProvider<IntegrationRoutesNotifier, List<IntegrationRoute>>((ref) {
+  return IntegrationRoutesNotifier(ref);
+});
+
+class IntegrationRoutesNotifier extends StateNotifier<List<IntegrationRoute>> {
+  IntegrationRoutesNotifier(this.ref) : super([]);
+  final Ref ref;
+
+  void addRoute(IntegrationRoute route) {
+    state = [...state, route];
+    _saveHistory();
+  }
+
+  void updateRoute(String id, IntegrationRoute route) {
+    state = [
+      for (final r in state)
+        if (r.id == id) route else r,
+    ];
+    _saveHistory();
+  }
+
+  void deleteRoute(String id) {
+    state = state.where((r) => r.id != id).toList();
+    _saveHistory();
+  }
+
+  void addNodeToRoute(String routeId, NodeCard node) {
+    state = [
+      for (final route in state)
+        if (route.id == routeId)
+          route.copyWith(
+            nodes: [...route.nodes, node],
+          )
+        else
+          route,
+    ];
+    _saveHistory();
+  }
+
+  void updateNodeInRoute(String routeId, String nodeId, NodeCard node) {
+    state = [
+      for (final route in state)
+        if (route.id == routeId)
+          route.copyWith(
+            nodes: [
+              for (final n in route.nodes)
+                if (n.id == nodeId) node else n,
+            ],
+          )
+        else
+          route,
+    ];
+    _saveHistory();
+  }
+
+  void deleteNodeFromRoute(String routeId, String nodeId) {
+    state = [
+      for (final route in state)
+        if (route.id == routeId)
+          route.copyWith(
+            nodes: route.nodes.where((n) => n.id != nodeId).toList(),
+            connections: route.connections
+                .where((c) => c.from != nodeId && c.to != nodeId)
+                .toList(),
+          )
+        else
+          route,
+    ];
+    _saveHistory();
+  }
+
+  void addConnection(String routeId, Connection connection) {
+    state = [
+      for (final route in state)
+        if (route.id == routeId)
+          route.copyWith(
+            connections: [...route.connections, connection],
+          )
+        else
+          route,
+    ];
+    _saveHistory();
+  }
+
+  void removeConnection(String routeId, String connectionId) {
+    state = [
+      for (final route in state)
+        if (route.id == routeId)
+          route.copyWith(
+            connections: route.connections
+                .where((c) => c.id != connectionId)
+                .toList(),
+          )
+        else
+          route,
+    ];
+    _saveHistory();
+  }
+
+  void addTransformation(String routeId, TransformationStep transformation) {
+    state = [
+      for (final route in state)
+        if (route.id == routeId)
+          route.copyWith(
+            transformations: [...route.transformations, transformation],
+          )
+        else
+          route,
+    ];
+    _saveHistory();
+  }
+
+  void setErrorHandler(String routeId, ErrorHandler errorHandler) {
+    state = [
+      for (final route in state)
+        if (route.id == routeId)
+          route.copyWith(errorHandler: errorHandler)
+        else
+          route,
+    ];
+    _saveHistory();
+  }
+
+  void setRouting(String routeId, RoutingRule routing) {
+    state = [
+      for (final route in state)
+        if (route.id == routeId)
+          route.copyWith(routing: routing)
+        else
+          route,
+    ];
+    _saveHistory();
+  }
+
+  void _saveHistory() {
+    // Save to history for undo/redo
+    ref.read(integrationHistoryProvider.notifier).push(state);
+  }
+}
+
+// ============================================================================
+// COMPONENT CONFIGURATION PROVIDER
+// ============================================================================
+
+/// Provider for managing component configurations
+final componentConfigProvider = 
+    StateNotifierProvider<ComponentConfigNotifier, Map<String, Map<String, dynamic>>>((ref) {
+  return ComponentConfigNotifier();
+});
+
+class ComponentConfigNotifier extends StateNotifier<Map<String, Map<String, dynamic>>> {
+  ComponentConfigNotifier() : super({});
+
+  void updateConfig(String nodeId, Map<String, dynamic> config) {
+    state = {...state, nodeId: config};
+  }
+
+  void deleteConfig(String nodeId) {
+    final newState = Map<String, Map<String, dynamic>>.from(state);
+    newState.remove(nodeId);
+    state = newState;
+  }
+
+  Map<String, dynamic>? getConfig(String nodeId) {
+    return state[nodeId];
+  }
+}
+
+// ============================================================================
+// VALIDATION STATE PROVIDER
+// ============================================================================
+
+final routeValidationProvider = 
+    StateNotifierProvider.family<RouteValidationNotifier, ValidationResult?, String>(
+  (ref, routeId) {
+    return RouteValidationNotifier(ref, routeId);
+  },
+);
+
+class RouteValidationNotifier extends StateNotifier<ValidationResult?> {
+  RouteValidationNotifier(this.ref, this.routeId) : super(null);
+  
+  final Ref ref;
+  final String routeId;
+
+  void validate() {
+    final routes = ref.read(integrationRoutesProvider);
+    final route = routes.firstWhere((r) => r.id == routeId);
+    state = RouteValidator.validateRoute(route);
+  }
+
+  void clear() {
+    state = null;
+  }
+}
+
+// ============================================================================
+// CONNECTION MANAGEMENT PROVIDER
+// ============================================================================
+
+final connectionManagerProvider = Provider<ConnectionManager>((ref) {
+  return ConnectionManager(ref);
+});
+
+class ConnectionManager {
+  ConnectionManager(this.ref);
+  final Ref ref;
+
+  bool canConnect(String routeId, String fromNodeId, String toNodeId) {
+    final routes = ref.read(integrationRoutesProvider);
+    final route = routes.firstWhere((r) => r.id == routeId);
+    
+    // Find nodes
+    final fromNode = route.nodes.firstWhere((n) => n.id == fromNodeId);
+    final toNode = route.nodes.firstWhere((n) => n.id == toNodeId);
+    
+    // Get component definitions
+    final fromComponent = _getComponent(fromNode.type);
+    final toComponent = _getComponent(toNode.type);
+    
+    if (fromComponent == null || toComponent == null) return false;
+    
+    // Check if source can produce and target can consume
+    if (!fromComponent.producerSupported) return false;
+    if (!toComponent.consumerSupported && toComponent.id != 'log') return false;
+    
+    // Check for existing connection
+    final hasExistingConnection = route.connections.any(
+      (c) => c.from == fromNodeId && c.to == toNodeId,
+    );
+    
+    return !hasExistingConnection;
+  }
+
+  void createConnection(String routeId, String fromNodeId, String toNodeId) {
+    if (!canConnect(routeId, fromNodeId, toNodeId)) return;
+    
+    final connection = Connection(
+      id: 'conn_${DateTime.now().millisecondsSinceEpoch}',
+      from: fromNodeId,
+      to: toNodeId,
+    );
+    
+    ref.read(integrationRoutesProvider.notifier)
+        .addConnection(routeId, connection);
+  }
+
+  void deleteConnection(String routeId, String connectionId) {
+    ref.read(integrationRoutesProvider.notifier)
+        .removeConnection(routeId, connectionId);
+  }
+
+  CamelComponent? _getComponent(String type) {
+    final allComponents = CamelComponentsLibrary.getAllComponents();
+    for (final category in allComponents.values) {
+      for (final component in category) {
+        if (component.id == type) return component;
+      }
+    }
+    return null;
+  }
+}
+
+// ============================================================================
+// NODE CONFIGURATION DIALOG MANAGER
+// ============================================================================
+
+final nodeConfigDialogProvider = Provider<NodeConfigDialogManager>((ref) {
+  return NodeConfigDialogManager(ref);
+});
+
+class NodeConfigDialogManager {
+  NodeConfigDialogManager(this.ref);
+  final Ref ref;
+
+  Future<Map<String, dynamic>?> showConfigDialog(
+    BuildContext context,
+    NodeCard node,
+  ) async {
+    final component = _getComponent(node.type);
+    
+    if (component == null) {
+      return _showGenericConfigDialog(context, node);
+    }
+    
+    // Show component-specific configuration dialog
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => NodeConfigurationDialog(
+        node: node,
+        component: component,
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>?> _showGenericConfigDialog(
+    BuildContext context,
+    NodeCard node,
+  ) async {
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => GenericNodeConfigDialog(node: node),
+    );
+  }
+
+  CamelComponent? _getComponent(String type) {
+    final allComponents = CamelComponentsLibrary.getAllComponents();
+    for (final category in allComponents.values) {
+      for (final component in category) {
+        if (component.id == type) return component;
+      }
+    }
+    return null;
+  }
+}
+
+// ============================================================================
+// ENHANCED CANVAS PROVIDERS
+// ============================================================================
+
+/// Provider for canvas connection state
+final canvasConnectionStateProvider = 
+    StateNotifierProvider<CanvasConnectionStateNotifier, CanvasConnectionState>((ref) {
+  return CanvasConnectionStateNotifier();
+});
+
+class CanvasConnectionState {
+  final String? sourceNodeId;
+  final Offset? currentMousePosition;
+  final bool isConnecting;
+
+  const CanvasConnectionState({
+    this.sourceNodeId,
+    this.currentMousePosition,
+    this.isConnecting = false,
+  });
+
+  CanvasConnectionState copyWith({
+    String? sourceNodeId,
+    Offset? currentMousePosition,
+    bool? isConnecting,
+  }) {
+    return CanvasConnectionState(
+      sourceNodeId: sourceNodeId ?? this.sourceNodeId,
+      currentMousePosition: currentMousePosition ?? this.currentMousePosition,
+      isConnecting: isConnecting ?? this.isConnecting,
+    );
+  }
+}
+
+class CanvasConnectionStateNotifier extends StateNotifier<CanvasConnectionState> {
+  CanvasConnectionStateNotifier() : super(const CanvasConnectionState());
+
+  void startConnection(String nodeId) {
+    state = CanvasConnectionState(
+      sourceNodeId: nodeId,
+      isConnecting: true,
+    );
+  }
+
+  void updateMousePosition(Offset position) {
+    if (state.isConnecting) {
+      state = state.copyWith(currentMousePosition: position);
+    }
+  }
+
+  void cancelConnection() {
+    state = const CanvasConnectionState();
+  }
+
+  void completeConnection() {
+    state = const CanvasConnectionState();
+  }
+}
+
+// ============================================================================
+// HISTORY MANAGEMENT FOR INTEGRATION ROUTES
+// ============================================================================
+
+final integrationHistoryProvider = 
+    StateNotifierProvider<IntegrationHistoryNotifier, IntegrationHistory>((ref) {
+  return IntegrationHistoryNotifier();
+});
+
+class IntegrationHistory {
+  final List<List<IntegrationRoute>> history;
+  final int currentIndex;
+
+  const IntegrationHistory({
+    this.history = const [],
+    this.currentIndex = -1,
+  });
+
+  bool get canUndo => currentIndex > 0;
+  bool get canRedo => currentIndex < history.length - 1;
+
+  IntegrationHistory copyWith({
+    List<List<IntegrationRoute>>? history,
+    int? currentIndex,
+  }) {
+    return IntegrationHistory(
+      history: history ?? this.history,
+      currentIndex: currentIndex ?? this.currentIndex,
+    );
+  }
+}
+
+class IntegrationHistoryNotifier extends StateNotifier<IntegrationHistory> {
+  IntegrationHistoryNotifier() : super(const IntegrationHistory());
+
+  void push(List<IntegrationRoute> routes) {
+    final newHistory = [
+      ...state.history.sublist(0, state.currentIndex + 1),
+      routes,
+    ];
+    
+    // Limit history size
+    const maxHistorySize = 50;
+    final startIndex = newHistory.length > maxHistorySize 
+        ? newHistory.length - maxHistorySize 
+        : 0;
+    
+    state = IntegrationHistory(
+      history: newHistory.sublist(startIndex),
+      currentIndex: newHistory.length - 1 - startIndex,
+    );
+  }
+
+  List<IntegrationRoute>? undo() {
+    if (!state.canUndo) return null;
+    
+    state = state.copyWith(currentIndex: state.currentIndex - 1);
+    return state.history[state.currentIndex];
+  }
+
+  List<IntegrationRoute>? redo() {
+    if (!state.canRedo) return null;
+    
+    state = state.copyWith(currentIndex: state.currentIndex + 1);
+    return state.history[state.currentIndex];
+  }
+
+  void clear() {
+    state = const IntegrationHistory();
+  }
+}
+
+// ============================================================================
+// SCHEMA MANAGEMENT PROVIDER
+// ============================================================================
+
+final schemaManagerProvider = Provider<SchemaManager>((ref) {
+  return SchemaManager(ref);
+});
+
+class SchemaManager {
+  SchemaManager(this.ref);
+  final Ref ref;
+
+  Future<EndpointSchema?> loadSchemaFromFile(String filePath) async {
+    // TODO: Implement file loading
+    return null;
+  }
+
+  Future<EndpointSchema?> importOpenAPI(String url) async {
+    // TODO: Implement OpenAPI import
+    return null;
+  }
+
+  Future<EndpointSchema?> importWSDL(String url) async {
+    // TODO: Implement WSDL import
+    return null;
+  }
+
+  EndpointSchema inferSchemaFromData(Map<String, dynamic> data) {
+    // Simple schema inference
+    final schema = _buildSchemaFromData(data);
+    
+    return EndpointSchema(
+      contentType: 'application/json',
+      schema: schema,
+    );
+  }
+
+  Map<String, dynamic> _buildSchemaFromData(dynamic data) {
+    if (data is Map) {
+      return {
+        'type': 'object',
+        'properties': {
+          for (final entry in data.entries)
+            entry.key: _buildSchemaFromData(entry.value),
+        },
+      };
+    } else if (data is List) {
+      return {
+        'type': 'array',
+        'items': data.isNotEmpty 
+            ? _buildSchemaFromData(data.first)
+            : {'type': 'string'},
+      };
+    } else if (data is int) {
+      return {'type': 'integer'};
+    } else if (data is double) {
+      return {'type': 'number'};
+    } else if (data is bool) {
+      return {'type': 'boolean'};
+    } else {
+      return {'type': 'string'};
+    }
+  }
+}
+
+// ============================================================================
+// CODE GENERATOR PROVIDER
+// ============================================================================
+
+final codeGeneratorProvider = Provider<CodeGeneratorService>((ref) {
+  return CodeGeneratorService(ref);
+});
+
+class CodeGeneratorService {
+  CodeGeneratorService(this.ref);
+  final Ref ref;
+
+  String generateCode(String routeId, GenerationTarget target) {
+    final routes = ref.read(integrationRoutesProvider);
+    final route = routes.firstWhere((r) => r.id == routeId);
+    
+    return CodeGenerationEngine.generateCode(route, target);
+  }
+
+  Future<void> exportCode(
+    String routeId,
+    GenerationTarget target,
+    String outputPath,
+  ) async {
+    final code = generateCode(routeId, target);
+    
+    // TODO: Implement file export
+    // await File(outputPath).writeAsString(code);
+  }
+
+  Future<void> generateProject(
+    String routeId,
+    String projectPath,
+    ProjectConfig config,
+  ) async {
+    final routes = ref.read(integrationRoutesProvider);
+    final route = routes.firstWhere((r) => r.id == routeId);
+    
+    // Generate Spring Boot project structure
+    // TODO: Implement full project generation
+  }
+}
+
+class ProjectConfig {
+  final String groupId;
+  final String artifactId;
+  final String version;
+  final String packageName;
+  final List<String> dependencies;
+
+  const ProjectConfig({
+    required this.groupId,
+    required this.artifactId,
+    this.version = '1.0.0',
+    required this.packageName,
+    this.dependencies = const [],
+  });
+}
+
+// ============================================================================
+// TEMPLATE LIBRARY PROVIDER
+// ============================================================================
+
+final templateLibraryProvider = Provider<TemplateLibrary>((ref) {
+  return TemplateLibrary();
+});
+
+class TemplateLibrary {
+  List<RouteTemplate> getTemplates() {
+    return [
+      RouteTemplate(
+        id: 'rest-to-db',
+        name: 'REST API to Database',
+        description: 'Expose REST endpoint and save to database',
+        category: 'API Integration',
+        nodes: _createRestToDbNodes(),
+      ),
+      RouteTemplate(
+        id: 'file-to-kafka',
+        name: 'File to Kafka',
+        description: 'Read files and publish to Kafka',
+        category: 'Data Pipeline',
+        nodes: _createFileToKafkaNodes(),
+      ),
+      RouteTemplate(
+        id: 'kafka-to-db',
+        name: 'Kafka Consumer to Database',
+        description: 'Consume from Kafka and store in database',
+        category: 'Event Processing',
+        nodes: _createKafkaToDbNodes(),
+      ),
+      RouteTemplate(
+        id: 'api-orchestration',
+        name: 'API Orchestration',
+        description: 'Call multiple APIs and aggregate results',
+        category: 'Orchestration',
+        nodes: _createApiOrchestrationNodes(),
+      ),
+    ];
+  }
+
+  List<NodeCard> _createRestToDbNodes() {
+    return [
+      NodeCard(
+        id: 'node1',
+        type: 'rest-endpoint',
+        name: 'REST API',
+        icon: Icons.api,
+        color: Colors.blue,
+        position: const Offset(100, 100),
+        config: {
+          'method': 'POST',
+          'path': '/api/users',
+          'consumes': 'application/json',
+        },
+      ),
+      NodeCard(
+        id: 'node2',
+        type: 'data-mapper',
+        name: 'Transform',
+        icon: Icons.transform,
+        color: Colors.orange,
+        position: const Offset(350, 100),
+        config: {'mappings': []},
+      ),
+      NodeCard(
+        id: 'node3',
+        type: 'sql',
+        name: 'Save to DB',
+        icon: Icons.storage,
+        color: Colors.teal,
+        position: const Offset(600, 100),
+        config: {
+          'query': 'INSERT INTO users VALUES (:#id, :#name)',
+          'dataSource': '#dataSource',
+        },
+      ),
+    ];
+  }
+
+  List<NodeCard> _createFileToKafkaNodes() {
+    return [
+      NodeCard(
+        id: 'node1',
+        type: 'file',
+        name: 'File Input',
+        icon: Icons.folder,
+        color: Colors.amber,
+        position: const Offset(100, 100),
+        config: {
+          'directoryName': 'data/input',
+          'delete': true,
+        },
+      ),
+      NodeCard(
+        id: 'node2',
+        type: 'dataformat-csv',
+        name: 'Parse CSV',
+        icon: Icons.table_chart,
+        color: Colors.green,
+        position: const Offset(350, 100),
+        config: {},
+      ),
+      NodeCard(
+        id: 'node3',
+        type: 'kafka',
+        name: 'Kafka Producer',
+        icon: Icons.message,
+        color: Colors.blue,
+        position: const Offset(600, 100),
+        config: {
+          'topic': 'data-stream',
+          'brokers': 'localhost:9092',
+        },
+      ),
+    ];
+  }
+
+  List<NodeCard> _createKafkaToDbNodes() {
+    return [
+      NodeCard(
+        id: 'node1',
+        type: 'kafka',
+        name: 'Kafka Consumer',
+        icon: Icons.message,
+        color: Colors.green,
+        position: const Offset(100, 100),
+        config: {
+          'topic': 'events',
+          'brokers': 'localhost:9092',
+          'groupId': 'consumer-group',
+        },
+      ),
+      NodeCard(
+        id: 'node2',
+        type: 'content-based-router',
+        name: 'Route by Type',
+        icon: Icons.alt_route,
+        color: Colors.purple,
+        position: const Offset(350, 100),
+        config: {},
+      ),
+      NodeCard(
+        id: 'node3',
+        type: 'mongodb',
+        name: 'Save to MongoDB',
+        icon: Icons.cloud_circle,
+        color: Colors.lightGreen,
+        position: const Offset(600, 100),
+        config: {
+          'database': 'events_db',
+          'collection': 'events',
+        },
+      ),
+    ];
+  }
+
+  List<NodeCard> _createApiOrchestrationNodes() {
+    return [
+      NodeCard(
+        id: 'node1',
+        type: 'rest-endpoint',
+        name: 'API Gateway',
+        icon: Icons.api,
+        color: Colors.blue,
+        position: const Offset(100, 100),
+        config: {
+          'method': 'GET',
+          'path': '/aggregate',
+        },
+      ),
+      NodeCard(
+        id: 'node2',
+        type: 'multicast',
+        name: 'Parallel Calls',
+        icon: Icons.broadcast_on_home,
+        color: Colors.purple,
+        position: const Offset(350, 100),
+        config: {
+          'parallelProcessing': true,
+        },
+      ),
+      NodeCard(
+        id: 'node3',
+        type: 'aggregator',
+        name: 'Aggregate Results',
+        icon: Icons.call_merge,
+        color: Colors.purple,
+        position: const Offset(600, 100),
+        config: {
+          'completionSize': 3,
+          'completionTimeout': 5000,
+        },
+      ),
+    ];
+  }
+}
+
+class RouteTemplate {
+  final String id;
+  final String name;
+  final String description;
+  final String category;
+  final List<NodeCard> nodes;
+
+  const RouteTemplate({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.category,
+    required this.nodes,
+  });
+}
+
+// ============================================================================
+// EXPORT/IMPORT PROVIDER
+// ============================================================================
+
+final exportImportProvider = Provider<ExportImportService>((ref) {
+  return ExportImportService(ref);
+});
+
+class ExportImportService {
+  ExportImportService(this.ref);
+  final Ref ref;
+
+  Future<void> exportRoute(String routeId, String filePath) async {
+    final routes = ref.read(integrationRoutesProvider);
+    final route = routes.firstWhere((r) => r.id == routeId);
+    
+    final json = jsonEncode(route.toJson());
+    // await File(filePath).writeAsString(json);
+  }
+
+  Future<IntegrationRoute?> importRoute(String filePath) async {
+    try {
+      // final content = await File(filePath).readAsString();
+      // final json = jsonDecode(content);
+      // return IntegrationRoute.fromJson(json);
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> exportProject(List<String> routeIds, String outputPath) async {
+    final routes = ref.read(integrationRoutesProvider);
+    final selectedRoutes = routes.where((r) => routeIds.contains(r.id)).toList();
+    
+    // Export as complete project
+    // TODO: Implement project export
+  }
+}

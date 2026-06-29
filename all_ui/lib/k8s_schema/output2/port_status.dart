@@ -1,0 +1,20 @@
+class PortStatus {
+  final int port;
+  final String protocol;
+  final String? error;
+  PortStatus({required this.port, required this.protocol, this.error});
+  factory PortStatus.fromJson(Map<String, dynamic> json) {
+    return PortStatus(
+      port: json['port'],
+      protocol: json['protocol'],
+      error: json['error'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'port': port,
+      'protocol': protocol,
+      if (error != null) 'error': error,
+    };
+  }
+}

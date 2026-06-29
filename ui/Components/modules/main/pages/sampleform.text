@@ -1,0 +1,129 @@
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+class CompleteForm extends StatefulWidget {
+  const CompleteForm({Key? key}) : super(key: key);
+
+  @override
+  State<CompleteForm> createState() => _CompleteFormState();
+}
+
+class _CompleteFormState extends State<CompleteForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _socialIdController = TextEditingController();
+  final _selectedDate = DateTime.now();
+  final _pickedImage = XFile('');
+  final _locationController = TextEditingController();
+  LatLng? _selectedLocation;
+  Set<Marker> _markers = {};
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final XFile? image = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      setState(() {
+        _pickedImage = image;
+      });
+    }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+      setState(() {
+        _selectedLocation = LatLng(position.latitude, position.longitude);
+      });
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+          _selectedLocation!.latitude, _selectedLocation!.longitude);
+      _locationController.text =
+          "${placemarks[0].street}, ${placemarks[0].subLocality}";
+    } catch (e) {
+      print("Error getting location: $e");
+    }
+  }
+
+  void _setMarker() {
+    setState(() {
+      _markers.add(Marker(
+        markerId: const MarkerId('selectedLocation'),
+        position: _selectedLocation!,
+        infoWindow: const InfoWindow(title: 'Selected Location'),
+      ));
+    });
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _socialIdController.dispose();
+    _locationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Complete Form'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your name';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your email';
+                    }
+                    if (!value.contains('@')) {
+                      return 'Please enter a valid email';
+                    }
+                    return null;
+                  },
+                ),
+                

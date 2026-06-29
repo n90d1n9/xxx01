@@ -1,0 +1,241 @@
+{
+    "website": [
+        {
+            "id": "mediaumat",
+            "name": "Media Ummat",
+            "media_source": "wordpress",
+            "media_type": "post",
+            "media_url": "https:\/\/media-umat.com\/",
+            "publisher": {
+                "id": "23060207010752",
+                "name": "Media Ummat"
+            }
+        },
+        {
+            "id": "kaffah",
+            "name": "Buletin Kaffah",
+            "media_source": "wordpress",
+            "media_type": "post",
+            "media_url": "https:\/\/buletinkaffah1.wordpress.com\/",
+            "publisher": {
+                "id": "23060207778736",
+                "name": "Kaffah"
+            }
+        },
+        {
+            "id": "alwaie",
+            "name": "Al Waie",
+            "media_source": "wordpress",
+            "media_type": "post",
+            "media_url": "https:\/\/alwaie.net\/",
+            "publisher": {
+                "id": "23062505560104",
+                "name": "Al Waie"
+            }
+        },
+        {
+            "id": "tintamedia",
+            "name": "Tinta Media",
+            "media_source": "blogger",
+            "media_type": "post",
+            "media_url": "https:\/\/www.tintamedia.web.id\/",
+            "publisher": {
+                "id": "4830378292908081943",
+                "name": "Tinta Media"
+            }
+        },
+        
+        {
+            "id": "iwanjanuar",
+            "name": "Iwan Januar",
+            "media_source": "wordpress",
+            "media_type": "post",
+            "media_url": "https:\/\/www.iwanjanuar.com",
+            "publisher": {
+                "id": "23070608536505",
+                "name": "Iwan Januar"
+            }
+        },
+        {
+            "id": "shiddiqaljawi",
+            "name": "KH. M. Shiddiq Al Jawi",
+            "media_source": "wordpress",
+            "media_type": "post",
+            "media_url": "https:\/\/shiddiqaljawi.com\/",
+            "publisher": {
+                "id": "24112806687247",
+                "name": "KH. M. Shiddiq Al Jawi"
+            }
+        }
+    ],
+    "channel": [
+        {
+            "id": "uiy",
+            "name": "UIY Channel",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https:\/\/www.youtube.com\/channel\/UCNwGP5QBChoRnEL-iCdGOkQ",
+            "channel_id": "UCNwGP5QBChoRnEL-iCdGOkQ",
+            "publisher": {
+                "id": "23061110312978",
+                "name": "UIY Channel"
+            }
+        },
+        {
+            "id": "muchannel",
+            "name": "Media Ummat Channel",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https:\/\/www.youtube.com\/channel\/UCeyNCt_lTKYNInsKZZ4uXBQ",
+            "channel_id": "UCeyNCt_lTKYNInsKZZ4uXBQ",
+            "publisher": {
+                "id": "23060207010752",
+                "name": "Media Ummat"
+            }
+        },
+        {
+            "id": "khilahanews",
+            "name": "Khilafah News",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https:\/\/www.youtube.com\/channel\/UChlTIMPctp2zpVCetup4fZQ",
+            "channel_id": "UChlTIMPctp2zpVCetup4fZQ",
+            "publisher": {
+                "id": "23060207080048",
+                "name": "Khilafah Channel"
+            }
+        },
+        {
+            "id": "ngs",
+            "name": "Ngaji Subuh",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https:\/\/www.youtube.com\/channel\/UCarkA5LjWNdQ-K2shvUafeA",
+            "channel_id": "UCarkA5LjWNdQ-K2shvUafeA",
+            "publisher": {
+                "id": "23061405281444",
+                "name": "Ngaji Subuh"
+            }
+        },
+        {
+            "id": "felixsiauw",
+            "name": "Felix Siauw",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https:\/\/www.youtube.com\/channel\/UCOO6NvLCJxdDi36SWF1dVXA",
+            "channel_id": "UCOO6NvLCJxdDi36SWF1dVXA",
+            "publisher": {
+                "id": "23070607891695",
+                "name": "Felix Siauw"
+            }
+        },
+        {
+            "id": "bincang",
+            "name": "Bincang Perubahan",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https:\/\/www.youtube.com\/channel\/UCcCvcP--azuYGDpTOtrl2HA",
+            "channel_id": "UCcCvcP--azuYGDpTOtrl2HA",
+            "publisher": {
+                "id": "23071509071957",
+                "name": "Bincang Perubahan"
+            }
+        },
+        {
+            "id": "sultan",
+            "name": "Sultan Channel",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https:\/\/www.youtube.com\/channel\/UC5Hd3U5fcj930QGGsOLoSag",
+            "channel_id": "UC5Hd3U5fcj930QGGsOLoSag",
+            "publisher": {
+                "id": "23073007540083",
+                "name": "Sultan Channel"
+            }
+        },
+        {
+            "id": "justicemonitor",
+            "name": "Justice Monitor",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https:\/\/www.youtube.com\/channel\/UCSDiOo5-3Jvca0UzBQmfUww",
+            "channel_id": "UCSDiOo5-3Jvca0UzBQmfUww",
+            "publisher": {
+                "id": "23080410555902",
+                "name": "Justice Monitor"
+            }
+        },
+        {
+            "id": "nslive",
+            "name": "NS Live",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https:\/\/www.youtube.com\/channel\/UCzggd9UZPfG1NkLWugudKtQ",
+            "channel_id": "UCzggd9UZPfG1NkLWugudKtQ",
+            "publisher": {
+                "id": "23061405281444",
+                "name": "Ngaji Subuh"
+            }
+        },
+        {
+            "id": "24101406067719",
+            "name": "Bincang Peduli",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https:\/\/www.youtube.com\/channel\/UCnqnE-DdeTJvTwrjCr6IAlA",
+            "channel_id": "UCnqnE-DdeTJvTwrjCr6IAlA",
+            "publisher": {
+                "id": "24101406804693",
+                "name": "Forum Sinergi Muslim"
+            }
+        },
+        {
+            "id": "24101406417587",
+            "name": "YNTV",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https:\/\/www.youtube.com\/channel\/UCUq-pIyEhxiOQVuzffoT7dQ",
+            "channel_id": "UCUq-pIyEhxiOQVuzffoT7dQ",
+            "publisher": {
+                "id": "24101406177446",
+                "name": "Yuk Ngaji"
+            }
+        },
+        {
+            "id": "24101406556150",
+            "name": "Muslimah Media Hub",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https:\/\/www.youtube.com\/channel\/UCH9En-fXg4C8iymI1V2KTmw",
+            "channel_id": "UCH9En-fXg4C8iymI1V2KTmw",
+            "publisher": {
+                "id": "24101406687051",
+                "name": "Muslimah Media Hub"
+            }
+        },
+        {
+            "id": "24101604531699",
+            "name": "Supremacy",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https:\/\/www.youtube.com\/channel\/UCRh-qHvW3mhKrGJNZIir5sA",
+            "channel_id": "UCRh-qHvW3mhKrGJNZIir5sA",
+            "publisher": {
+                "id": "24101604168238",
+                "name": "Supremacy Channel"
+            }
+        },
+        {
+            "id": "gurumusliminspiratif",
+            "name": "Guru Muslim Inspiratif",
+            "media_source": "youtube",
+            "media_type": "video",
+            "media_url": "https://www.youtube.com/channel/UCmc5ef3cONLD3DAvmNlEKyA",
+            "channel_id": "UCmc5ef3cONLD3DAvmNlEKyA",
+            "publisher": {
+                "id": "gurumusliminspiratif",
+                "name": "Guru Muslim Inspiratif"
+            }
+        }
+    ]
+}

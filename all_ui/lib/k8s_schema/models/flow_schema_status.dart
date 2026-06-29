@@ -1,0 +1,2 @@
+
+class FlowSchemaStatus {final List<FlowSchemaCondition>? conditions; FlowSchemaStatus({this.conditions}); factory FlowSchemaStatus.fromJson(Map<String, dynamic> json) {return FlowSchemaStatus(conditions: json['conditions'] != null ? (json['conditions'] as List).map((e) => FlowSchemaCondition.fromJson(e)).toList() : null);} Map<String, dynamic> toJson() {return {if (conditions != null) 'conditions' : conditions!.map((e) => e.toJson()).toList()};}}

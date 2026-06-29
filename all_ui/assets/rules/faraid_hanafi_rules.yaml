@@ -1,0 +1,127 @@
+rules:
+  - name: "Reset Calculation"
+    group: "setup"
+    salience: 100
+    when:
+      - "global.calculationReset == true"
+    then:
+      - set:
+          shares: {}
+          remainingShare: 1.0
+          calculationReset: false
+      - log: "Reset calculation"
+
+  - name: "Count Heirs"
+    group: "preprocessing" 
+    salience: 95
+    when:
+      - "true"
+    then:
+      - set:
+          wifeCount: 0
+          husbandCount: 0
+          daughterCount: 0
+          sonCount: 0
+      - log: "Initialized counts"
+
+  - name: "Count Wife"
+    group: "counting"
+    salience: 94
+    when:
+      - "facts.wife != null"
+    then:
+      - set:
+          wifeCount: "=facts.wife.length"
+      - log: "Wife count: ${wifeCount}"
+
+  - name: "Count Husband"
+    group: "counting"
+    salience: 93
+    when:
+      - "facts.husband != null"
+    then:
+      - set:
+          husbandCount: "=facts.husband.length"
+      - log: "Husband count: ${husbandCount}"
+
+  - name: "Count Daughter"
+    group: "counting"
+    salience: 92
+    when:
+      - "facts.daughter != null"
+    then:
+      - set:
+          daughterCount: "=facts.daughter.length"
+      - log: "Daughter count: ${daughterCount}"
+
+  - name: "Count Son"
+    group: "counting"
+    salience: 91
+    when:
+      - "facts.son != null"
+    then:
+      - set:
+          sonCount: "=facts.son.length"
+      - log: "Son count: ${sonCount}"
+
+  - name: "Assign Wife Share"
+    group: "shares"
+    salience: 80
+    when:
+      - "wifeCount > 0"
+      - "remainingShare >= 0.125"
+    then:
+      - set:
+          shares.wife: 0.125
+          remainingShare: "=remainingShare - 0.125"
+      - log: "Assigned wife 1/8"
+
+  - name: "Assign Husband Share"
+    group: "shares"
+    salience: 79
+    when:
+      - "husbandCount > 0"
+      - "remainingShare >= 0.25"
+    then:
+      - set:
+          shares.husband: 0.25
+          remainingShare: "=remainingShare - 0.25"
+      - log: "Assigned husband 1/4"
+
+  - name: "Assign Daughter Share - No Sons"
+    group: "shares"
+    salience: 78
+    when:
+      - "daughterCount == 1"
+      - "sonCount == 0"
+      - "remainingShare >= 0.5"
+    then:
+      - set:
+          shares.daughter: 0.5
+          remainingShare: "=remainingShare - 0.5"
+      - log: "Assigned daughter 1/2"
+
+  - name: "Assign Remaining to Sons"
+    group: "shares"
+    salience: 70
+    when:
+      - "sonCount > 0"
+      - "remainingShare > 0"
+    then:
+      - set:
+          shares.son: "=remainingShare"
+          remainingShare: 0.0
+      - log: "Assigned remaining to sons: ${shares.son}"
+
+  - name: "Final Result"
+    group: "final"
+    salience: 10
+    when:
+      - "true"
+    then:
+      - log: "=== FINAL ==="
+      - log: "Wife: ${shares.wife ?? 0}"
+      - log: "Husband: ${shares.husband ?? 0}"
+      - log: "Daughter: ${shares.daughter ?? 0}"
+      - log: "Son: ${shares.son ?? 0}"
+      - log: "Remaining: ${remainingShare}"

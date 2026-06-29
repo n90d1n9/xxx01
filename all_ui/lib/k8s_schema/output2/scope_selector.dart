@@ -1,0 +1,22 @@
+import 'scoped_resource_selector_requirement.dart';
+
+class ScopeSelector {
+  final List<ScopedResourceSelectorRequirement>? matchExpressions;
+  ScopeSelector({this.matchExpressions});
+  factory ScopeSelector.fromJson(Map<String, dynamic> json) {
+    return ScopeSelector(
+      matchExpressions:
+          json['matchExpressions'] != null
+              ? (json['matchExpressions'] as List)
+                  .map((e) => ScopedResourceSelectorRequirement.fromJson(e))
+                  .toList()
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (matchExpressions != null)
+        'matchExpressions': matchExpressions!.map((e) => e.toJson()).toList(),
+    };
+  }
+}

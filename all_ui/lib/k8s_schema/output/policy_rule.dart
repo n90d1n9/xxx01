@@ -1,0 +1,44 @@
+class PolicyRule {
+  final List<String>? verbs;
+  final List<String>? apiGroups;
+  final List<String>? resources;
+  final List<String>? resourceNames;
+  final List<String>? nonResourceURLs;
+  PolicyRule({
+    this.verbs,
+    this.apiGroups,
+    this.resources,
+    this.resourceNames,
+    this.nonResourceURLs,
+  });
+  factory PolicyRule.fromJson(Map<String, dynamic> json) {
+    return PolicyRule(
+      verbs: json['verbs'] != null ? List<String>.from(json['verbs']) : null,
+      apiGroups:
+          json['apiGroups'] != null
+              ? List<String>.from(json['apiGroups'])
+              : null,
+      resources:
+          json['resources'] != null
+              ? List<String>.from(json['resources'])
+              : null,
+      resourceNames:
+          json['resourceNames'] != null
+              ? List<String>.from(json['resourceNames'])
+              : null,
+      nonResourceURLs:
+          json['nonResourceURLs'] != null
+              ? List<String>.from(json['nonResourceURLs'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (verbs != null) 'verbs': verbs,
+      if (apiGroups != null) 'apiGroups': apiGroups,
+      if (resources != null) 'resources': resources,
+      if (resourceNames != null) 'resourceNames': resourceNames,
+      if (nonResourceURLs != null) 'nonResourceURLs': nonResourceURLs,
+    };
+  }
+}

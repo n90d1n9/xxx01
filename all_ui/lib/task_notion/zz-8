@@ -1,0 +1,3697 @@
+// pubspec.yaml dependencies:
+// flutter_riverpod: ^2.4.9
+// uuid: ^4.2.2
+// intl: ^0.19.0
+// shared_preferences: ^2.2.2
+// fl_chart: ^0.65.0
+// table_calendar: ^3.0.9
+// file_picker: ^6.1.1
+// url_launcher: ^6.2.2
+
+import 'dart:convert';
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:table_calendar/table_calendar.dart';
+
+// ==================== MODELS ====================
+
+enum TaskStatus { todo, inProgress, review, done }
+enum TaskPriority { low, medium, high, urgent }
+enum ViewType { board, list, calendar, timeline, gantt, analytics }
+
+class Task {
+  final String id;
+  final String title;
+  final String description;
+  final TaskStatus status;
+  final TaskPriority priority;
+  final DateTime createdAt;
+  final DateTime? dueDate;
+  final DateTime? startDate;
+  final List<String> tags;
+  final String? parentId;
+  final List<Subtask> subtasks;
+  final List<String> dependencies;
+  final List<TaskComment> comments;
+  final List<TaskAttachment> attachments;
+  final int estimatedHours;
+  final int actualHours;
+  final String? assignedTo;
+  final Map<String, dynamic> customFields;
+  final bool isRecurring;
+  final String? recurringPattern;
+  final int position;
+
+  Task({
+    required this.id,
+    required this.title,
+    this.description = '',
+    this.status = TaskStatus.todo,
+    this.priority = TaskPriority.medium,
+    required this.createdAt,
+    this.dueDate,
+    this.startDate,
+    this.tags = const [],
+    this.parentId,
+    this.subtasks = const [],
+    this.dependencies = const [],
+    this.comments = const [],
+    this.attachments = const [],
+    this.estimatedHours = 0,
+    this.actualHours = 0,
+    this.assignedTo,
+    this.customFields = const {},
+    this.isRecurring = false,
+    this.recurringPattern,
+    this.position = 0,
+  });
+
+  double get completionPercentage {
+    if (subtasks.isEmpty) return status == TaskStatus.done ? 100 : 0;
+    final completed = subtasks.where((s) => s.isCompleted).length;
+    return (completed / subtasks.length) * 100;
+  }
+
+  bool get isOverdue {
+    if (dueDate == null || status == TaskStatus.done) return false;
+    return dueDate!.isBefore(DateTime.now());
+  }
+
+  Task copyWith({
+    String? title,
+    String? description,
+    TaskStatus? status,
+    TaskPriority? priority,
+    DateTime? dueDate,
+    DateTime? startDate,
+    List<String>? tags,
+    String? parentId,
+    List<Subtask>? subtasks,
+    List<String>? dependencies,
+    List<TaskComment>? comments,
+    List<TaskAttachment>? attachments,
+    int? estimatedHours,
+    int? actualHours,
+    String? assignedTo,
+    Map<String, dynamic>? customFields,
+    bool? isRecurring,
+    String? recurringPattern,
+    int? position,
+  }) {
+    return Task(
+      id: id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      status: status ?? this.status,
+      priority: priority ?? this.priority,
+      createdAt: createdAt,
+      dueDate: dueDate ?? this.dueDate,
+      startDate: startDate ?? this.startDate,
+      tags: tags ?? this.tags,
+      parentId: parentId ?? this.parentId,
+      subtasks: subtasks ?? this.subtasks,
+      dependencies: dependencies ?? this.dependencies,
+      comments: comments ?? this.comments,
+      attachments: attachments ?? this.attachments,
+      estimatedHours: estimatedHours ?? this.estimatedHours,
+      actualHours: actualHours ?? this.actualHours,
+      assignedTo: assignedTo ?? this.assignedTo,
+      customFields: customFields ?? this.customFields,
+      isRecurring: isRecurring ?? this.isRecurring,
+      recurringPattern: recurringPattern ?? this.recurringPattern,
+      position: position ?? this.position,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'status': status.index,
+      'priority': priority.index,
+      'createdAt': createdAt.toIso8601String(),
+      'dueDate': dueDate?.toIso8601String(),
+      'startDate': startDate?.toIso8601String(),
+      'tags': tags,
+      'parentId': parentId,
+      'subtasks': subtasks.map((s) => s.toJson()).toList(),
+      'dependencies': dependencies,
+      'comments': comments.map((c) => c.toJson()).toList(),
+      'attachments': attachments.map((a) => a.toJson()).toList(),
+      'estimatedHours': estimatedHours,
+      'actualHours': actualHours,
+      'assignedTo': assignedTo,
+      'customFields': customFields,
+      'isRecurring': isRecurring,
+      'recurringPattern': recurringPattern,
+      'position': position,
+    };
+  }
+
+  factory Task.fromJson(Map<String, dynamic> json) {
+    return Task(
+      id: json['id'],
+      title: json['title'],
+      description: json['description'] ?? '',
+      status: TaskStatus.values[json['status'] ?? 0],
+      priority: TaskPriority.values[json['priority'] ?? 1],
+      createdAt: DateTime.parse(json['createdAt']),
+      dueDate: json['dueDate'] != null ? DateTime.parse(json['dueDate']) : null,
+      startDate: json['startDate'] != null ? DateTime.parse(json['startDate']) : null,
+      tags: List<String>.from(json['tags'] ?? []),
+      parentId: json['parentId'],
+      subtasks: (json['subtasks'] as List?)?.map((s) => Subtask.fromJson(s)).toList() ?? [],
+      dependencies: List<String>.from(json['dependencies'] ?? []),
+      comments: (json['comments'] as List?)?.map((c) => TaskComment.fromJson(c)).toList() ?? [],
+      attachments: (json['attachments'] as List?)?.map((a) => TaskAttachment.fromJson(a)).toList() ?? [],
+      estimatedHours: json['estimatedHours'] ?? 0,
+      actualHours: json['actualHours'] ?? 0,
+      assignedTo: json['assignedTo'],
+      customFields: Map<String, dynamic>.from(json['customFields'] ?? {}),
+      isRecurring: json['isRecurring'] ?? false,
+      recurringPattern: json['recurringPattern'],
+      position: json['position'] ?? 0,
+    );
+  }
+}
+
+class Subtask {
+  final String id;
+  final String title;
+  final bool isCompleted;
+
+  Subtask({
+    required this.id,
+    required this.title,
+    this.isCompleted = false,
+  });
+
+  Subtask copyWith({String? title, bool? isCompleted}) {
+    return Subtask(
+      id: id,
+      title: title ?? this.title,
+      isCompleted: isCompleted ?? this.isCompleted,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'isCompleted': isCompleted,
+  };
+
+  factory Subtask.fromJson(Map<String, dynamic> json) => Subtask(
+    id: json['id'],
+    title: json['title'],
+    isCompleted: json['isCompleted'] ?? false,
+  );
+}
+
+class TaskComment {
+  final String id;
+  final String text;
+  final String author;
+  final DateTime createdAt;
+
+  TaskComment({
+    required this.id,
+    required this.text,
+    required this.author,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'text': text,
+    'author': author,
+    'createdAt': createdAt.toIso8601String(),
+  };
+
+  factory TaskComment.fromJson(Map<String, dynamic> json) => TaskComment(
+    id: json['id'],
+    text: json['text'],
+    author: json['author'],
+    createdAt: DateTime.parse(json['createdAt']),
+  );
+}
+
+class TaskAttachment {
+  final String id;
+  final String name;
+  final String path;
+  final int size;
+  final DateTime uploadedAt;
+
+  TaskAttachment({
+    required this.id,
+    required this.name,
+    required this.path,
+    required this.size,
+    required this.uploadedAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'path': path,
+    'size': size,
+    'uploadedAt': uploadedAt.toIso8601String(),
+  };
+
+  factory TaskAttachment.fromJson(Map<String, dynamic> json) => TaskAttachment(
+    id: json['id'],
+    name: json['name'],
+    path: json['path'],
+    size: json['size'],
+    uploadedAt: DateTime.parse(json['uploadedAt']),
+  );
+}
+
+class Project {
+  final String id;
+  final String name;
+  final String description;
+  final Color color;
+  final IconData icon;
+  final DateTime createdAt;
+  final DateTime? deadline;
+  final List<String> members;
+
+  Project({
+    required this.id,
+    required this.name,
+    this.description = '',
+    required this.color,
+    required this.icon,
+    required this.createdAt,
+    this.deadline,
+    this.members = const [],
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'color': color.value,
+      'icon': icon.codePoint,
+      'createdAt': createdAt.toIso8601String(),
+      'deadline': deadline?.toIso8601String(),
+      'members': members,
+    };
+  }
+
+  factory Project.fromJson(Map<String, dynamic> json) {
+    return Project(
+      id: json['id'],
+      name: json['name'],
+      description: json['description'] ?? '',
+      color: Color(json['color']),
+      icon: IconData(json['icon'], fontFamily: 'MaterialIcons'),
+      createdAt: DateTime.parse(json['createdAt']),
+      deadline: json['deadline'] != null ? DateTime.parse(json['deadline']) : null,
+      members: List<String>.from(json['members'] ?? []),
+    );
+  }
+}
+
+class TimeEntry {
+  final String id;
+  final String taskId;
+  final DateTime startTime;
+  final DateTime? endTime;
+  final String description;
+
+  TimeEntry({
+    required this.id,
+    required this.taskId,
+    required this.startTime,
+    this.endTime,
+    this.description = '',
+  });
+
+  int get duration {
+    final end = endTime ?? DateTime.now();
+    return end.difference(startTime).inMinutes;
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'taskId': taskId,
+    'startTime': startTime.toIso8601String(),
+    'endTime': endTime?.toIso8601String(),
+    'description': description,
+  };
+
+  factory TimeEntry.fromJson(Map<String, dynamic> json) => TimeEntry(
+    id: json['id'],
+    taskId: json['taskId'],
+    startTime: DateTime.parse(json['startTime']),
+    endTime: json['endTime'] != null ? DateTime.parse(json['endTime']) : null,
+    description: json['description'] ?? '',
+  );
+}
+
+class ActivityLog {
+  final String id;
+  final String taskId;
+  final String action;
+  final String user;
+  final DateTime timestamp;
+  final Map<String, dynamic> details;
+
+  ActivityLog({
+    required this.id,
+    required this.taskId,
+    required this.action,
+    required this.user,
+    required this.timestamp,
+    this.details = const {},
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'taskId': taskId,
+    'action': action,
+    'user': user,
+    'timestamp': timestamp.toIso8601String(),
+    'details': details,
+  };
+
+  factory ActivityLog.fromJson(Map<String, dynamic> json) => ActivityLog(
+    id: json['id'],
+    taskId: json['taskId'],
+    action: json['action'],
+    user: json['user'],
+    timestamp: DateTime.parse(json['timestamp']),
+    details: Map<String, dynamic>.from(json['details'] ?? {}),
+  );
+}
+
+// ==================== STORAGE SERVICE ====================
+
+class StorageService {
+  static const String _tasksKey = 'tasks';
+  static const String _projectsKey = 'projects';
+  static const String _timeEntriesKey = 'timeEntries';
+  static const String _activityLogsKey = 'activityLogs';
+  static const String _settingsKey = 'settings';
+
+  Future<void> saveTasks(List<Task> tasks) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = tasks.map((t) => t.toJson()).toList();
+    await prefs.setString(_tasksKey, jsonEncode(jsonList));
+  }
+
+  Future<List<Task>> loadTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString(_tasksKey);
+    if (jsonString == null) return [];
+    final jsonList = jsonDecode(jsonString) as List;
+    return jsonList.map((json) => Task.fromJson(json)).toList();
+  }
+
+  Future<void> saveProjects(List<Project> projects) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = projects.map((p) => p.toJson()).toList();
+    await prefs.setString(_projectsKey, jsonEncode(jsonList));
+  }
+
+  Future<List<Project>> loadProjects() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString(_projectsKey);
+    if (jsonString == null) return _getDefaultProjects();
+    final jsonList = jsonDecode(jsonString) as List;
+    return jsonList.map((json) => Project.fromJson(json)).toList();
+  }
+
+  Future<void> saveTimeEntries(List<TimeEntry> entries) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = entries.map((e) => e.toJson()).toList();
+    await prefs.setString(_timeEntriesKey, jsonEncode(jsonList));
+  }
+
+  Future<List<TimeEntry>> loadTimeEntries() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString(_timeEntriesKey);
+    if (jsonString == null) return [];
+    final jsonList = jsonDecode(jsonString) as List;
+    return jsonList.map((json) => TimeEntry.fromJson(json)).toList();
+  }
+
+  Future<void> saveActivityLogs(List<ActivityLog> logs) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = logs.map((l) => l.toJson()).toList();
+    await prefs.setString(_activityLogsKey, jsonEncode(jsonList));
+  }
+
+  Future<List<ActivityLog>> loadActivityLogs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString(_activityLogsKey);
+    if (jsonString == null) return [];
+    final jsonList = jsonDecode(jsonString) as List;
+    return jsonList.map((json) => ActivityLog.fromJson(json)).toList();
+  }
+
+  List<Project> _getDefaultProjects() {
+    return [
+      Project(
+        id: 'personal',
+        name: 'Personal',
+        description: 'Personal tasks and notes',
+        color: Colors.blue,
+        icon: Icons.person,
+        createdAt: DateTime.now(),
+      ),
+      Project(
+        id: 'work',
+        name: 'Work',
+        description: 'Work-related tasks',
+        color: Colors.orange,
+        icon: Icons.work,
+        createdAt: DateTime.now(),
+      ),
+    ];
+  }
+}
+
+// ==================== PROVIDERS ====================
+
+final storageServiceProvider = Provider((ref) => StorageService());
+
+final tasksProvider = StateNotifierProvider<TasksNotifier, AsyncValue<List<Task>>>((ref) {
+  return TasksNotifier(ref.read(storageServiceProvider), ref);
+});
+
+final projectsProvider = StateNotifierProvider<ProjectsNotifier, AsyncValue<List<Project>>>((ref) {
+  return ProjectsNotifier(ref.read(storageServiceProvider));
+});
+
+final timeEntriesProvider = StateNotifierProvider<TimeEntriesNotifier, AsyncValue<List<TimeEntry>>>((ref) {
+  return TimeEntriesNotifier(ref.read(storageServiceProvider));
+});
+
+final activityLogsProvider = StateNotifierProvider<ActivityLogsNotifier, AsyncValue<List<ActivityLog>>>((ref) {
+  return ActivityLogsNotifier(ref.read(storageServiceProvider));
+});
+
+final selectedProjectProvider = StateProvider<String?>((ref) => null);
+final currentViewProvider = StateProvider<ViewType>((ref) => ViewType.board);
+final searchQueryProvider = StateProvider<String>((ref) => '');
+final selectedTagsProvider = StateProvider<Set<String>>((ref) => {});
+final selectedPriorityProvider = StateProvider<Set<TaskPriority>>((ref) => {});
+final selectedStatusProvider = StateProvider<Set<TaskStatus>>((ref) => {});
+final selectedCalendarDayProvider = StateProvider<DateTime>((ref) => DateTime.now());
+final focusModeProvider = StateProvider<bool>((ref) => false);
+final currentUserProvider = StateProvider<String>((ref) => 'Current User');
+
+final filteredTasksProvider = Provider<List<Task>>((ref) {
+  final tasksAsync = ref.watch(tasksProvider);
+  final selectedProject = ref.watch(selectedProjectProvider);
+  final searchQuery = ref.watch(searchQueryProvider);
+  final selectedTags = ref.watch(selectedTagsProvider);
+  final selectedPriorities = ref.watch(selectedPriorityProvider);
+  final selectedStatuses = ref.watch(selectedStatusProvider);
+
+  return tasksAsync.when(
+    data: (tasks) {
+      var filtered = tasks;
+
+      if (selectedProject != null) {
+        filtered = filtered.where((t) => t.parentId == selectedProject).toList();
+      }
+
+      if (searchQuery.isNotEmpty) {
+        filtered = filtered.where((t) =>
+          t.title.toLowerCase().contains(searchQuery.toLowerCase()) ||
+          t.description.toLowerCase().contains(searchQuery.toLowerCase())
+        ).toList();
+      }
+
+      if (selectedTags.isNotEmpty) {
+        filtered = filtered.where((t) =>
+          t.tags.any((tag) => selectedTags.contains(tag))
+        ).toList();
+      }
+
+      if (selectedPriorities.isNotEmpty) {
+        filtered = filtered.where((t) => selectedPriorities.contains(t.priority)).toList();
+      }
+
+      if (selectedStatuses.isNotEmpty) {
+        filtered = filtered.where((t) => selectedStatuses.contains(t.status)).toList();
+      }
+
+      return filtered;
+    },
+    loading: () => [],
+    error: (_, __) => [],
+  );
+});
+
+final tasksByStatusProvider = Provider<Map<TaskStatus, List<Task>>>((ref) {
+  final tasks = ref.watch(filteredTasksProvider);
+  return {
+    TaskStatus.todo: tasks.where((t) => t.status == TaskStatus.todo).toList()
+      ..sort((a, b) => a.position.compareTo(b.position)),
+    TaskStatus.inProgress: tasks.where((t) => t.status == TaskStatus.inProgress).toList()
+      ..sort((a, b) => a.position.compareTo(b.position)),
+    TaskStatus.review: tasks.where((t) => t.status == TaskStatus.review).toList()
+      ..sort((a, b) => a.position.compareTo(b.position)),
+    TaskStatus.done: tasks.where((t) => t.status == TaskStatus.done).toList()
+      ..sort((a, b) => a.position.compareTo(b.position)),
+  };
+});
+
+final allTagsProvider = Provider<Set<String>>((ref) {
+  final tasksAsync = ref.watch(tasksProvider);
+  return tasksAsync.when(
+    data: (tasks) {
+      final tags = <String>{};
+      for (final task in tasks) {
+        tags.addAll(task.tags);
+      }
+      return tags;
+    },
+    loading: () => {},
+    error: (_, __) => {},
+  );
+});
+
+final statisticsProvider = Provider<Map<String, dynamic>>((ref) {
+  final tasks = ref.watch(filteredTasksProvider);
+  final timeEntries = ref.watch(timeEntriesProvider).valueOrNull ?? [];
+  
+  final completedTasks = tasks.where((t) => t.status == TaskStatus.done).length;
+  final totalTasks = tasks.length;
+  final overdueTasks = tasks.where((t) => t.isOverdue).length;
+  
+  final totalEstimatedHours = tasks.fold<int>(0, (sum, t) => sum + t.estimatedHours);
+  final totalActualHours = tasks.fold<int>(0, (sum, t) => sum + t.actualHours);
+  
+  final completionRate = totalTasks > 0 ? (completedTasks / totalTasks * 100) : 0.0;
+  
+  return {
+    'total': totalTasks,
+    'todo': tasks.where((t) => t.status == TaskStatus.todo).length,
+    'inProgress': tasks.where((t) => t.status == TaskStatus.inProgress).length,
+    'review': tasks.where((t) => t.status == TaskStatus.review).length,
+    'done': completedTasks,
+    'overdue': overdueTasks,
+    'completionRate': completionRate,
+    'totalEstimatedHours': totalEstimatedHours,
+    'totalActualHours': totalActualHours,
+    'hoursVariance': totalActualHours - totalEstimatedHours,
+  };
+});
+
+final tasksForCalendarProvider = Provider.family<List<Task>, DateTime>((ref, date) {
+  final tasks = ref.watch(filteredTasksProvider);
+  return tasks.where((task) {
+    if (task.dueDate == null) return false;
+    return task.dueDate!.year == date.year &&
+           task.dueDate!.month == date.month &&
+           task.dueDate!.day == date.day;
+  }).toList();
+});
+
+// ==================== STATE NOTIFIERS ====================
+
+class TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
+  final StorageService _storage;
+  final Ref _ref;
+
+  TasksNotifier(this._storage, this._ref) : super(const AsyncValue.loading()) {
+    _loadTasks();
+  }
+
+  Future<void> _loadTasks() async {
+    state = const AsyncValue.loading();
+    try {
+      final tasks = await _storage.loadTasks();
+      state = AsyncValue.data(tasks);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
+
+  Future<void> _saveTasks(List<Task> tasks) async {
+    await _storage.saveTasks(tasks);
+  }
+
+  void _logActivity(String taskId, String action, Map<String, dynamic> details) {
+    final currentUser = _ref.read(currentUserProvider);
+    final log = ActivityLog(
+      id: const Uuid().v4(),
+      taskId: taskId,
+      action: action,
+      user: currentUser,
+      timestamp: DateTime.now(),
+      details: details,
+    );
+    _ref.read(activityLogsProvider.notifier).addLog(log);
+  }
+
+  Future<void> addTask(Task task) async {
+    state.whenData((tasks) {
+      final updated = [...tasks, task];
+      state = AsyncValue.data(updated);
+      _saveTasks(updated);
+      _logActivity(task.id, 'created', {'title': task.title});
+    });
+  }
+
+  Future<void> updateTask(String id, Task updatedTask) async {
+    state.whenData((tasks) {
+      final oldTask = tasks.firstWhere((t) => t.id == id);
+      final updated = [
+        for (final task in tasks)
+          if (task.id == id) updatedTask else task,
+      ];
+      state = AsyncValue.data(updated);
+      _saveTasks(updated);
+      
+      if (oldTask.status != updatedTask.status) {
+        _logActivity(id, 'status_changed', {
+          'from': oldTask.status.name,
+          'to': updatedTask.status.name,
+        });
+      }
+    });
+  }
+
+  Future<void> deleteTask(String id) async {
+    state.whenData((tasks) {
+      final task = tasks.firstWhere((t) => t.id == id);
+      final updated = tasks.where((task) => task.id != id).toList();
+      state = AsyncValue.data(updated);
+      _saveTasks(updated);
+      _logActivity(id, 'deleted', {'title': task.title});
+    });
+  }
+
+  Future<void> updateTaskStatus(String id, TaskStatus status) async {
+    state.whenData((tasks) {
+      final updated = [
+        for (final task in tasks)
+          if (task.id == id) task.copyWith(status: status) else task,
+      ];
+      state = AsyncValue.data(updated);
+      _saveTasks(updated);
+    });
+  }
+
+  Future<void> addComment(String taskId, String text) async {
+    state.whenData((tasks) {
+      final currentUser = _ref.read(currentUserProvider);
+      final comment = TaskComment(
+        id: const Uuid().v4(),
+        text: text,
+        author: currentUser,
+        createdAt: DateTime.now(),
+      );
+      
+      final updated = [
+        for (final task in tasks)
+          if (task.id == taskId)
+            task.copyWith(comments: [...task.comments, comment])
+          else
+            task,
+      ];
+      state = AsyncValue.data(updated);
+      _saveTasks(updated);
+      _logActivity(taskId, 'commented', {'text': text});
+    });
+  }
+
+  Future<void> addSubtask(String taskId, String subtaskTitle) async {
+    state.whenData((tasks) {
+      final subtask = Subtask(
+        id: const Uuid().v4(),
+        title: subtaskTitle,
+      );
+      
+      final updated = [
+        for (final task in tasks)
+          if (task.id == taskId)
+            task.copyWith(subtasks: [...task.subtasks, subtask])
+          else
+            task,
+      ];
+      state = AsyncValue.data(updated);
+      _saveTasks(updated);
+    });
+  }
+
+  Future<void> toggleSubtask(String taskId, String subtaskId) async {
+    state.whenData((tasks) {
+      final updated = [
+        for (final task in tasks)
+          if (task.id == taskId)
+            task.copyWith(
+              subtasks: [
+                for (final subtask in task.subtasks)
+                  if (subtask.id == subtaskId)
+                    subtask.copyWith(isCompleted: !subtask.isCompleted)
+                  else
+                    subtask,
+              ],
+            )
+          else
+            task,
+      ];
+      state = AsyncValue.data(updated);
+      _saveTasks(updated);
+    });
+  }
+
+  Future<void> bulkUpdateStatus(List<String> taskIds, TaskStatus status) async {
+    state.whenData((tasks) {
+      final updated = [
+        for (final task in tasks)
+          if (taskIds.contains(task.id))
+            task.copyWith(status: status)
+          else
+            task,
+      ];
+      state = AsyncValue.data(updated);
+      _saveTasks(updated);
+    });
+  }
+
+  Future<void> bulkDelete(List<String> taskIds) async {
+    state.whenData((tasks) {
+      final updated = tasks.where((task) => !taskIds.contains(task.id)).toList();
+      state = AsyncValue.data(updated);
+      _saveTasks(updated);
+    });
+  }
+}
+
+class ProjectsNotifier extends StateNotifier<AsyncValue<List<Project>>> {
+  final StorageService _storage;
+
+  ProjectsNotifier(this._storage) : super(const AsyncValue.loading()) {
+    _loadProjects();
+  }
+
+  Future<void> _loadProjects() async {
+    state = const AsyncValue.loading();
+    try {
+      final projects = await _storage.loadProjects();
+      state = AsyncValue.data(projects);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
+
+  Future<void> _saveProjects(List<Project> projects) async {
+    await _storage.saveProjects(projects);
+  }
+
+  Future<void> addProject(Project project) async {
+    state.whenData((projects) {
+      final updated = [...projects, project];
+      state = AsyncValue.data(updated);
+      _saveProjects(updated);
+    });
+  }
+
+  Future<void> deleteProject(String id) async {
+    state.whenData((projects) {
+      final updated = projects.where((p) => p.id != id).toList();
+      state = AsyncValue.data(updated);
+      _saveProjects(updated);
+    });
+  }
+}
+
+class TimeEntriesNotifier extends StateNotifier<AsyncValue<List<TimeEntry>>> {
+  final StorageService _storage;
+  Timer? _activeTimer;
+
+  TimeEntriesNotifier(this._storage) : super(const AsyncValue.loading()) {
+    _loadEntries();
+  }
+
+  Future<void> _loadEntries() async {
+    state = const AsyncValue.loading();
+    try {
+      final entries = await _storage.loadTimeEntries();
+      state = AsyncValue.data(entries);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
+
+  Future<void> _saveEntries(List<TimeEntry> entries) async {
+    await _storage.saveTimeEntries(entries);
+  }
+
+  Future<void> startTimer(String taskId, String description) async {
+    state.whenData((entries) {
+      final entry = TimeEntry(
+        id: const Uuid().v4(),
+        taskId: taskId,
+        startTime: DateTime.now(),
+        description: description,
+      );
+      final updated = [...entries, entry];
+      state = AsyncValue.data(updated);
+      _saveEntries(updated);
+      
+      // Auto-refresh every minute
+      _activeTimer?.cancel();
+      _activeTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        state = AsyncValue.data([...updated]);
+      });
+    });
+  }
+
+  Future<void> stopTimer(String entryId) async {
+    state.whenData((entries) {
+      _activeTimer?.cancel();
+      final updated = [
+        for (final entry in entries)
+          if (entry.id == entryId)
+            TimeEntry(
+              id: entry.id,
+              taskId: entry.taskId,
+              startTime: entry.startTime,
+              endTime: DateTime.now(),
+              description: entry.description,
+            )
+          else
+            entry,
+      ];
+      state = AsyncValue.data(updated);
+      _saveEntries(updated);
+    });
+  }
+
+  TimeEntry? getActiveEntry() {
+    return state.valueOrNull?.firstWhere(
+      (e) => e.endTime == null,
+      orElse: () => TimeEntry(
+        id: '',
+        taskId: '',
+        startTime: DateTime.now(),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _activeTimer?.cancel();
+    super.dispose();
+  }
+}
+
+class ActivityLogsNotifier extends StateNotifier<AsyncValue<List<ActivityLog>>> {
+  final StorageService _storage;
+
+  ActivityLogsNotifier(this._storage) : super(const AsyncValue.loading()) {
+    _loadLogs();
+  }
+
+  Future<void> _loadLogs() async {
+    state = const AsyncValue.loading();
+    try {
+      final logs = await _storage.loadActivityLogs();
+      state = AsyncValue.data(logs);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
+
+  Future<void> _saveLogs(List<ActivityLog> logs) async {
+    await _storage.saveActivityLogs(logs);
+  }
+
+  Future<void> addLog(ActivityLog log) async {
+    state.whenData((logs) {
+      final updated = [...logs, log];
+      // Keep only last 1000 logs
+      final trimmed = updated.length > 1000 ? updated.sublist(updated.length - 1000) : updated;
+      state = AsyncValue.data(trimmed);
+      _saveLogs(trimmed);
+    });
+  }
+
+  List<ActivityLog> getLogsForTask(String taskId) {
+    return state.valueOrNull?.where((log) => log.taskId == taskId).toList() ?? [];
+  }
+}
+
+// ==================== MAIN APP ====================
+
+void main() {
+  runApp(const ProviderScope(child: TaskManagementApp()));
+}
+
+class TaskManagementApp extends StatelessWidget {
+  const TaskManagementApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Task Management Pro',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+        cardTheme: CardTheme(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.shade200),
+          ),
+        ),
+      ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+        cardTheme: CardTheme(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.shade800),
+          ),
+        ),
+      ),
+      themeMode: ThemeMode.system,
+      home: const MainScreen(),
+    );
+  }
+}
+
+// ==================== MAIN SCREEN ====================
+
+class MainScreen extends ConsumerWidget {
+  const MainScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentView = ref.watch(currentViewProvider);
+    final focusMode = ref.watch(focusModeProvider);
+
+    Widget getViewWidget() {
+      switch (currentView) {
+        case ViewType.board:
+          return const BoardView();
+        case ViewType.list:
+          return const TaskListView();
+        case ViewType.calendar:
+          return const CalendarView();
+        case ViewType.timeline:
+          return const TimelineView();
+        case ViewType.gantt:
+          return const GanttView();
+        case ViewType.analytics:
+          return const AnalyticsView();
+      }
+    }
+
+    if (focusMode) {
+      return Scaffold(
+        body: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: Colors.deepPurple.shade700,
+              child: Row(
+                children: [
+                  const Icon(Icons.remove_red_eye, color: Colors.white),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Focus Mode',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () {
+                      ref.read(focusModeProvider.notifier).state = false;
+                    },
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    label: const Text('Exit', style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(child: getViewWidget()),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      body: Row(
+        children: [
+          Container(
+            width: 280,
+            decoration: BoxDecoration(
+              border: Border(
+                right: BorderSide(
+                  color: Theme.of(context).dividerColor,
+                  width: 1,
+                ),
+              ),
+            ),
+            child: const ProjectSidebar(),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Theme.of(context).dividerColor,
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: TopBar(),
+                ),
+                Expanded(child: getViewWidget()),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== TOP BAR ====================
+
+class TopBar extends ConsumerWidget {
+  const TopBar({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentView = ref.watch(currentViewProvider);
+
+    return Row(
+      children: [
+        SegmentedButton<ViewType>(
+          segments: const [
+            ButtonSegment(
+              value: ViewType.board,
+              icon: Icon(Icons.view_column, size: 16),
+              label: Text('Board'),
+            ),
+            ButtonSegment(
+              value: ViewType.list,
+              icon: Icon(Icons.list, size: 16),
+              label: Text('List'),
+            ),
+            ButtonSegment(
+              value: ViewType.calendar,
+              icon: Icon(Icons.calendar_month, size: 16),
+              label: Text('Calendar'),
+            ),
+            ButtonSegment(
+              value: ViewType.timeline,
+              icon: Icon(Icons.timeline, size: 16),
+              label: Text('Timeline'),
+            ),
+            ButtonSegment(
+              value: ViewType.gantt,
+              icon: Icon(Icons.bar_chart, size: 16),
+              label: Text('Gantt'),
+            ),
+            ButtonSegment(
+              value: ViewType.analytics,
+              icon: Icon(Icons.analytics, size: 16),
+              label: Text('Analytics'),
+            ),
+          ],
+          selected: {currentView},
+          onSelectionChanged: (Set<ViewType> selected) {
+            ref.read(currentViewProvider.notifier).state = selected.first;
+          },
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: SearchBar(
+            hintText: 'Search tasks...',
+            leading: const Icon(Icons.search),
+            onChanged: (value) {
+              ref.read(searchQueryProvider.notifier).state = value;
+            },
+          ),
+        ),
+        const SizedBox(width: 16),
+        IconButton.filledTonal(
+          icon: const Icon(Icons.filter_list),
+          onPressed: () => _showFilterDialog(context, ref),
+          tooltip: 'Advanced Filters',
+        ),
+        const SizedBox(width: 8),
+        const TimeTrackerWidget(),
+        const SizedBox(width: 8),
+        IconButton.filledTonal(
+          icon: const Icon(Icons.remove_red_eye),
+          onPressed: () {
+            ref.read(focusModeProvider.notifier).state = true;
+          },
+          tooltip: 'Focus Mode',
+        ),
+        const SizedBox(width: 8),
+        IconButton.filledTonal(
+          icon: const Icon(Icons.notifications_outlined),
+          onPressed: () => _showNotifications(context, ref),
+          tooltip: 'Notifications',
+        ),
+        const SizedBox(width: 8),
+        FilledButton.icon(
+          onPressed: () => _showAddTaskDialog(context, ref),
+          icon: const Icon(Icons.add),
+          label: const Text('New Task'),
+        ),
+      ],
+    );
+  }
+
+  void _showAddTaskDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => const AddTaskDialog(),
+    );
+  }
+
+  void _showFilterDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => const AdvancedFilterDialog(),
+    );
+  }
+
+  void _showNotifications(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => const NotificationsDialog(),
+    );
+  }
+}
+
+// ==================== TIME TRACKER WIDGET ====================
+
+class TimeTrackerWidget extends ConsumerWidget {
+  const TimeTrackerWidget({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final timeEntriesAsync = ref.watch(timeEntriesProvider);
+
+    return timeEntriesAsync.when(
+      data: (entries) {
+        final activeEntry = entries.where((e) => e.endTime == null).firstOrNull;
+        
+        if (activeEntry == null) {
+          return IconButton.outlined(
+            icon: const Icon(Icons.play_arrow),
+            onPressed: () => _showStartTimerDialog(context, ref),
+            tooltip: 'Start Timer',
+          );
+        }
+
+        final duration = DateTime.now().difference(activeEntry.startTime);
+        final hours = duration.inHours;
+        final minutes = duration.inMinutes % 60;
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.green.shade200),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.timer, size: 16, color: Colors.green.shade700),
+              const SizedBox(width: 8),
+              Text(
+                '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green.shade700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () {
+                  ref.read(timeEntriesProvider.notifier).stopTimer(activeEntry.id);
+                },
+                child: Icon(Icons.stop, size: 16, color: Colors.green.shade700),
+              ),
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+  void _showStartTimerDialog(BuildContext context, WidgetRef ref) {
+    final tasksAsync = ref.read(tasksProvider);
+    final tasks = tasksAsync.valueOrNull ?? [];
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Start Time Tracking'),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Select a task to track time:'),
+              const SizedBox(height: 16),
+              ...tasks.where((t) => t.status != TaskStatus.done).take(5).map((task) {
+                return ListTile(
+                  title: Text(task.title),
+                  subtitle: Text(task.parentId ?? 'No project'),
+                  onTap: () {
+                    ref.read(timeEntriesProvider.notifier).startTimer(task.id, task.title);
+                    Navigator.pop(context);
+                  },
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== ADVANCED FILTER DIALOG ====================
+
+class AdvancedFilterDialog extends ConsumerWidget {
+  const AdvancedFilterDialog({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final allTags = ref.watch(allTagsProvider);
+    final selectedTags = ref.watch(selectedTagsProvider);
+    final selectedPriorities = ref.watch(selectedPriorityProvider);
+    final selectedStatuses = ref.watch(selectedStatusProvider);
+
+    return AlertDialog(
+      title: const Text('Advanced Filters'),
+      content: SizedBox(
+        width: 500,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Priority', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: TaskPriority.values.map((priority) {
+                  final isSelected = selectedPriorities.contains(priority);
+                  return FilterChip(
+                    label: Text(_getPriorityLabel(priority)),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        ref.read(selectedPriorityProvider.notifier).state = 
+                          {...selectedPriorities, priority};
+                      } else {
+                        ref.read(selectedPriorityProvider.notifier).state = 
+                          selectedPriorities.where((p) => p != priority).toSet();
+                      }
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              const Text('Status', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: TaskStatus.values.map((status) {
+                  final isSelected = selectedStatuses.contains(status);
+                  return FilterChip(
+                    label: Text(status.name.toUpperCase()),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        ref.read(selectedStatusProvider.notifier).state = 
+                          {...selectedStatuses, status};
+                      } else {
+                        ref.read(selectedStatusProvider.notifier).state = 
+                          selectedStatuses.where((s) => s != status).toSet();
+                      }
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              const Text('Tags', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              if (allTags.isEmpty)
+                const Text('No tags available')
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: allTags.map((tag) {
+                    final isSelected = selectedTags.contains(tag);
+                    return FilterChip(
+                      label: Text(tag),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        if (selected) {
+                          ref.read(selectedTagsProvider.notifier).state = 
+                            {...selectedTags, tag};
+                        } else {
+                          ref.read(selectedTagsProvider.notifier).state = 
+                            selectedTags.where((t) => t != tag).toSet();
+                        }
+                      },
+                    );
+                  }).toList(),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            ref.read(selectedTagsProvider.notifier).state = {};
+            ref.read(selectedPriorityProvider.notifier).state = {};
+            ref.read(selectedStatusProvider.notifier).state = {};
+          },
+          child: const Text('Clear All'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Apply'),
+        ),
+      ],
+    );
+  }
+
+  String _getPriorityLabel(TaskPriority priority) {
+    switch (priority) {
+      case TaskPriority.urgent:
+        return 'Urgent';
+      case TaskPriority.high:
+        return 'High';
+      case TaskPriority.medium:
+        return 'Medium';
+      case TaskPriority.low:
+        return 'Low';
+    }
+  }
+}
+
+// ==================== NOTIFICATIONS DIALOG ====================
+
+class NotificationsDialog extends ConsumerWidget {
+  const NotificationsDialog({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tasks = ref.watch(filteredTasksProvider);
+    final overdueTasks = tasks.where((t) => t.isOverdue).toList();
+    final dueSoonTasks = tasks.where((t) {
+      if (t.dueDate == null || t.status == TaskStatus.done) return false;
+      final daysUntilDue = t.dueDate!.difference(DateTime.now()).inDays;
+      return daysUntilDue >= 0 && daysUntilDue <= 2;
+    }).toList();
+
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.notifications_active),
+          SizedBox(width: 12),
+          Text('Notifications'),
+        ],
+      ),
+      content: SizedBox(
+        width: 400,
+        height: 400,
+        child: overdueTasks.isEmpty && dueSoonTasks.isEmpty
+            ? const Center(child: Text('No notifications'))
+            : ListView(
+                children: [
+                  if (overdueTasks.isNotEmpty) ...[
+                    const ListTile(
+                      leading: Icon(Icons.warning, color: Colors.red),
+                      title: Text('Overdue Tasks', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    ...overdueTasks.map((task) => ListTile(
+                      title: Text(task.title),
+                      subtitle: Text('Due: ${DateFormat('MMM dd').format(task.dueDate!)}'),
+                      trailing: const Icon(Icons.arrow_forward),
+                      onTap: () {
+                        Navigator.pop(context);
+                        showDialog(
+                          context: context,
+                          builder: (context) => TaskDetailsDialog(task: task),
+                        );
+                      },
+                    )),
+                    const Divider(),
+                  ],
+                  if (dueSoonTasks.isNotEmpty) ...[
+                    const ListTile(
+                      leading: Icon(Icons.schedule, color: Colors.orange),
+                      title: Text('Due Soon', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    ...dueSoonTasks.map((task) => ListTile(
+                      title: Text(task.title),
+                      subtitle: Text('Due: ${DateFormat('MMM dd').format(task.dueDate!)}'),
+                      trailing: const Icon(Icons.arrow_forward),
+                      onTap: () {
+                        Navigator.pop(context);
+                        showDialog(
+                          context: context,
+                          builder: (context) => TaskDetailsDialog(task: task),
+                        );
+                      },
+                    )),
+                  ],
+                ],
+              ),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+}
+
+// ==================== PROJECT SIDEBAR ====================
+
+class ProjectSidebar extends ConsumerWidget {
+  const ProjectSidebar({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final projectsAsync = ref.watch(projectsProvider);
+    final selectedProject = ref.watch(selectedProjectProvider);
+    final stats = ref.watch(statisticsProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Task Manager Pro',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.settings),
+                    onPressed: () {},
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    '${stats['total']} tasks',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '${stats['completionRate'].toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        ListTile(
+          leading: const Icon(Icons.inbox),
+          title: const Text('All Tasks'),
+          selected: selectedProject == null,
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '${stats['total']}',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          onTap: () {
+            ref.read(selectedProjectProvider.notifier).state = null;
+          },
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            'PROJECTS',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
+        ),
+        Expanded(
+          child: projectsAsync.when(
+            data: (projects) => ListView.builder(
+              itemCount: projects.length,
+              itemBuilder: (context, index) {
+                final project = projects[index];
+                final projectTasks = ref.watch(tasksProvider).whenOrNull(
+                  data: (tasks) => tasks.where((t) => t.parentId == project.id).length,
+                ) ?? 0;
+
+                return ListTile(
+                  leading: Icon(project.icon, color: project.color),
+                  title: Text(project.name),
+                  subtitle: project.description.isNotEmpty
+                      ? Text(
+                          project.description,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      : null,
+                  selected: selectedProject == project.id,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: project.color.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '$projectTasks',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: project.color,
+                          ),
+                        ),
+                      ),
+                      PopupMenuButton(
+                        icon: const Icon(Icons.more_vert, size: 18),
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Delete'),
+                          ),
+                        ],
+                        onSelected: (value) {
+                          if (value == 'delete') {
+                            ref.read(projectsProvider.notifier).deleteProject(project.id);
+                            if (selectedProject == project.id) {
+                              ref.read(selectedProjectProvider.notifier).state = null;
+                            }
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  onTap: () {
+                    ref.read(selectedProjectProvider.notifier).state = project.id;
+                  },
+                );
+              },
+            ),
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) => const Center(child: Text('Error loading projects')),
+          ),
+        ),
+        const Divider(height: 1),
+        ListTile(
+          leading: const Icon(Icons.add_circle_outline),
+          title: const Text('New Project'),
+          onTap: () => _showAddProjectDialog(context, ref),
+        ),
+      ],
+    );
+  }
+
+  void _showAddProjectDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => const AddProjectDialog(),
+    );
+  }
+}
+
+// ==================== ADD PROJECT DIALOG ====================
+
+class AddProjectDialog extends ConsumerStatefulWidget {
+  const AddProjectDialog({super.key});
+
+  @override
+  ConsumerState<AddProjectDialog> createState() => _AddProjectDialogState();
+}
+
+class _AddProjectDialogState extends ConsumerState<AddProjectDialog> {
+  final _nameController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  Color _selectedColor = Colors.blue;
+  IconData _selectedIcon = Icons.folder;
+
+  final List<IconData> _icons = [
+    Icons.folder,
+    Icons.work,
+    Icons.person,
+    Icons.home,
+    Icons.school,
+    Icons.shopping_cart,
+    Icons.fitness_center,
+    Icons.restaurant,
+    Icons.flight,
+    Icons.favorite,
+    Icons.music_note,
+    Icons.sports_esports,
+  ];
+
+  final List<Color> _colors = [
+    Colors.blue,
+    Colors.red,
+    Colors.green,
+    Colors.orange,
+    Colors.purple,
+    Colors.pink,
+    Colors.teal,
+    Colors.indigo,
+    Colors.amber,
+    Colors.cyan,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Create New Project'),
+      content: SizedBox(
+        width: 500,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Project Name',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Description (optional)',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 16),
+              const Text('Select Icon', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _icons.map((icon) {
+                  return InkWell(
+                    onTap: () => setState(() => _selectedIcon = icon),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _selectedIcon == icon
+                            ? _selectedColor.withOpacity(0.2)
+                            : Colors.grey.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _selectedIcon == icon
+                              ? _selectedColor
+                              : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(icon, color: _selectedColor),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              const Text('Select Color', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _colors.map((color) {
+                  return InkWell(
+                    onTap: () => setState(() => _selectedColor = color),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _selectedColor == color
+                              ? Colors.black
+                              : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (_nameController.text.isEmpty) return;
+
+            final project = Project(
+              id: const Uuid().v4(),
+              name: _nameController.text,
+              description: _descriptionController.text,
+              color: _selectedColor,
+              icon: _selectedIcon,
+              createdAt: DateTime.now(),
+            );
+
+            ref.read(projectsProvider.notifier).addProject(project);
+            Navigator.pop(context);
+          },
+          child: const Text('Create'),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+}
+
+// ==================== BOARD VIEW ====================
+
+class BoardView extends ConsumerWidget {
+  const BoardView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tasksByStatus = ref.watch(tasksByStatusProvider);
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _buildStatusColumn(
+              context, ref, 'To Do', TaskStatus.todo,
+              tasksByStatus[TaskStatus.todo] ?? [], Colors.grey,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _buildStatusColumn(
+              context, ref, 'In Progress', TaskStatus.inProgress,
+              tasksByStatus[TaskStatus.inProgress] ?? [], Colors.blue,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _buildStatusColumn(
+              context, ref, 'Review', TaskStatus.review,
+              tasksByStatus[TaskStatus.review] ?? [], Colors.orange,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _buildStatusColumn(
+              context, ref, 'Done', TaskStatus.done,
+              tasksByStatus[TaskStatus.done] ?? [], Colors.green,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusColumn(
+    BuildContext context,
+    WidgetRef ref,
+    String title,
+    TaskStatus status,
+    List<Task> tasks,
+    Color color,
+  ) {
+    return DragTarget<Task>(
+      onWillAccept: (task) => task != null,
+      onAccept: (task) {
+        ref.read(tasksProvider.notifier).updateTaskStatus(task.id, status);
+      },
+      builder: (context, candidateData, rejectedData) {
+        return Container(
+          decoration: BoxDecoration(
+            color: candidateData.isNotEmpty ? color.withOpacity(0.1) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${tasks.length}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: tasks.length,
+                  itemBuilder: (context, index) {
+                    return DraggableTaskCard(task: tasks[index]);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ==================== DRAGGABLE TASK CARD ====================
+
+class DraggableTaskCard extends ConsumerWidget {
+  final Task task;
+
+  const DraggableTaskCard({super.key, required this.task});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Draggable<Task>(
+      data: task,
+      feedback: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: 300,
+          child: Opacity(
+            opacity: 0.8,
+            child: TaskCard(task: task),
+          ),
+        ),
+      ),
+      childWhenDragging: Opacity(
+        opacity: 0.3,
+        child: TaskCard(task: task),
+      ),
+      child: TaskCard(task: task),
+    );
+  }
+}
+
+// ==================== TASK CARD ====================
+
+class TaskCard extends ConsumerWidget {
+  final Task task;
+
+  const TaskCard({super.key, required this.task});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: () => _showTaskDetails(context, ref),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      task.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        decoration: task.status == TaskStatus.done
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                    ),
+                  ),
+                  _buildPriorityBadge(),
+                ],
+              ),
+              if (task.description.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  task.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                  ),
+                ),
+              ],
+              if (task.subtasks.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.checklist, size: 14, color: Colors.grey.shade600),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${task.subtasks.where((s) => s.isCompleted).length}/${task.subtasks.length}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: LinearProgressIndicator(
+                        value: task.completionPercentage / 100,
+                        backgroundColor: Colors.grey.shade200,
+                        minHeight: 4,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (task.dueDate != null || task.estimatedHours > 0) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    if (task.dueDate != null) ...[
+                      Icon(
+                        Icons.calendar_today,
+                        size: 14,
+                        color: _getDueDateColor(),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        DateFormat('MMM dd').format(task.dueDate!),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _getDueDateColor(),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                    if (task.estimatedHours > 0) ...[
+                      const SizedBox(width: 12),
+                      Icon(Icons.access_time, size: 14, color: Colors.grey.shade600),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${task.estimatedHours}h',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+              if (task.tags.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: task.tags.map((tag) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        tag,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+              if (task.dependencies.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.link, size: 14, color: Colors.grey.shade600),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${task.dependencies.length} dependencies',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPriorityBadge() {
+    Color color;
+    String text;
+    IconData icon;
+    
+    switch (task.priority) {
+      case TaskPriority.urgent:
+        color = Colors.red;
+        text = 'Urgent';
+        icon = Icons.error;
+        break;
+      case TaskPriority.high:
+        color = Colors.orange;
+        text = 'High';
+        icon = Icons.arrow_upward;
+        break;
+      case TaskPriority.medium:
+        color = Colors.blue;
+        text = 'Med';
+        icon = Icons.remove;
+        break;
+      case TaskPriority.low:
+        color = Colors.grey;
+        text = 'Low';
+        icon = Icons.arrow_downward;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 2),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 9,
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getDueDateColor() {
+    if (task.dueDate == null) return Colors.grey;
+    
+    final now = DateTime.now();
+    final diff = task.dueDate!.difference(now).inDays;
+    
+    if (diff < 0) return Colors.red;
+    if (diff < 3) return Colors.orange;
+    return Colors.grey;
+  }
+
+  void _showTaskDetails(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => TaskDetailsDialog(task: task),
+    );
+  }
+}
+
+// ==================== ADD TASK DIALOG ====================
+
+class AddTaskDialog extends ConsumerStatefulWidget {
+  const AddTaskDialog({super.key});
+
+  @override
+  ConsumerState<AddTaskDialog> createState() => _AddTaskDialogState();
+}
+
+class _AddTaskDialogState extends ConsumerState<AddTaskDialog> {
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _tagController = TextEditingController();
+  TaskPriority _priority = TaskPriority.medium;
+  DateTime? _dueDate;
+  DateTime? _startDate;
+  int _estimatedHours = 0;
+  final List<String> _tags = [];
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedProject = ref.watch(selectedProjectProvider);
+
+    return AlertDialog(
+      title: const Text('Create New Task'),
+      content: SizedBox(
+        width: 600,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Title *',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.title),
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.notes),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<TaskPriority>(
+                      value: _priority,
+                      decoration: const InputDecoration(
+                        labelText: 'Priority',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.flag),
+                      ),
+                      items: TaskPriority.values.map((priority) {
+                        return DropdownMenuItem(
+                          value: priority,
+                          child: Text(_getPriorityLabel(priority)),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) setState(() => _priority = value);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Estimated Hours',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.access_time),
+                      ),
+                      keyboardType: TextInputType.number,
+                      onChanged: (value) {
+                        _estimatedHours = int.tryParse(value) ?? 0;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: _startDate ?? DateTime.now(),
+                          firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                        );
+                        if (date != null) setState(() => _startDate = date);
+                      },
+                      icon: const Icon(Icons.play_arrow),
+                      label: Text(
+                        _startDate == null
+                            ? 'Start Date'
+                            : DateFormat('MMM dd').format(_startDate!),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: _dueDate ?? DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                        );
+                        if (date != null) setState(() => _dueDate = date);
+                      },
+                      icon: const Icon(Icons.calendar_today),
+                      label: Text(
+                        _dueDate == null
+                            ? 'Due Date'
+                            : DateFormat('MMM dd').format(_dueDate!),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text('Tags', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _tagController,
+                      decoration: const InputDecoration(
+                        hintText: 'Add tag...',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      onSubmitted: (value) {
+                        if (value.isNotEmpty && !_tags.contains(value)) {
+                          setState(() {
+                            _tags.add(value);
+                            _tagController.clear();
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () {
+                      final value = _tagController.text;
+                      if (value.isNotEmpty && !_tags.contains(value)) {
+                        setState(() {
+                          _tags.add(value);
+                          _tagController.clear();
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+              if (_tags.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _tags.map((tag) {
+                    return Chip(
+                      label: Text(tag),
+                      onDeleted: () => setState(() => _tags.remove(tag)),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (_titleController.text.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please enter a title')),
+              );
+              return;
+            }
+
+            final task = Task(
+              id: const Uuid().v4(),
+              title: _titleController.text,
+              description: _descriptionController.text,
+              priority: _priority,
+              createdAt: DateTime.now(),
+              dueDate: _dueDate,
+              startDate: _startDate,
+              tags: _tags,
+              parentId: selectedProject,
+              estimatedHours: _estimatedHours,
+            );
+
+            ref.read(tasksProvider.notifier).addTask(task);
+            Navigator.pop(context);
+          },
+          child: const Text('Create Task'),
+        ),
+      ],
+    );
+  }
+
+  String _getPriorityLabel(TaskPriority priority) {
+    switch (priority) {
+      case TaskPriority.urgent:
+        return '🔴 Urgent';
+      case TaskPriority.high:
+        return '🟠 High';
+      case TaskPriority.medium:
+        return '🔵 Medium';
+      case TaskPriority.low:
+        return '⚪ Low';
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _tagController.dispose();
+    super.dispose();
+  }
+}
+
+// ==================== TASK DETAILS DIALOG ====================
+
+class TaskDetailsDialog extends ConsumerStatefulWidget {
+  final Task task;
+
+  const TaskDetailsDialog({super.key, required this.task});
+
+  @override
+  ConsumerState<TaskDetailsDialog> createState() => _TaskDetailsDialogState();
+}
+
+class _TaskDetailsDialogState extends ConsumerState<TaskDetailsDialog> with SingleTickerProviderStateMixin {
+  late TextEditingController _titleController;
+  late TextEditingController _descriptionController;
+  late TextEditingController _commentController;
+  late TextEditingController _subtaskController;
+  late TabController _tabController;
+  late TaskStatus _status;
+  late TaskPriority _priority;
+  late DateTime? _dueDate;
+  late DateTime? _startDate;
+  late int _estimatedHours;
+  late List<String> _tags;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _titleController = TextEditingController(text: widget.task.title);
+    _descriptionController = TextEditingController(text: widget.task.description);
+    _commentController = TextEditingController();
+    _subtaskController = TextEditingController();
+    _status = widget.task.status;
+    _priority = widget.task.priority;
+    _dueDate = widget.task.dueDate;
+    _startDate = widget.task.startDate;
+    _estimatedHours = widget.task.estimatedHours;
+    _tags = List.from(widget.task.tags);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activityLogs = ref.watch(activityLogsProvider).valueOrNull ?? [];
+    final taskLogs = activityLogs.where((log) => log.taskId == widget.task.id).toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    return Dialog(
+      child: Container(
+        width: 900,
+        height: 700,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _titleController,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 24,
+                    ),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Task title',
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => _showDeleteConfirmation(context),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TabBar(
+              controller: _tabController,
+              tabs: const [
+                Tab(text: 'Details'),
+                Tab(text: 'Activity'),
+                Tab(text: 'Advanced'),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildDetailsTab(),
+                  _buildActivityTab(taskLogs),
+                  _buildAdvancedTab(),
+                ],
+              ),
+            ),
+            const Divider(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _saveChanges,
+                  child: const Text('Save Changes'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailsTab() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _descriptionController,
+            decoration: const InputDecoration(
+              labelText: 'Description',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 4,
+          ),
+          const SizedBox(height: 16),
+          const Text('Status', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          SegmentedButton<TaskStatus>(
+            segments: const [
+              ButtonSegment(value: TaskStatus.todo, label: Text('To Do')),
+              ButtonSegment(value: TaskStatus.inProgress, label: Text('In Progress')),
+              ButtonSegment(value: TaskStatus.review, label: Text('Review')),
+              ButtonSegment(value: TaskStatus.done, label: Text('Done')),
+            ],
+            selected: {_status},
+            onSelectionChanged: (Set<TaskStatus> newSelection) {
+              setState(() => _status = newSelection.first);
+            },
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<TaskPriority>(
+                  value: _priority,
+                  decoration: const InputDecoration(
+                    labelText: 'Priority',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: TaskPriority.values.map((priority) {
+                    return DropdownMenuItem(
+                      value: priority,
+                      child: Text(_getPriorityLabel(priority)),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) setState(() => _priority = value);
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    labelText: 'Estimated Hours',
+                    border: const OutlineInputBorder(),
+                    hintText: _estimatedHours.toString(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    _estimatedHours = int.tryParse(value) ?? _estimatedHours;
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text('Subtasks', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          ...widget.task.subtasks.map((subtask) {
+            return CheckboxListTile(
+              title: Text(subtask.title),
+              value: subtask.isCompleted,
+              onChanged: (value) {
+                ref.read(tasksProvider.notifier).toggleSubtask(widget.task.id, subtask.id);
+                setState(() {});
+              },
+            );
+          }),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _subtaskController,
+                  decoration: const InputDecoration(
+                    hintText: 'Add subtask...',
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (value) {
+                    if (value.isNotEmpty) {
+                      ref.read(tasksProvider.notifier).addSubtask(widget.task.id, value);
+                      _subtaskController.clear();
+                      setState(() {});
+                    }
+                  },
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () {
+                  if (_subtaskController.text.isNotEmpty) {
+                    ref.read(tasksProvider.notifier).addSubtask(
+                      widget.task.id,
+                      _subtaskController.text,
+                    );
+                    _subtaskController.clear();
+                    setState(() {});
+                  }
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text('Comments', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          ...widget.task.comments.map((comment) {
+            return Card(
+              child: ListTile(
+                leading: CircleAvatar(child: Text(comment.author[0])),
+                title: Text(comment.author),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(comment.text),
+                    Text(
+                      DateFormat('MMM dd, yyyy HH:mm').format(comment.createdAt),
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _commentController,
+                  decoration: const InputDecoration(
+                    hintText: 'Add a comment...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.send),
+                onPressed: () {
+                  if (_commentController.text.isNotEmpty) {
+                    ref.read(tasksProvider.notifier).addComment(
+                      widget.task.id,
+                      _commentController.text,
+                    );
+                    _commentController.clear();
+                    setState(() {});
+                  }
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivityTab(List<ActivityLog> logs) {
+    return ListView.builder(
+      itemCount: logs.length,
+      itemBuilder: (context, index) {
+        final log = logs[index];
+        return ListTile(
+          leading: _getActivityIcon(log.action),
+          title: Text(_getActivityDescription(log)),
+          subtitle: Text(DateFormat('MMM dd, yyyy HH:mm').format(log.timestamp)),
+        );
+      },
+    );
+  }
+
+  Widget _buildAdvancedTab() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.play_arrow),
+            title: const Text('Start Date'),
+            subtitle: Text(_startDate == null
+                ? 'Not set'
+                : DateFormat('MMM dd, yyyy').format(_startDate!)),
+            trailing: IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: _dueDate ?? DateTime.now(),
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                );
+                if (date != null) setState(() => _dueDate = date);
+              },
+            ),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.access_time),
+            title: const Text('Time Tracking'),
+            subtitle: Text(
+              'Estimated: ${widget.task.estimatedHours}h | Actual: ${widget.task.actualHours}h',
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.attach_file),
+            title: Text('Attachments (${widget.task.attachments.length})'),
+            trailing: IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () {
+                // File picker would go here
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('File picker not implemented in this demo')),
+                );
+              },
+            ),
+          ),
+          const Divider(),
+          const ListTile(
+            leading: Icon(Icons.info_outline),
+            title: Text('Task Information'),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('ID: ${widget.task.id}'),
+                Text('Created: ${DateFormat('MMM dd, yyyy HH:mm').format(widget.task.createdAt)}'),
+                if (widget.task.dependencies.isNotEmpty)
+                  Text('Dependencies: ${widget.task.dependencies.length}'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Icon _getActivityIcon(String action) {
+    switch (action) {
+      case 'created':
+        return const Icon(Icons.add_circle, color: Colors.green);
+      case 'status_changed':
+        return const Icon(Icons.swap_horiz, color: Colors.blue);
+      case 'commented':
+        return const Icon(Icons.comment, color: Colors.orange);
+      case 'deleted':
+        return const Icon(Icons.delete, color: Colors.red);
+      default:
+        return const Icon(Icons.circle, color: Colors.grey);
+    }
+  }
+
+  String _getActivityDescription(ActivityLog log) {
+    switch (log.action) {
+      case 'created':
+        return '${log.user} created this task';
+      case 'status_changed':
+        return '${log.user} changed status from ${log.details['from']} to ${log.details['to']}';
+      case 'commented':
+        return '${log.user} commented: ${log.details['text']}';
+      case 'deleted':
+        return '${log.user} deleted this task';
+      default:
+        return '${log.user} performed ${log.action}';
+    }
+  }
+
+  String _getPriorityLabel(TaskPriority priority) {
+    switch (priority) {
+      case TaskPriority.urgent:
+        return '🔴 Urgent';
+      case TaskPriority.high:
+        return '🟠 High';
+      case TaskPriority.medium:
+        return '🔵 Medium';
+      case TaskPriority.low:
+        return '⚪ Low';
+    }
+  }
+
+  void _saveChanges() {
+    final updatedTask = widget.task.copyWith(
+      title: _titleController.text,
+      description: _descriptionController.text,
+      status: _status,
+      priority: _priority,
+      dueDate: _dueDate,
+      startDate: _startDate,
+      tags: _tags,
+      estimatedHours: _estimatedHours,
+    );
+    ref.read(tasksProvider.notifier).updateTask(widget.task.id, updatedTask);
+    Navigator.pop(context);
+  }
+
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Task'),
+        content: const Text('Are you sure you want to delete this task?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              ref.read(tasksProvider.notifier).deleteTask(widget.task.id);
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _commentController.dispose();
+    _subtaskController.dispose();
+    super.dispose();
+  }
+}
+
+// ==================== TASK LIST VIEW ====================
+
+class TaskListView extends ConsumerStatefulWidget {
+  const TaskListView({super.key});
+
+  @override
+  ConsumerState<TaskListView> createState() => _TaskListViewState();
+}
+
+class _TaskListViewState extends ConsumerState<TaskListView> {
+  final Set<String> _selectedTasks = {};
+
+  @override
+  Widget build(BuildContext context) {
+    final tasks = ref.watch(filteredTasksProvider);
+    final stats = ref.watch(statisticsProvider);
+
+    return Column(
+      children: [
+        if (_selectedTasks.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            color: Colors.blue.shade50,
+            child: Row(
+              children: [
+                Text('${_selectedTasks.length} selected'),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Bulk Update Status'),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: TaskStatus.values.map((status) {
+                            return ListTile(
+                              title: Text(status.name.toUpperCase()),
+                              onTap: () {
+                                ref.read(tasksProvider.notifier).bulkUpdateStatus(
+                                  _selectedTasks.toList(),
+                                  status,
+                                );
+                                setState(() => _selectedTasks.clear());
+                                Navigator.pop(context);
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.edit),
+                  label: const Text('Change Status'),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    ref.read(tasksProvider.notifier).bulkDelete(_selectedTasks.toList());
+                    setState(() => _selectedTasks.clear());
+                  },
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  label: const Text('Delete', style: TextStyle(color: Colors.red)),
+                ),
+                TextButton(
+                  onPressed: () => setState(() => _selectedTasks.clear()),
+                  child: const Text('Clear Selection'),
+                ),
+              ],
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Text(
+                'All Tasks',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(width: 16),
+              Chip(
+                label: Text('${stats['total']} total'),
+                visualDensity: VisualDensity.compact,
+              ),
+              const SizedBox(width: 8),
+              Chip(
+                label: Text('${stats['done']} done'),
+                backgroundColor: Colors.green.withOpacity(0.1),
+                visualDensity: VisualDensity.compact,
+              ),
+              const Spacer(),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'priority', label: Text('Priority')),
+                  ButtonSegment(value: 'date', label: Text('Date')),
+                  ButtonSegment(value: 'status', label: Text('Status')),
+                ],
+                selected: const {'date'},
+                onSelectionChanged: (Set<String> selected) {
+                  // Sorting logic would go here
+                },
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: tasks.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.inbox, size: 64, color: Colors.grey.shade400),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No tasks found',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: tasks.length,
+                  itemBuilder: (context, index) {
+                    final task = tasks[index];
+                    final isSelected = _selectedTasks.contains(task.id);
+                    return CheckboxListTile(
+                      value: isSelected,
+                      onChanged: (value) {
+                        setState(() {
+                          if (value == true) {
+                            _selectedTasks.add(task.id);
+                          } else {
+                            _selectedTasks.remove(task.id);
+                          }
+                        });
+                      },
+                      title: TaskCard(task: task),
+                      controlAffinity: ListTileControlAffinity.leading,
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+// ==================== CALENDAR VIEW ====================
+
+class CalendarView extends ConsumerStatefulWidget {
+  const CalendarView({super.key});
+
+  @override
+  ConsumerState<CalendarView> createState() => _CalendarViewState();
+}
+
+class _CalendarViewState extends ConsumerState<CalendarView> {
+  late DateTime _focusedDay;
+  late DateTime _selectedDay;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusedDay = DateTime.now();
+    _selectedDay = DateTime.now();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tasksForDay = ref.watch(tasksForCalendarProvider(_selectedDay));
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Card(
+              child: TableCalendar(
+                firstDay: DateTime.utc(2020, 1, 1),
+                lastDay: DateTime.utc(2030, 12, 31),
+                focusedDay: _focusedDay,
+                selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                onDaySelected: (selectedDay, focusedDay) {
+                  setState(() {
+                    _selectedDay = selectedDay;
+                    _focusedDay = focusedDay;
+                  });
+                },
+                eventLoader: (day) {
+                  return ref.watch(tasksForCalendarProvider(day));
+                },
+                calendarStyle: CalendarStyle(
+                  markerDecoration: BoxDecoration(
+                    color: Colors.blue,
+                    shape: BoxShape.circle,
+                  ),
+                  todayDecoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  selectedDecoration: const BoxDecoration(
+                    color: Colors.blue,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  DateFormat('EEEE, MMMM dd').format(_selectedDay),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${tasksForDay.length} tasks',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: tasksForDay.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.event_available, size: 48, color: Colors.grey.shade400),
+                              const SizedBox(height: 8),
+                              const Text('No tasks for this day'),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: tasksForDay.length,
+                          itemBuilder: (context, index) {
+                            return TaskCard(task: tasksForDay[index]);
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== TIMELINE VIEW ====================
+
+class TimelineView extends ConsumerWidget {
+  const TimelineView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tasks = ref.watch(filteredTasksProvider)
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    if (tasks.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.timeline, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              'No tasks to display',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ],
+        ),
+      );
+    }
+
+    final groupedTasks = <String, List<Task>>{};
+    for (final task in tasks) {
+      final dateKey = DateFormat('MMMM yyyy').format(task.createdAt);
+      groupedTasks.putIfAbsent(dateKey, () => []).add(task);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: ListView.builder(
+        itemCount: groupedTasks.length,
+        itemBuilder: (context, index) {
+          final dateKey = groupedTasks.keys.elementAt(index);
+          final tasksInMonth = groupedTasks[dateKey]!;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 3,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      dateKey,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${tasksInMonth.length} tasks',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ...tasksInMonth.map((task) {
+                return Padding(
+                  padding: const EdgeInsets.only(left: 24, bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Column(
+                        children: [
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: _getStatusColor(task.status),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                          ),
+                          if (task != tasksInMonth.last)
+                            Container(
+                              width: 2,
+                              height: 40,
+                              color: Colors.grey.shade300,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(child: TaskCard(task: task)),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Color _getStatusColor(TaskStatus status) {
+    switch (status) {
+      case TaskStatus.todo:
+        return Colors.grey;
+      case TaskStatus.inProgress:
+        return Colors.blue;
+      case TaskStatus.review:
+        return Colors.orange;
+      case TaskStatus.done:
+        return Colors.green;
+    }
+  }
+}
+
+// ==================== GANTT VIEW ====================
+
+class GanttView extends ConsumerWidget {
+  const GanttView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tasks = ref.watch(filteredTasksProvider)
+      .where((t) => t.startDate != null || t.dueDate != null)
+      .toList();
+
+    if (tasks.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.bar_chart, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              'No tasks with dates for Gantt chart',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Gantt Chart',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: ListView.builder(
+              itemCount: tasks.length,
+              itemBuilder: (context, index) {
+                final task = tasks[index];
+                final start = task.startDate ?? task.createdAt;
+                final end = task.dueDate ?? start.add(const Duration(days: 7));
+                final duration = end.difference(start).inDays;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                task.title,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            Text(
+                              '${DateFormat('MMM dd').format(start)} - ${DateFormat('MMM dd').format(end)}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: Container(
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: _getStatusColor(task.status).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    FractionallySizedBox(
+                                      widthFactor: task.completionPercentage / 100,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: _getStatusColor(task.status),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      ),
+                                    ),
+                                    Center(
+                                      child: Text(
+                                        '${task.completionPercentage.toStringAsFixed(0)}%',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Text('$duration days', style: const TextStyle(fontSize: 12)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getStatusColor(TaskStatus status) {
+    switch (status) {
+      case TaskStatus.todo:
+        return Colors.grey;
+      case TaskStatus.inProgress:
+        return Colors.blue;
+      case TaskStatus.review:
+        return Colors.orange;
+      case TaskStatus.done:
+        return Colors.green;
+    }
+  }
+}
+
+// ==================== ANALYTICS VIEW ====================
+
+class AnalyticsView extends ConsumerWidget {
+  const AnalyticsView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stats = ref.watch(statisticsProvider);
+    final tasks = ref.watch(filteredTasksProvider);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Analytics & Insights',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(child: _buildStatCard(context, 'Total Tasks', stats['total'].toString(), Icons.task, Colors.blue)),
+              const SizedBox(width: 16),
+              Expanded(child: _buildStatCard(context, 'Completed', stats['done'].toString(), Icons.check_circle, Colors.green)),
+              const SizedBox(width: 16),
+              Expanded(child: _buildStatCard(context, 'In Progress', stats['inProgress'].toString(), Icons.timelapse, Colors.orange)),
+              const SizedBox(width: 16),
+              Expanded(child: _buildStatCard(context, 'Overdue', stats['overdue'].toString(), Icons.warning, Colors.red)),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Completion Rate',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: 200,
+                          child: PieChart(
+                            PieChartData(
+                              sections: [
+                                PieChartSectionData(
+                                  value: stats['done'].toDouble(),
+                                  color: Colors.green,
+                                  title: 'Done',
+                                  radius: 80,
+                                ),
+                                PieChartSectionData(
+                                  value: stats['inProgress'].toDouble(),
+                                  color: Colors.blue,
+                                  title: 'In Progress',
+                                  radius: 80,
+                                ),
+                                PieChartSectionData(
+                                  value: stats['todo'].toDouble(),
+                                  color: Colors.grey,
+                                  title: 'To Do',
+                                  radius: 80,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Priority Distribution',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: 200,
+                          child: BarChart(
+                            BarChartData(
+                              alignment: BarChartAlignment.spaceAround,
+                              barGroups: TaskPriority.values.asMap().entries.map((entry) {
+                                final count = tasks.where((t) => t.priority == entry.value).length;
+                                return BarChartGroupData(
+                                  x: entry.key,
+                                  barRods: [
+                                    BarChartRodData(
+                                      toY: count.toDouble(),
+                                      color: _getPriorityColor(entry.value),
+                                      width: 40,
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                              titlesData: FlTitlesData(
+                                leftTitles: AxisTitles(
+                                  sideTitles: SideTitles(showTitles: true, reservedSize: 30),
+                                ),
+                                bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    getTitlesWidget: (value, meta) {
+                                      const priorities = ['Low', 'Med', 'High', 'Urgent'];
+                                      return Text(priorities[value.toInt()], style: const TextStyle(fontSize: 10));
+                                    },
+                                  ),
+                                ),
+                                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Time Tracking Summary',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildTimeStatRow('Estimated Hours', '${stats['totalEstimatedHours']}h', Colors.blue),
+                      ),
+                      Expanded(
+                        child: _buildTimeStatRow('Actual Hours', '${stats['totalActualHours']}h', Colors.green),
+                      ),
+                      Expanded(
+                        child: _buildTimeStatRow(
+                          'Variance',
+                          '${stats['hoursVariance'] > 0 ? '+' : ''}${stats['hoursVariance']}h',
+                          stats['hoursVariance'] > 0 ? Colors.red : Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(BuildContext context, String title, String value, IconData icon, Color color) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Icon(icon, size: 32, color: color),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            Text(title, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimeStatRow(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
+    );
+  }
+
+  Color _getPriorityColor(TaskPriority priority) {
+    switch (priority) {
+      case TaskPriority.urgent:
+        return Colors.red;
+      case TaskPriority.high:
+        return Colors.orange;
+      case TaskPriority.medium:
+        return Colors.blue;
+      case TaskPriority.low:
+        return Colors.grey;
+    }
+  }
+}
+                  context: context,
+                  initialDate: _startDate ?? DateTime.now(),
+                  firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                );
+                if (date != null) setState(() => _startDate = date);
+              },
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.calendar_today),
+            title: const Text('Due Date'),
+            subtitle: Text(_dueDate == null
+                ? 'Not set'
+                : DateFormat('MMM dd, yyyy').format(_dueDate!)),
+            trailing: IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () async {
+                final date = await showDatePicker(

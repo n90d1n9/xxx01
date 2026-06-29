@@ -1,0 +1,22 @@
+import 'rolling_update_daemon_set.dart';
+
+class DaemonSetUpdateStrategy {
+  final String? type;
+  final RollingUpdateDaemonSet? rollingUpdate;
+  DaemonSetUpdateStrategy({this.type, this.rollingUpdate});
+  factory DaemonSetUpdateStrategy.fromJson(Map<String, dynamic> json) {
+    return DaemonSetUpdateStrategy(
+      type: json['type'],
+      rollingUpdate:
+          json['rollingUpdate'] != null
+              ? RollingUpdateDaemonSet.fromJson(json['rollingUpdate'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (type != null) 'type': type,
+      if (rollingUpdate != null) 'rollingUpdate': rollingUpdate!.toJson(),
+    };
+  }
+}

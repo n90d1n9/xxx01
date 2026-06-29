@@ -1,0 +1,304 @@
+
+Update pubspec.yaml to include the necessary dependencies:
+
+dependencies:
+  flutter:
+    sdk: flutter
+  table_calendar: ^3.0.2
+  provider: ^6.0.3
+  http: ^0.13.3
+  url_launcher: ^6.0.20
+  googleapis: ^3.0.0
+  google_sign_in: ^5.2.1
+### Step 2: Create the Calendar UI
+
+Create a basic calendar UI with date range selection and event notes.
+
+lib/main.dart:
+
+`dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:table_calendar/table_calendar.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'event_provider.dart';
+import 'google_calendar_service.dart';
+
+void main() {
+  runApp(MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => EventProvider(),
+      child: MaterialApp(
+        title: 'Flutter Calendar App',
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+        ),
+        home: CalendarScreen(),
+      ),
+    );
+  }
+}
+
+class CalendarScreen extends StatefulWidget {
+  @override
+  _CalendarScreenState createState() => _CalendarScreenState();
+}
+
+class _CalendarScreenState extends State<CalendarScreen> {
+  CalendarFormat _calendarFormat = CalendarFormat.month;
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+  DateTime? _rangeStart;
+  DateTime? _rangeEnd;
+  RangeSelectionMode _rangeSelectionMode = RangeSelectionMode.toggledOff;
+  GoogleCalendarService _googleCalendarService = GoogleCalendarService();
+
+  @override
+  Widget build(BuildContext context) {
+    final eventProvider = Provider.of<EventProvider>(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Flutter Calendar App'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.share),
+            onPressed: () {
+              if (_selectedDay != null) {
+                final event = eventProvider.getEventsForDay(_selectedDay!);
+                _shareEvent(event);
+              }
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          TableCalendar(
+            focusedDay: _focusedDay,
+            firstDay: DateTime(2000),
+            lastDay: DateTime(2050),
+            calendarFormat: _calendarFormat,
+            selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+            onDaySelected: (selectedDay, focusedDay) {
+              if (!isSameDay(_selectedDay, selectedDay)) {
+                setState(() {
+                  _selectedDay = selectedDay;
+                  _focusedDay = focusedDay;
+                });
+              }
+            },
+            onRangeSelected: (start, end, focusedDay) {
+              setState(() {
+                _rangeStart = start;
+                _rangeEnd = end;
+                _focusedDay = focusedDay;
+                _rangeSelectionMode = RangeSelectionMode.toggledOn;
+              });
+            },
+            onFormatChanged: (format) {
+              if (_calendarFormat != format) {
+                setState(() {
+                  _calendarFormat = format;
+                });
+              }
+            },
+            onPageChanged: (focusedDay) {
+              _focusedDay = focusedDay;
+            },
+            rangeStartDay: _rangeStart,
+            rangeEndDay: _rangeEnd,
+            rangeSelectionMode: _rangeSelectionMod
+
+
+
+
+
+
+
+a TaskProvider to manage adding tasks and notifying listeners of changes.
+
+### Continuation of Implementation:
+
+4. Gantt Chart UI:
+
+Create the UI for the Gantt chart in lib/main.dart as follows:
+
+`dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'models/task.dart';
+import 'providers/task_provider.dart';
+
+void main() {
+  runApp(ProviderScope(child: MyApp()));
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Gantt Chart App',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: GanttChartScreen(),
+    );
+  }
+}
+
+class GanttChartScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Gantt Chart'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.add),
+            onPressed: () {
+              _showAddTaskDialog(context);
+            },
+          ),
+        ],
+      ),
+      body: Consumer(
+        builder: (context, watch, child) {
+          final tasks = watch(taskProvider);
+          return SingleChildScrollView(
+            child: Column(
+              children: tasks.map((task) => TaskRow(task: task)).toList(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showAddTaskDialog(BuildContext context) {
+    final nameController = TextEditingController();
+    DateTime? startDate;
+    DateTime? endDate;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Add Task'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(labelText: 'Task Name'),
+              ),
+              SizedBox(height: 10),
+              TextField(
+                decoration: InputDecoration(labelText: 'Start Date (yyyy-MM-dd)'),
+                keyboardType: TextInputType.datetime,
+                onChanged: (value) {
+                  startDate = DateTime.tryParse(value);
+                },
+              ),
+              SizedBox(height: 10),
+              TextField(
+                decoration: InputDecoration(labelText: 'End Date (yyyy-MM-dd)'),
+                keyboardType: TextInputType.datetime,
+                onChanged: (value) {
+                  endDate = DateTime.tryParse(value);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              child: Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              child: Text('Save'),
+              onPressed: () {
+                if (nameController.text.isNotEmpty && startDate != null && endDate != null) {
+                  final task = Task(
+                    name: nameController.text,
+                    startDate: startDate!,
+                    endDate: endDate!,
+                  );
+                  context.read(taskProvider.notifier).addTask(task);
+                  Navigator.of(context).pop();
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class TaskRow extends StatelessWidget {
+  final Task task;
+
+  TaskRow({required this.task});
+
+  @override
+  Widget build(BuildContext context) {
+    final totalDays = DateTime.now().difference(DateTime(2000, 1, 1)).inDays;
+    final startDay = task.startDate.difference(DateTime(2000, 1, 1)).inDays;
+    final duration = task.endDate.difference(task.startDate).inDays;
+
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        children: [
+
+Expanded(
+            child: Text(task.name),
+          ),
+          Container(
+            width: MediaQuery.of(context).size.width * 0.6,
+            height: 20,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: (startDay / totalDays) * MediaQuery.of(context).size.width * 0.6,
+                  child: Container(
+                    width: (duration / totalDays) * MediaQuery.of(context).size.width * 0.6,
+                    color: Colors.blue,
+                    height: 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+### Explanation:
+
+1. **Task Provider**:
+   - The `TaskNotifier` class extends `StateNotifier` and manages a list of tasks.
+   - The `addTask` method allows adding a new task to the list.
+
+2. **Gantt Chart Screen**:
+   - The `GanttChartScreen` class builds the main screen with an AppBar and a list of tasks displayed using the `TaskRow` widget.
+   - The `_showAddTaskDialog` method displays a dialog for adding a new task.
+
+3. **TaskRow Widget**:
+   - The `TaskRow` widget is responsible for displaying a single task in the Gantt chart.
+   - It calculates the position and width of the task bar based on the task's start and end dates relative to a fixed starting point (in this case, January 1, 2000).
+
+### Running the App:
+
+- Run the Flutter application using the followin...bash
+flutter run
+`
+
+This will start the app and display a Gantt chart with the ability to add tasks via a dialog. The tasks will be managed using Riverpod for state management, and the Gantt chart will be dynamically updated as tasks are added.

@@ -1,0 +1,178 @@
+import 'user.dart';
+
+class AuthenticationState {
+  final String? username;
+  final String? password;
+  final String? email;
+  final bool rememberMe;
+  final String? token;
+  final User? user;
+  final bool loggedIn;
+  final String? loginMessage;
+  final String? passwordMessage;
+  final String? confirmPassword;
+  final String? confirmPasswordMessage;
+  final bool hasErrorInForgotPassword;
+  final bool hasErrorsInLogin;
+  final bool isAuthenticated;
+  final bool isFirstTime;
+  final bool isLoading;
+  final String? errorMessage;
+  final String? role;
+  final String? firebaseUid;
+  final String? pendingAuthProvider;
+  final String? authVerificationUri;
+  final String? authUserCode;
+
+  const AuthenticationState({
+    this.username,
+    this.password,
+    this.email,
+    this.rememberMe = false,
+    this.token,
+    this.user,
+    this.loggedIn = false,
+    this.loginMessage,
+    this.passwordMessage,
+    this.confirmPassword,
+    this.confirmPasswordMessage,
+    this.hasErrorInForgotPassword = false,
+    this.hasErrorsInLogin = false,
+    this.isAuthenticated = false,
+    this.isFirstTime = true,
+    this.isLoading = true,
+    this.errorMessage,
+    this.role,
+    this.firebaseUid,
+    this.pendingAuthProvider,
+    this.authVerificationUri,
+    this.authUserCode,
+  });
+
+  factory AuthenticationState.initial() => const AuthenticationState();
+
+  AuthenticationState copyWith({
+    String? username,
+    String? password,
+    String? email,
+    bool? rememberMe,
+    String? token,
+    User? user,
+    bool? loggedIn,
+    String? loginMessage,
+    String? passwordMessage,
+    String? confirmPassword,
+    String? confirmPasswordMessage,
+    bool? hasErrorInForgotPassword,
+    bool? hasErrorsInLogin,
+    bool? isAuthenticated,
+    bool? isFirstTime,
+    bool? isLoading,
+    String? errorMessage,
+    String? role,
+    String? firebaseUid,
+    String? pendingAuthProvider,
+    String? authVerificationUri,
+    String? authUserCode,
+  }) {
+    return AuthenticationState(
+      username: username ?? this.username,
+      password: password ?? this.password,
+      email: email ?? this.email,
+      rememberMe: rememberMe ?? this.rememberMe,
+      token: token ?? this.token,
+      user: user ?? this.user,
+      loggedIn: loggedIn ?? this.loggedIn,
+      loginMessage: loginMessage ?? this.loginMessage,
+      passwordMessage: passwordMessage ?? this.passwordMessage,
+      confirmPassword: confirmPassword ?? this.confirmPassword,
+      confirmPasswordMessage:
+          confirmPasswordMessage ?? this.confirmPasswordMessage,
+      hasErrorInForgotPassword:
+          hasErrorInForgotPassword ?? this.hasErrorInForgotPassword,
+      hasErrorsInLogin: hasErrorsInLogin ?? this.hasErrorsInLogin,
+      isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      isFirstTime: isFirstTime ?? this.isFirstTime,
+      isLoading: isLoading ?? this.isLoading,
+      errorMessage: errorMessage ?? this.errorMessage,
+      role: role ?? this.role,
+      firebaseUid: firebaseUid ?? this.firebaseUid,
+      pendingAuthProvider: pendingAuthProvider ?? this.pendingAuthProvider,
+      authVerificationUri: authVerificationUri ?? this.authVerificationUri,
+      authUserCode: authUserCode ?? this.authUserCode,
+    );
+  }
+
+  @override
+  String toString() {
+    return '''
+username: $username, email: $email, isAuthenticated: $isAuthenticated, isFirsTime: $isFirstTime, rememberMe: $rememberMe, role: $role, firebaseUid: $firebaseUid, pendingAuthProvider: $pendingAuthProvider
+''';
+  }
+}
+
+/* 
+@immutable
+class AuthenticationState {
+  const AuthenticationState(
+      {this.username,
+      this.password,
+      this.rememberMe = false,
+      this.user,
+      this.hasErrorInForgotPassword = false,
+      this.hasErrorsInLogin = false,
+      this.token ,
+      this.loggedIn = false,
+      this.loginMessage,
+      this.passwordMessage,
+      this.confirmPassword ,
+      this.confirmPasswordMessage,
+      this.status = const StateStatus()});
+
+  final String? username;
+  final String? password;
+  final bool rememberMe;
+  final String? token;
+  final User? user;
+  final bool loggedIn;
+  final String? loginMessage;
+  final String? passwordMessage;
+  final String? confirmPassword;
+  final String? confirmPasswordMessage;
+  final bool hasErrorInForgotPassword;
+  final bool hasErrorsInLogin;
+  final StateStatus status;
+
+  AuthenticationState copyWith(
+      {String? username,
+      String? password,
+      bool? rememberMe,
+      String? token,
+      User? user,
+      bool? loggedIn,
+      String? loginMessage,
+      String? passwordMessage,
+      String? confirmPassword,
+      String? confirmPasswordMessage,
+      StateStatus? status}) {
+    return AuthenticationState(
+        username: username ?? this.username,
+        password: password ?? this.password,
+        rememberMe: rememberMe ?? this.rememberMe,
+        token: token ?? this.token,
+        user: user ?? this.user,
+        loggedIn: loggedIn ?? this.loggedIn,
+        loginMessage: loginMessage ?? this.loginMessage,
+        passwordMessage: passwordMessage ?? this.passwordMessage,
+        confirmPassword: confirmPassword ?? this.confirmPassword,
+        confirmPasswordMessage:
+            confirmPasswordMessage ?? this.confirmPasswordMessage,
+        status: status ?? this.status);
+  }
+
+  @override
+  String toString() {
+    return 'username: $username';
+  }
+}
+ */

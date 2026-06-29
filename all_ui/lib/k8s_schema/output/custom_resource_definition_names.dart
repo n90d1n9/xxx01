@@ -1,0 +1,42 @@
+class CustomResourceDefinitionNames {
+  final String plural;
+  final String singular;
+  final String kind;
+  final List<String>? shortNames;
+  final List<String>? categories;
+  final String? listKind;
+  CustomResourceDefinitionNames({
+    required this.plural,
+    required this.singular,
+    required this.kind,
+    this.shortNames,
+    this.categories,
+    this.listKind,
+  });
+  factory CustomResourceDefinitionNames.fromJson(Map<String, dynamic> json) {
+    return CustomResourceDefinitionNames(
+      plural: json['plural'],
+      singular: json['singular'],
+      kind: json['kind'],
+      shortNames:
+          json['shortNames'] != null
+              ? List<String>.from(json['shortNames'])
+              : null,
+      categories:
+          json['categories'] != null
+              ? List<String>.from(json['categories'])
+              : null,
+      listKind: json['listKind'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'plural': plural,
+      'singular': singular,
+      'kind': kind,
+      if (shortNames != null) 'shortNames': shortNames,
+      if (categories != null) 'categories': categories,
+      if (listKind != null) 'listKind': listKind,
+    };
+  }
+}

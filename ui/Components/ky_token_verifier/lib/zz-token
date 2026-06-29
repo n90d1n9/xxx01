@@ -1,0 +1,1012 @@
+I'll add a token verification widget that can be used alongside or after pattern authentication. Here's the complete implementation with token verification:
+
+## 1. Create Token Provider
+
+```dart
+// lib/providers/token_provider.dart
+
+```
+
+## 2. Create Token Verification Widget
+
+```dart
+// lib/widgets/token_verification_widget.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import '../providers/token_provider.dart';
+
+class TokenVerificationWidget extends HookConsumerWidget {
+  final VoidCallback? onVerificationSuccess;
+  final VoidCallback? onVerificationFailure;
+  final bool autoVerify;
+  final String? initialToken;
+
+  const TokenVerificationWidget({
+    Key? key,
+    this.onVerificationSuccess,
+    this.onVerificationFailure,
+    this.autoVerify = false,
+    this.initialToken,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokenState = ref.watch(tokenProvider);
+    final tokenNotifier = ref.read(tokenProvider.notifier);
+    
+    final tokenController = useTextEditingController(text: initialToken ?? '');
+    final isObscured = useState<bool>(true);
+
+    // Auto-verify if initial token is provided
+    useEffect(() {
+      if (autoVerify && initialToken != null && initialToken!.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          tokenNotifier.verifyToken(initialToken!);
+        });
+      }
+      return null;
+    }, [initialToken, autoVerify]);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 2,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _getStatusColor(tokenState.status).withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _getStatusIcon(tokenState.status),
+                  color: _getStatusColor(tokenState.status),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _getStatusTitle(tokenState.status),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (tokenState.expiresAt != null)
+                      Text(
+                        'Expires: ${_formatExpiry(tokenState.expiresAt!)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (tokenState.status == TokenStatus.valid)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Active',
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Token Input Field
+          if (tokenState.status != TokenStatus.valid)
+            TextField(
+              controller: tokenController,
+              obscureText: isObscured.value,
+              decoration: InputDecoration(
+                labelText: 'Enter Token',
+                hintText: 'e.g., valid_1234567890',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                prefixIcon: const Icon(Icons.vpn_key),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    isObscured.value ? Icons.visibility : Icons.visibility_off,
+                  ),
+                  onPressed: () => isObscured.value = !isObscured.value,
+                ),
+                errorText: tokenState.errorMessage,
+              ),
+            ),
+
+          const SizedBox(height: 16),
+
+          // Status Message
+          if (tokenState.status == TokenStatus.verifying)
+            const Center(
+              child: Column(
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 8),
+                  Text('Verifying token...'),
+                ],
+              ),
+            ),
+
+          // Action Buttons
+          Row(
+            children: [
+              if (tokenState.status != TokenStatus.valid)
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: tokenState.status == TokenStatus.verifying
+                        ? null
+                        : () async {
+                            if (tokenController.text.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Please enter a token'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                              return;
+                            }
+                            
+                            await tokenNotifier.verifyToken(tokenController.text);
+                            
+                            if (tokenState.status == TokenStatus.valid) {
+                              onVerificationSuccess?.call();
+                            } else {
+                              onVerificationFailure?.call();
+                            }
+                          },
+                    icon: const Icon(Icons.verified),
+                    label: const Text('Verify Token'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              
+              if (tokenState.status == TokenStatus.valid) ...[
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      tokenNotifier.clearToken();
+                    },
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Clear Token'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      await tokenNotifier.refreshToken();
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Refresh'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+
+          // Token Info
+          if (tokenState.token != null && tokenState.status == TokenStatus.valid)
+            Container(
+              margin: const EdgeInsets.only(top: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Token Details:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Token: ${tokenState.token}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  if (tokenState.expiresAt != null)
+                    Text(
+                      'Expires: ${_formatExpiry(tokenState.expiresAt!)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: tokenNotifier.needsRefresh() 
+                            ? Colors.orange 
+                            : Colors.grey[600],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+          // Warning for expiring token
+          if (tokenNotifier.needsRefresh() && tokenState.status == TokenStatus.valid)
+            Container(
+              margin: const EdgeInsets.only(top: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Token expiring soon',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange,
+                          ),
+                        ),
+                        Text(
+                          'Refresh your token to continue using the app',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Color _getStatusColor(TokenStatus status) {
+    switch (status) {
+      case TokenStatus.valid:
+        return Colors.green;
+      case TokenStatus.invalid:
+        return Colors.red;
+      case TokenStatus.expired:
+        return Colors.orange;
+      case TokenStatus.verifying:
+        return Colors.blue;
+      case TokenStatus.initial:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getStatusIcon(TokenStatus status) {
+    switch (status) {
+      case TokenStatus.valid:
+        return Icons.check_circle;
+      case TokenStatus.invalid:
+        return Icons.cancel;
+      case TokenStatus.expired:
+        return Icons.timer_off;
+      case TokenStatus.verifying:
+        return Icons.hourglass_empty;
+      case TokenStatus.initial:
+        return Icons.vpn_key;
+    }
+  }
+
+  String _getStatusTitle(TokenStatus status) {
+    switch (status) {
+      case TokenStatus.initial:
+        return 'Token Verification';
+      case TokenStatus.verifying:
+        return 'Verifying Token';
+      case TokenStatus.valid:
+        return 'Token Valid';
+      case TokenStatus.invalid:
+        return 'Invalid Token';
+      case TokenStatus.expired:
+        return 'Token Expired';
+    }
+  }
+
+  String _formatExpiry(DateTime expiry) {
+    final now = DateTime.now();
+    final difference = expiry.difference(now);
+
+    if (difference.isNegative) {
+      return 'Expired';
+    } else if (difference.inHours > 24) {
+      return '${difference.inDays} days';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ${difference.inMinutes % 60}m';
+    } else {
+      return '${difference.inMinutes}m';
+    }
+  }
+}
+```
+
+## 3. Create Combined Authentication Widget
+
+```dart
+// lib/widgets/pattern_token_auth.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'pattern_lock.dart';
+import 'token_verification_widget.dart';
+import '../providers/pattern_lock_provider.dart';
+import '../providers/token_provider.dart';
+
+enum AuthMode { pattern, token, both }
+enum AuthStep { pattern, token }
+
+class PatternTokenAuth extends HookConsumerWidget {
+  final AuthMode mode;
+  final double size;
+  final VoidCallback? onAuthenticationSuccess;
+  final Function(String)? onPatternSaved;
+  final List<int>? savedPattern;
+
+  const PatternTokenAuth({
+    Key? key,
+    this.mode = AuthMode.both,
+    this.size = 300,
+    this.onAuthenticationSuccess,
+    this.onPatternSaved,
+    this.savedPattern,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final patternState = ref.watch(patternLockProvider);
+    final tokenState = ref.watch(tokenProvider);
+    final patternNotifier = ref.read(patternLockProvider.notifier);
+    final tokenNotifier = ref.read(tokenProvider.notifier);
+
+    final authStep = useState<AuthStep>(AuthStep.pattern);
+    final errorMessage = useState<String?>(null);
+
+    // Handle successful pattern authentication
+    useEffect(() {
+      if (authStep.value == AuthStep.pattern && 
+          patternState.status == PatternStatus.completed) {
+        
+        if (savedPattern != null) {
+          // Verify pattern
+          final isValid = patternNotifier.verifyPattern(savedPattern!);
+          if (isValid) {
+            if (mode == AuthMode.pattern) {
+              // Pattern only - success
+              onAuthenticationSuccess?.call();
+            } else {
+              // Move to token verification
+              authStep.value = AuthStep.token;
+            }
+          } else {
+            errorMessage.value = 'Invalid pattern';
+            Future.delayed(const Duration(milliseconds: 500), () {
+              patternNotifier.reset();
+              errorMessage.value = null;
+            });
+          }
+        }
+      }
+      return null;
+    }, [patternState.status]);
+
+    // Handle token verification
+    useEffect(() {
+      if (authStep.value == AuthStep.token && 
+          tokenState.status == TokenStatus.valid) {
+        // Both pattern and token verified
+        onAuthenticationSuccess?.call();
+      }
+      return null;
+    }, [tokenState.status]);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Colors.blue,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    authStep.value == AuthStep.pattern ? '1' : '2',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        authStep.value == AuthStep.pattern 
+                            ? 'Step 1: Pattern Authentication'
+                            : 'Step 2: Token Verification',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        authStep.value == AuthStep.pattern
+                            ? 'Draw your pattern to continue'
+                            : 'Verify your token to complete authentication',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (mode == AuthMode.both)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${authStep.value == AuthStep.pattern ? '1/2' : '2/2'}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Error message
+          if (errorMessage.value != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.red),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      errorMessage.value!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Content based on step
+          if (authStep.value == AuthStep.pattern)
+            Column(
+              children: [
+                PatternLock(
+                  size: size,
+                  isSettingPattern: savedPattern == null,
+                  savedPattern: savedPattern,
+                  onPatternCompleted: (pattern) {
+                    if (savedPattern == null) {
+                      // Saving new pattern
+                      onPatternSaved?.call(pattern);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  savedPattern == null
+                      ? 'Create your pattern (minimum 4 points)'
+                      : 'Draw your pattern to unlock',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            )
+          else
+            TokenVerificationWidget(
+              onVerificationSuccess: () {
+                // Success handled by useEffect
+              },
+              onVerificationFailure: () {
+                errorMessage.value = 'Token verification failed';
+              },
+            ),
+
+          const SizedBox(height: 24),
+
+          // Navigation buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if (authStep.value == AuthStep.token)
+                TextButton.icon(
+                  onPressed: () {
+                    authStep.value = AuthStep.pattern;
+                    patternNotifier.reset();
+                  },
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text('Back to Pattern'),
+                ),
+              
+              if (authStep.value == AuthStep.pattern && savedPattern != null)
+                TextButton.icon(
+                  onPressed: () {
+                    patternNotifier.reset();
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Reset'),
+                ),
+
+              if (authStep.value == AuthStep.token)
+                TextButton.icon(
+                  onPressed: () {
+                    tokenNotifier.clearToken();
+                  },
+                  icon: const Icon(Icons.clear),
+                  label: const Text('Clear Token'),
+                  style: TextButton.styleFrom(foregroundColor: Colors.red),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+## 4. Create Authentication Screen
+
+```dart
+// lib/screens/authentication_screen.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import '../widgets/pattern_token_auth.dart';
+import '../providers/pattern_lock_provider.dart';
+import '../providers/token_provider.dart';
+
+class AuthenticationScreen extends ConsumerStatefulWidget {
+  final AuthMode mode;
+  final List<int>? savedPattern;
+
+  const AuthenticationScreen({
+    Key? key,
+    this.mode = AuthMode.both,
+    this.savedPattern,
+  }) : super(key: key);
+
+  @override
+  _AuthenticationScreenState createState() => _AuthenticationScreenState();
+}
+
+class _AuthenticationScreenState extends ConsumerState<AuthenticationScreen> {
+  bool isAuthenticated = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_getTitle()),
+        elevation: 0,
+      ),
+      body: isAuthenticated
+          ? _buildAuthenticatedContent()
+          : _buildAuthContent(),
+    );
+  }
+
+  String _getTitle() {
+    if (isAuthenticated) return 'Welcome!';
+    
+    switch (widget.mode) {
+      case AuthMode.pattern:
+        return 'Pattern Authentication';
+      case AuthMode.token:
+        return 'Token Verification';
+      case AuthMode.both:
+        return 'Secure Access';
+    }
+  }
+
+  Widget _buildAuthContent() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // App logo/icon
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.security,
+                size: 50,
+                color: Colors.blue,
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // Description
+            Text(
+              _getDescription(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 40),
+
+            // Authentication widget
+            PatternTokenAuth(
+              mode: widget.mode,
+              savedPattern: widget.savedPattern,
+              onAuthenticationSuccess: () {
+                setState(() {
+                  isAuthenticated = true;
+                });
+              },
+              onPatternSaved: (pattern) {
+                // Save pattern to secure storage
+                print('New pattern saved: $pattern');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Pattern saved successfully!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getDescription() {
+    switch (widget.mode) {
+      case AuthMode.pattern:
+        return 'Draw your pattern to access the app';
+      case AuthMode.token:
+        return 'Enter your verification token';
+      case AuthMode.both:
+        return 'Two-factor authentication required\nComplete both steps to continue';
+    }
+  }
+
+  Widget _buildAuthenticatedContent() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.check_circle,
+            size: 100,
+            color: Colors.green,
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Authentication Successful!',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'You have successfully authenticated',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 40),
+          ElevatedButton.icon(
+            onPressed: () {
+              // Navigate to main app content
+              Navigator.pushReplacementNamed(context, '/home');
+            },
+            icon: const Icon(Icons.home),
+            label: const Text('Go to Home'),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(200, 50),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: () {
+              ref.read(patternLockProvider.notifier).reset();
+              ref.read(tokenProvider.notifier).clearToken();
+              setState(() {
+                isAuthenticated = false;
+              });
+            },
+            icon: const Icon(Icons.lock_open),
+            label: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+## 5. Update Main App with Routing
+
+```dart
+// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'screens/authentication_screen.dart';
+
+void main() {
+  runApp(
+    ProviderScope(
+      child: MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Secure Auth Demo',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+      ),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const HomeScreen(),
+        '/pattern-auth': (context) => const AuthenticationScreen(
+              mode: AuthMode.pattern,
+            ),
+        '/token-auth': (context) => const AuthenticationScreen(
+              mode: AuthMode.token,
+            ),
+        '/two-factor': (context) => const AuthenticationScreen(
+              mode: AuthMode.both,
+            ),
+        '/home': (context) => const MainAppScreen(),
+      },
+    );
+  }
+}
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Authentication Demo'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'Choose Authentication Method',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 40),
+            _buildAuthButton(
+              context,
+              'Pattern Only',
+              Icons.lock_pattern,
+              Colors.blue,
+              () => Navigator.pushNamed(context, '/pattern-auth'),
+            ),
+            const SizedBox(height: 16),
+            _buildAuthButton(
+              context,
+              'Token Only',
+              Icons.vpn_key,
+              Colors.green,
+              () => Navigator.pushNamed(context, '/token-auth'),
+            ),
+            const SizedBox(height: 16),
+            _buildAuthButton(
+              context,
+              'Two-Factor Auth',
+              Icons.security,
+              Colors.orange,
+              () => Navigator.pushNamed(context, '/two-factor',
+                  arguments: [0, 1, 2, 5, 8] // Example saved pattern
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAuthButton(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onPressed,
+  ) {
+    return SizedBox(
+      width: 250,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        label: Text(label),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 15),
+        ),
+      ),
+    );
+  }
+}
+
+class MainAppScreen extends StatelessWidget {
+  const MainAppScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Main App'),
+        automaticallyImplyLeading: false,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.check_circle_outline,
+              size: 80,
+              color: Colors.green,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Welcome to the App!',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/',
+                  (route) => false,
+                );
+              },
+              child: const Text('Logout'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+## Features Added:
+
+1. **Token Verification Widget**:
+   - Token input field with visibility toggle
+   - Visual status indicators (valid, invalid, expired)
+   - Token expiry display
+   - Refresh token functionality
+   - Auto-verification option
+
+2. **Combined Authentication**:
+   - Two-factor authentication flow
+   - Step-by-step guidance
+   - Error handling and messages
+   - Navigation between steps
+
+3. **Enhanced Security**:
+   - Pattern + token verification
+   - Token expiry management
+   - Automatic refresh detection
+   - Clear session on logout
+
+4. **User Experience**:
+   - Visual progress indicators
+   - Clear status messages
+   - Smooth transitions
+   - Responsive design
+
+5. **Multiple Auth Modes**:
+   - Pattern only
+   - Token only
+   - Two-factor (pattern + token)
+
+The token verification can be integrated with real backend services by replacing the mock verification logic with actual API calls to validate tokens with your server.

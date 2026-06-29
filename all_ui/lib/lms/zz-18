@@ -1,0 +1,4799 @@
+title: const Text('Kalender & Jadwal'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () {
+              _showAddEventDialog(context, ref);
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          _buildMonthCalendar(context, ref, selectedDate, events),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Acara Hari Ini',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '${dayEvents.length} acara',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: dayEvents.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.event_busy, size: 64, color: Colors.grey[300]),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Tidak ada acara',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: dayEvents.length,
+                    itemBuilder: (context, index) {
+                      return EventCard(event: dayEvents[index]);
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMonthCalendar(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime selectedDate,
+    List<CalendarEvent> events,
+  ) {
+    return Container(
+      margin: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () {
+                  ref.read(selectedDateProvider.notifier).state = DateTime(
+                    selectedDate.year,
+                    selectedDate.month - 1,
+                  );
+                },
+              ),
+              Text(
+                _getMonthName(selectedDate.month),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: () {
+                  ref.read(selectedDateProvider.notifier).state = DateTime(
+                    selectedDate.year,
+                    selectedDate.month + 1,
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildCalendarGrid(context, ref, selectedDate, events),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendarGrid(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime selectedDate,
+    List<CalendarEvent> events,
+  ) {
+    final daysInWeek = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+    final daysInMonth = DateTime(selectedDate.year, selectedDate.month + 1, 0).day;
+    final firstDayOfWeek = DateTime(selectedDate.year, selectedDate.month, 1).weekday;
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: daysInWeek.map((day) {
+            return SizedBox(
+              width: 40,
+              child: Center(
+                child: Text(
+                  day,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 8),
+        ...List.generate((daysInMonth + firstDayOfWeek - 1) ~/ 7 + 1, (weekIndex) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: List.generate(7, (dayIndex) {
+                final dayNumber = weekIndex * 7 + dayIndex - firstDayOfWeek + 2;
+                if (dayNumber < 1 || dayNumber > daysInMonth) {
+                  return const SizedBox(width: 40, height: 40);
+                }
+
+                final date = DateTime(selectedDate.year, selectedDate.month, dayNumber);
+                final hasEvents = events.any((e) =>
+                  e.startTime.year == date.year &&
+                  e.startTime.month == date.month &&
+                  e.startTime.day == date.day);
+                final isSelected = selectedDate.day == dayNumber;
+                final isToday = DateTime.now().day == dayNumber &&
+                               DateTime.now().month == selectedDate.month;
+
+                return GestureDetector(
+                  onTap: () {
+                    ref.read(selectedDateProvider.notifier).state = date;
+                  },
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : isToday
+                              ? Theme.of(context).colorScheme.primaryContainer
+                              : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Text(
+                          dayNumber.toString(),
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : Colors.black,
+                            fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        if (hasEvents)
+                          Positioned(
+                            bottom: 4,
+                            child: Container(
+                              width: 4,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  String _getMonthName(int month) {
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    return months[month - 1];
+  }
+
+  void _showAddEventDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tambah Acara'),
+        content: const Text('Fitur menambah acara akan segera hadir!'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== RECOMMENDATIONS SCREEN ====================
+
+class RecommendationsScreen extends ConsumerWidget {
+  const RecommendationsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recommendations = ref.watch(recommendationsProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Rekomendasi Belajar'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.auto_awesome, color: Colors.white, size: 40),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'AI Recommendations',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${recommendations.length} rekomendasi dipersonalisasi untukmu',
+                        style: const TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Prioritas Tinggi',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          ...recommendations.where((r) => r.priority == 1).map((rec) => 
+            RecommendationCard(recommendation: rec)
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Rekomendasi Lainnya',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          ...recommendations.where((r) => r.priority > 1).map((rec) => 
+            RecommendationCard(recommendation: rec)
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class RecommendationCard extends StatelessWidget {
+  final StudyRecommendation recommendation;
+
+  const RecommendationCard({super.key, required this.recommendation});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _getTypeColor(recommendation.type).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  _getTypeIcon(recommendation.type),
+                  color: _getTypeColor(recommendation.type),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      recommendation.title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (recommendation.subject != null)
+                      Text(
+                        _getSubjectName(recommendation.subject!),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _getPriorityColor(recommendation.priority),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'P${recommendation.priority}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            recommendation.description,
+            style: TextStyle(color: Colors.grey[700]),
+          ),
+          if (recommendation.reasons.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ...recommendation.reasons.take(2).map((reason) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 6),
+                    width: 4,
+                    height: 4,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF6366F1),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      reason,
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                  ),
+                ],
+              ),
+            )),
+          ],
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: () {},
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 40),
+            ),
+            child: const Text('Mulai Sekarang'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getTypeColor(RecommendationType type) {
+    switch (type) {
+      case RecommendationType.weakTopicFocus: return const Color(0xFFEF4444);
+      case RecommendationType.tryOutRecommendation: return const Color(0xFF6366F1);
+      case RecommendationType.studyMaterial: return const Color(0xFF10B981);
+      case RecommendationType.restDay: return const Color(0xFFF59E0B);
+      default: return Colors.grey;
+    }
+  }
+
+  IconData _getTypeIcon(RecommendationType type) {
+    switch (type) {
+      case RecommendationType.weakTopicFocus: return Icons.warning_amber;
+      case RecommendationType.tryOutRecommendation: return Icons.quiz;
+      case RecommendationType.studyMaterial: return Icons.book;
+      case RecommendationType.restDay: return Icons.bedtime;
+      default: return Icons.lightbulb;
+    }
+  }
+
+  Color _getPriorityColor(int priority) {
+    if (priority == 1) return const Color(0xFFEF4444);
+    if (priority == 2) return const Color(0xFFF59E0B);
+    return const Color(0xFF10B981);
+  }
+
+  String _getSubjectName(SubjectCategory category) {
+    const names = {
+      SubjectCategory.matematikaSaintek: 'Matematika Saintek',
+      SubjectCategory.fisika: 'Fisika',
+    };
+    return names[category] ?? category.name;
+  }
+}
+
+// ==================== SOCIAL SCREEN ====================
+
+class SocialScreen extends ConsumerStatefulWidget {
+  const SocialScreen({super.key});
+
+  @override
+  ConsumerState<SocialScreen> createState() => _SocialScreenState();
+}
+
+class _SocialScreenState extends ConsumerState<SocialScreen> {
+  int _tabIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Sosial & Komunitas'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            color: Colors.white,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildTab('Study Groups', 0),
+                ),
+                Expanded(
+                  child: _buildTab('Challenges', 1),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      body: _tabIndex == 0 ? _buildStudyGroupsTab() : _buildChallengesTab(),
+    );
+  }
+
+  Widget _buildTab(String label, int index) {
+    final isSelected = _tabIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => _tabIndex = index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey[600],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStudyGroupsTab() {
+    final groups = ref.watch(studyGroupsProvider);
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        ElevatedButton.icon(
+          onPressed: () {},
+          icon: const Icon(Icons.add),
+          label: const Text('Buat Study Group Baru'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(double.infinity, 50),
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'Study Groups Kamu',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        ...groups.map((group) => StudyGroupCard(group: group)),
+      ],
+    );
+  }
+
+  Widget _buildChallengesTab() {
+    final challenges = ref.watch(challengesProvider);
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        const Text(
+          'Challenge Aktif',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        ...challenges.where((c) => c.isActive).map((challenge) => ChallengeCard(challenge: challenge)),
+        const SizedBox(height: 24),
+        const Text(
+          'Challenge Selesai',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        ...challenges.where((c) => !c.isActive).map((challenge) => ChallengeCard(challenge: challenge)),
+      ],
+    );
+  }
+}
+
+class StudyGroupCard extends StatelessWidget {
+  final StudyGroup group;
+
+  const StudyGroupCard({super.key, required this.group});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Center(
+                  child: Icon(Icons.groups, color: Colors.white, size: 28),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      group.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '${group.memberIds.length}/${group.maxMembers} anggota',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            group.description,
+            style: TextStyle(color: Colors.grey[700]),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {},
+                  child: const Text('Chat'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Info'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ChallengeCard extends StatelessWidget {
+  final Challenge challenge;
+
+  const ChallengeCard({super.key, required this.challenge});
+
+  @override
+  Widget build(BuildContext context) {
+    final leaderboard = challenge.scores.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: challenge.isActive ? const Color(0xFF6366F1) : Colors.grey[300]!,
+          width: 2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: challenge.isActive 
+                      ? const Color(0xFF6366F1).withOpacity(0.1)
+                      : Colors.grey[200],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.emoji_events,
+                  color: challenge.isActive ? const Color(0xFF6366F1) : Colors.grey,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      challenge.title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      challenge.isActive ? 'Sedang berlangsung' : 'Selesai',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: challenge.isActive ? const Color(0xFF10B981) : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.amber[50],
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.stars, size: 16, color: Colors.amber),
+                    const SizedBox(width: 4),
+                    Text(
+                      '+${challenge.reward} XP',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amber,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            challenge.description,
+            style: TextStyle(color: Colors.grey[700]),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Leaderboard:',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          ...leaderboard.take(3).map((entry) {
+            final index = leaderboard.indexOf(entry);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: _getRankColor(index),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${index + 1}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    entry.key == 'user1' ? 'Kamu' : 'User ${entry.key}',
+                    style: TextStyle(
+                      fontWeight: entry.key == 'user1' ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${entry.value}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Color _getRankColor(int rank) {
+    if (rank == 0) return const Color(0xFFFFD700);
+    if (rank == 1) return const Color(0xFFC0C0C0);
+    if (rank == 2) return const Color(0xFFCD7F32);
+    return Colors.grey;
+  }
+}
+
+// ==================== PARENT DASHBOARD SCREEN ====================
+
+class ParentDashboardScreen extends ConsumerWidget {
+  const ParentDashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dashboard = ref.watch(parentDashboardProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Dashboard Orang Tua'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSubscriptionCard(context, dashboard.subscription),
+            const SizedBox(height: 20),
+            if (dashboard.alerts.isNotEmpty) ...[
+              const Text(
+                'Notifikasi Penting',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              ...dashboard.alerts.take(3).map((alert) => AlertCard(alert: alert)),
+              const SizedBox(height: 20),
+            ],
+            const Text(
+              'Laporan Kemajuan Terbaru',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            if (dashboard.reports.isNotEmpty)
+              ProgressReportCard(report: dashboard.reports.first),
+            const SizedBox(height: 20),
+            const Text(
+              'Aktivitas Terkini',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            ...dashboard.recentActivity.map((activity) => ActivityLogCard(activity: activity)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionCard(BuildContext context, SubscriptionInfo subscription) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF10B981), Color(0xFF059669)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.card_membership, color: Colors.white, size: 28),
+              const SizedBox(width: 12),
+              const Text(
+                'Paket Aktif',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            subscription.packageName,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${subscription.daysRemaining} hari tersisa',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Rp ${subscription.price.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'AKTIF',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AlertCard extends StatelessWidget {
+  final Alert alert;
+
+  const AlertCard({super.key, required this.alert});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _getSeverityColor(alert.severity).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _getSeverityColor(alert.severity),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _getAlertIcon(alert.type),
+            color: _getSeverityColor(alert.severity),
+            size: 28,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  alert.message,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _formatTime(alert.timestamp),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!alert.isRead)
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: _getSeverityColor(alert.severity),
+                shape: BoxShape.circle,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Color _getSeverityColor(AlertSeverity severity) {
+    switch (severity) {
+      case AlertSeverity.critical:
+        return const Color(0xFFEF4444);
+      case AlertSeverity.warning:
+        return const Color(0xFFF59E0B);
+      case AlertSeverity.info:
+        return const Color(0xFF6366F1);
+    }
+  }
+
+  IconData _getAlertIcon(AlertType type) {
+    switch (type) {
+      case AlertType.lowScore:
+        return Icons.trending_down;
+      case AlertType.achievement:
+        return Icons.emoji_events;
+      case AlertType.missedClass:
+        return Icons.event_busy;
+      case AlertType.inactivity:
+        return Icons.warning_amber;
+      case AlertType.paymentDue:
+        return Icons.payment;
+    }
+  }
+
+  String _formatTime(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inHours < 24) return '${diff.inHours}j yang lalu';
+    return '${diff.inDays}h yang lalu';
+  }
+}
+
+class ProgressReportCard extends StatelessWidget {
+  final ProgressReport report;
+
+  const ProgressReportCard({super.key, required this.report});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Laporan Mingguan',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                _formatDate(report.reportDate),
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatBox(
+                  'Rata-rata Skor',
+                  '${report.averageScore.toStringAsFixed(1)}%',
+                  const Color(0xFF6366F1),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatBox(
+                  'Jam Belajar',
+                  '${report.studyHours}h',
+                  const Color(0xFF10B981),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatBox(
+                  'Try Out',
+                  '${report.tryOutsCompleted}x',
+                  const Color(0xFFEC4899),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildSection('Kekuatan', report.strengths, Colors.green),
+          const SizedBox(height: 12),
+          _buildSection('Perlu Ditingkatkan', report.improvements, Colors.orange),
+          const SizedBox(height: 12),
+          _buildSection('Rekomendasi', report.recommendations, Colors.blue),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatBox(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey[700],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSection(String title, String content, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.circle, size: 8, color: color),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            content,
+            style: TextStyle(color: Colors.grey[700], fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+}
+
+class ActivityLogCard extends StatelessWidget {
+  final ActivityLog activity;
+
+  const ActivityLogCard({super.key, required this.activity});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.check_circle,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  activity.activity,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                if (activity.details != null)
+                  Text(
+                    activity.details!,
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                Text(
+                  _formatTime(activity.timestamp),
+                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inHours < 24) return '${diff.inHours}j yang lalu';
+    return '${diff.inDays}h yang lalu';
+  }
+}// pubspec.yaml dependencies:
+// flutter_riverpod: ^2.4.0
+// fl_chart: ^0.65.0
+// table_calendar: ^3.0.9
+// intl: ^0.18.0
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:math' as math;
+
+// ==================== EXISTING MODELS (from previous steps) ====================
+
+enum SubjectCategory {
+  penalaranMatematika,
+  literasiBahasaIndonesia,
+  literasiBahasaInggris,
+  matematikaSaintek,
+  fisika,
+  kimia,
+  biologi,
+}
+
+enum AchievementTier { bronze, silver, gold, platinum, diamond }
+
+class User {
+  final String id;
+  final String name;
+  final String email;
+  final String avatar;
+  final DateTime joinedDate;
+  User({required this.id, required this.name, required this.email, required this.avatar, required this.joinedDate});
+}
+
+class University {
+  final String id;
+  final String name;
+  final String shortName;
+  final String location;
+  final String logo;
+  University({required this.id, required this.name, required this.shortName, required this.location, required this.logo});
+}
+
+// ==================== STEP 5: CALENDAR & SCHEDULE SYSTEM ====================
+
+class CalendarEvent {
+  final String id;
+  final String title;
+  final String description;
+  final DateTime startTime;
+  final DateTime endTime;
+  final EventType type;
+  final SubjectCategory? subject;
+  final String? relatedId;
+  final bool isCompleted;
+  final EventPriority priority;
+
+  CalendarEvent({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.startTime,
+    required this.endTime,
+    required this.type,
+    this.subject,
+    this.relatedId,
+    this.isCompleted = false,
+    this.priority = EventPriority.medium,
+  });
+}
+
+enum EventType {
+  tryOut,
+  liveClass,
+  studySession,
+  deadline,
+  importantDate,
+  reminder,
+}
+
+enum EventPriority { low, medium, high, urgent }
+
+class StudySchedule {
+  final String id;
+  final String studentId;
+  final Map<int, List<StudyBlock>> weeklySchedule; // weekday -> blocks
+  final List<StudyGoal> goals;
+  final DateTime createdAt;
+
+  StudySchedule({
+    required this.id,
+    required this.studentId,
+    required this.weeklySchedule,
+    required this.goals,
+    required this.createdAt,
+  });
+}
+
+class StudyBlock {
+  final String id;
+  final TimeOfDay startTime;
+  final TimeOfDay endTime;
+  final SubjectCategory subject;
+  final String activity;
+  final bool isRecurring;
+
+  StudyBlock({
+    required this.id,
+    required this.startTime,
+    required this.endTime,
+    required this.subject,
+    required this.activity,
+    this.isRecurring = true,
+  });
+
+  Duration get duration {
+    final start = startTime.hour * 60 + startTime.minute;
+    final end = endTime.hour * 60 + endTime.minute;
+    return Duration(minutes: end - start);
+  }
+}
+
+class StudyGoal {
+  final String id;
+  final String title;
+  final SubjectCategory? subject;
+  final DateTime deadline;
+  final double progress;
+  final int targetHours;
+  final int completedHours;
+
+  StudyGoal({
+    required this.id,
+    required this.title,
+    this.subject,
+    required this.deadline,
+    required this.progress,
+    required this.targetHours,
+    required this.completedHours,
+  });
+}
+
+// ==================== STEP 6: SMART RECOMMENDATIONS ====================
+
+class StudyRecommendation {
+  final String id;
+  final RecommendationType type;
+  final String title;
+  final String description;
+  final SubjectCategory? subject;
+  final int priority;
+  final String? materialId;
+  final String? tryOutId;
+  final List<String> reasons;
+  final DateTime createdAt;
+
+  StudyRecommendation({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.description,
+    this.subject,
+    required this.priority,
+    this.materialId,
+    this.tryOutId,
+    required this.reasons,
+    required this.createdAt,
+  });
+}
+
+enum RecommendationType {
+  weakTopicFocus,
+  tryOutRecommendation,
+  studyMaterial,
+  scheduleOptimization,
+  restDay,
+  intensivePractice,
+}
+
+class StudyInsight {
+  final String id;
+  final String title;
+  final String description;
+  final InsightType type;
+  final double impactScore;
+  final String actionable;
+  final DateTime generatedAt;
+
+  StudyInsight({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.type,
+    required this.impactScore,
+    required this.actionable,
+    required this.generatedAt,
+  });
+}
+
+enum InsightType { strength, weakness, opportunity, trend, warning }
+
+// ==================== STEP 7: SOCIAL FEATURES ====================
+
+class StudyGroup {
+  final String id;
+  final String name;
+  final String description;
+  final String creatorId;
+  final List<String> memberIds;
+  final SubjectCategory? focusSubject;
+  final DateTime createdAt;
+  final int maxMembers;
+  final bool isPrivate;
+  final String? imageUrl;
+
+  StudyGroup({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.creatorId,
+    required this.memberIds,
+    this.focusSubject,
+    required this.createdAt,
+    this.maxMembers = 10,
+    this.isPrivate = false,
+    this.imageUrl,
+  });
+}
+
+class Challenge {
+  final String id;
+  final String title;
+  final String description;
+  final ChallengeType type;
+  final DateTime startDate;
+  final DateTime endDate;
+  final List<String> participantIds;
+  final Map<String, int> scores;
+  final String? winnerId;
+  final int reward;
+
+  Challenge({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.type,
+    required this.startDate,
+    required this.endDate,
+    required this.participantIds,
+    required this.scores,
+    this.winnerId,
+    required this.reward,
+  });
+
+  bool get isActive => DateTime.now().isBefore(endDate) && DateTime.now().isAfter(startDate);
+}
+
+enum ChallengeType { tryOutRace, studyStreak, topicMastery, weeklyLeader }
+
+// ==================== STEP 8: PARENT DASHBOARD ====================
+
+class ParentDashboard {
+  final String studentId;
+  final String parentId;
+  final List<ProgressReport> reports;
+  final List<Alert> alerts;
+  final SubscriptionInfo subscription;
+  final List<ActivityLog> recentActivity;
+
+  ParentDashboard({
+    required this.studentId,
+    required this.parentId,
+    required this.reports,
+    required this.alerts,
+    required this.subscription,
+    required this.recentActivity,
+  });
+}
+
+class ProgressReport {
+  final String id;
+  final DateTime reportDate;
+  final double averageScore;
+  final Map<SubjectCategory, double> subjectScores;
+  final int studyHours;
+  final int tryOutsCompleted;
+  final String strengths;
+  final String improvements;
+  final String recommendations;
+
+  ProgressReport({
+    required this.id,
+    required this.reportDate,
+    required this.averageScore,
+    required this.subjectScores,
+    required this.studyHours,
+    required this.tryOutsCompleted,
+    required this.strengths,
+    required this.improvements,
+    required this.recommendations,
+  });
+}
+
+class Alert {
+  final String id;
+  final AlertType type;
+  final String message;
+  final DateTime timestamp;
+  final bool isRead;
+  final AlertSeverity severity;
+
+  Alert({
+    required this.id,
+    required this.type,
+    required this.message,
+    required this.timestamp,
+    this.isRead = false,
+    required this.severity,
+  });
+}
+
+enum AlertType { lowScore, missedClass, achievement, inactivity, paymentDue }
+enum AlertSeverity { info, warning, critical }
+
+class SubscriptionInfo {
+  final String id;
+  final String packageName;
+  final DateTime startDate;
+  final DateTime endDate;
+  final double price;
+  final bool isActive;
+  final int daysRemaining;
+
+  SubscriptionInfo({
+    required this.id,
+    required this.packageName,
+    required this.startDate,
+    required this.endDate,
+    required this.price,
+    required this.isActive,
+    required this.daysRemaining,
+  });
+}
+
+class ActivityLog {
+  final String id;
+  final String activity;
+  final DateTime timestamp;
+  final String? details;
+
+  ActivityLog({
+    required this.id,
+    required this.activity,
+    required this.timestamp,
+    this.details,
+  });
+}
+
+// ==================== MOCK DATA ====================
+
+final _mockCalendarEvents = [
+  CalendarEvent(
+    id: 'ev1',
+    title: 'Try Out SNBT Batch 5',
+    description: 'Try out lengkap semua mata pelajaran',
+    startTime: DateTime.now().add(const Duration(days: 2, hours: 9)),
+    endTime: DateTime.now().add(const Duration(days: 2, hours: 12)),
+    type: EventType.tryOut,
+    priority: EventPriority.high,
+  ),
+  CalendarEvent(
+    id: 'ev2',
+    title: 'Live Class: Matematika Integral',
+    description: 'Belajar teknik integral dengan Pak Budi',
+    startTime: DateTime.now().add(const Duration(hours: 3)),
+    endTime: DateTime.now().add(const Duration(hours: 5)),
+    type: EventType.liveClass,
+    subject: SubjectCategory.matematikaSaintek,
+    priority: EventPriority.medium,
+  ),
+  CalendarEvent(
+    id: 'ev3',
+    title: 'Deadline Tugas Fisika',
+    description: 'Pengumpulan soal gelombang',
+    startTime: DateTime.now().add(const Duration(days: 1)),
+    endTime: DateTime.now().add(const Duration(days: 1)),
+    type: EventType.deadline,
+    subject: SubjectCategory.fisika,
+    priority: EventPriority.urgent,
+  ),
+  CalendarEvent(
+    id: 'ev4',
+    title: 'Pendaftaran SNBT Dibuka',
+    description: 'Jangan lupa daftar SNBT 2025',
+    startTime: DateTime(2025, 2, 1),
+    endTime: DateTime(2025, 2, 15),
+    type: EventType.importantDate,
+    priority: EventPriority.urgent,
+  ),
+];
+
+final _mockRecommendations = [
+  StudyRecommendation(
+    id: 'rec1',
+    type: RecommendationType.weakTopicFocus,
+    title: 'Fokus ke Integral',
+    description: 'Performa kamu di topik integral perlu ditingkatkan',
+    subject: SubjectCategory.matematikaSaintek,
+    priority: 1,
+    reasons: [
+      'Nilai integral 20% di bawah rata-rata',
+      '3 dari 5 soal integral salah di try out terakhir',
+      'Topik ini sering muncul di SNBT',
+    ],
+    createdAt: DateTime.now(),
+  ),
+  StudyRecommendation(
+    id: 'rec2',
+    type: RecommendationType.tryOutRecommendation,
+    title: 'Saatnya Try Out Lagi',
+    description: 'Sudah 1 minggu sejak try out terakhir',
+    priority: 2,
+    reasons: [
+      'Konsistensi try out meningkatkan skor',
+      'Try out baru tersedia',
+    ],
+    createdAt: DateTime.now(),
+  ),
+  StudyRecommendation(
+    id: 'rec3',
+    type: RecommendationType.restDay,
+    title: 'Istirahat Dulu',
+    description: 'Kamu sudah belajar 6 hari berturut-turut',
+    priority: 3,
+    reasons: [
+      'Istirahat meningkatkan retensi',
+      'Mencegah burnout',
+    ],
+    createdAt: DateTime.now(),
+  ),
+];
+
+final _mockStudyGroups = [
+  StudyGroup(
+    id: 'sg1',
+    name: 'Target UI 2025',
+    description: 'Belajar bareng untuk masuk UI',
+    creatorId: 'user1',
+    memberIds: ['user1', 'user2', 'user3', 'user4'],
+    focusSubject: SubjectCategory.matematikaSaintek,
+    createdAt: DateTime.now().subtract(const Duration(days: 30)),
+    maxMembers: 10,
+  ),
+  StudyGroup(
+    id: 'sg2',
+    name: 'Fisika Lovers',
+    description: 'Diskusi soal fisika sulit',
+    creatorId: 'user2',
+    memberIds: ['user1', 'user2', 'user5'],
+    focusSubject: SubjectCategory.fisika,
+    createdAt: DateTime.now().subtract(const Duration(days: 15)),
+    maxMembers: 8,
+  ),
+];
+
+final _mockChallenges = [
+  Challenge(
+    id: 'ch1',
+    title: 'Try Out Challenge',
+    description: 'Siapa yang bisa skor tertinggi di try out minggu ini?',
+    type: ChallengeType.tryOutRace,
+    startDate: DateTime.now().subtract(const Duration(days: 2)),
+    endDate: DateTime.now().add(const Duration(days: 5)),
+    participantIds: ['user1', 'user2', 'user3', 'user4'],
+    scores: {'user1': 625, 'user2': 650, 'user3': 590, 'user4': 680},
+    reward: 500,
+  ),
+  Challenge(
+    id: 'ch2',
+    title: 'Streak Master',
+    description: 'Belajar 7 hari berturut-turut',
+    type: ChallengeType.studyStreak,
+    startDate: DateTime.now().subtract(const Duration(days: 5)),
+    endDate: DateTime.now().add(const Duration(days: 2)),
+    participantIds: ['user1', 'user2'],
+    scores: {'user1': 5, 'user2': 7},
+    winnerId: 'user2',
+    reward: 300,
+  ),
+];
+
+final _mockParentDashboard = ParentDashboard(
+  studentId: 'user1',
+  parentId: 'parent1',
+  reports: [
+    ProgressReport(
+      id: 'rep1',
+      reportDate: DateTime.now().subtract(const Duration(days: 7)),
+      averageScore: 78.5,
+      subjectScores: {
+        SubjectCategory.matematikaSaintek: 82.0,
+        SubjectCategory.fisika: 75.0,
+      },
+      studyHours: 24,
+      tryOutsCompleted: 2,
+      strengths: 'Konsisten belajar, kuat di matematika',
+      improvements: 'Perlu fokus di fisika gelombang',
+      recommendations: 'Tambah latihan soal fisika 2 jam/hari',
+    ),
+  ],
+  alerts: [
+    Alert(
+      id: 'al1',
+      type: AlertType.achievement,
+      message: 'Budi mencapai streak 7 hari belajar!',
+      timestamp: DateTime.now().subtract(const Duration(hours: 2)),
+      severity: AlertSeverity.info,
+    ),
+    Alert(
+      id: 'al2',
+      type: AlertType.lowScore,
+      message: 'Nilai fisika di try out terakhir 65%',
+      timestamp: DateTime.now().subtract(const Duration(days: 1)),
+      severity: AlertSeverity.warning,
+    ),
+  ],
+  subscription: SubscriptionInfo(
+    id: 'sub1',
+    packageName: 'Paket SNBT Intensif',
+    startDate: DateTime.now().subtract(const Duration(days: 60)),
+    endDate: DateTime.now().add(const Duration(days: 120)),
+    price: 2500000,
+    isActive: true,
+    daysRemaining: 120,
+  ),
+  recentActivity: [
+    ActivityLog(
+      id: 'log1',
+      activity: 'Menyelesaikan Try Out SNBT Batch 4',
+      timestamp: DateTime.now().subtract(const Duration(hours: 5)),
+      details: 'Skor: 625.5',
+    ),
+    ActivityLog(
+      id: 'log2',
+      activity: 'Mengikuti Live Class Matematika',
+      timestamp: DateTime.now().subtract(const Duration(days: 1)),
+    ),
+  ],
+);
+
+// ==================== PROVIDERS ====================
+
+final calendarEventsProvider = StateProvider<List<CalendarEvent>>((ref) => _mockCalendarEvents);
+final recommendationsProvider = StateProvider<List<StudyRecommendation>>((ref) => _mockRecommendations);
+final studyGroupsProvider = StateProvider<List<StudyGroup>>((ref) => _mockStudyGroups);
+final challengesProvider = StateProvider<List<Challenge>>((ref) => _mockChallenges);
+final parentDashboardProvider = StateProvider<ParentDashboard>((ref) => _mockParentDashboard);
+final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
+
+final currentUserProvider = Provider<User>((ref) {
+  return User(
+    id: 'user1',
+    name: 'Budi Santoso',
+    email: 'budi@example.com',
+    avatar: '👨‍🎓',
+    joinedDate: DateTime(2024, 1, 15),
+  );
+});
+
+// ==================== MAIN APP ====================
+
+void main() {
+  runApp(const ProviderScope(child: CompleteLMSApp()));
+}
+
+class CompleteLMSApp extends StatelessWidget {
+  const CompleteLMSApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Bimbel Pro - Complete',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+      ),
+      home: const CompleteNavigationScreen(),
+    );
+  }
+}
+
+// ==================== COMPLETE NAVIGATION ====================
+
+class CompleteNavigationScreen extends ConsumerStatefulWidget {
+  const CompleteNavigationScreen({super.key});
+
+  @override
+  ConsumerState<CompleteNavigationScreen> createState() => _CompleteNavigationScreenState();
+}
+
+class _CompleteNavigationScreenState extends ConsumerState<CompleteNavigationScreen> {
+  int _selectedIndex = 0;
+
+  final _screens = const [
+    CompleteDashboardScreen(),
+    CalendarScreen(),
+    RecommendationsScreen(),
+    SocialScreen(),
+    ParentDashboardScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _screens[_selectedIndex],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Beranda',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_today_outlined),
+            selectedIcon: Icon(Icons.calendar_today),
+            label: 'Kalender',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.lightbulb_outlined),
+            selectedIcon: Icon(Icons.lightbulb),
+            label: 'Rekomendasi',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.people_outlined),
+            selectedIcon: Icon(Icons.people),
+            label: 'Sosial',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.supervisor_account_outlined),
+            selectedIcon: Icon(Icons.supervisor_account),
+            label: 'Orang Tua',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== COMPLETE DASHBOARD ====================
+
+class CompleteDashboardScreen extends ConsumerWidget {
+  const CompleteDashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+    final events = ref.watch(calendarEventsProvider);
+    final recommendations = ref.watch(recommendationsProvider);
+
+    final upcomingEvents = events
+        .where((e) => e.startTime.isAfter(DateTime.now()))
+        .toList()
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Beranda'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () {},
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildWelcomeCard(context, user),
+            const SizedBox(height: 20),
+            _buildQuickActions(context),
+            const SizedBox(height: 24),
+            const Text(
+              'Acara Hari Ini',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            ...upcomingEvents.take(3).map((event) => EventCard(event: event)),
+            const SizedBox(height: 24),
+            const Text(
+              'Rekomendasi Untukmu',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            ...recommendations.take(2).map((rec) => RecommendationCard(recommendation: rec)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWelcomeCard(BuildContext context, User user) {
+    final hour = DateTime.now().hour;
+    String greeting = 'Selamat Pagi';
+    if (hour >= 12 && hour < 15) greeting = 'Selamat Siang';
+    if (hour >= 15 && hour < 18) greeting = 'Selamat Sore';
+    if (hour >= 18) greeting = 'Selamat Malam';
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Text(user.avatar, style: const TextStyle(fontSize: 48)),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$greeting!',
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                Text(
+                  user.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Siap belajar hari ini? 💪',
+                    style: TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildActionButton(
+            context,
+            'Try Out',
+            Icons.quiz,
+            const Color(0xFF6366F1),
+            () {},
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildActionButton(
+            context,
+            'Materi',
+            Icons.book,
+            const Color(0xFF10B981),
+            () {},
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildActionButton(
+            context,
+            'Forum',
+            Icons.forum,
+            const Color(0xFFEC4899),
+            () {},
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButton(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class EventCard extends StatelessWidget {
+  final CalendarEvent event;
+
+  const EventCard({super.key, required this.event});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _getTypeColor(event.type).withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: _getTypeColor(event.type).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(_getTypeIcon(event.type), color: _getTypeColor(event.type)),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _getPriorityColor(event.priority).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        event.priority.name.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: _getPriorityColor(event.priority),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  event.title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  _formatEventTime(event),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+        ],
+      ),
+    );
+  }
+
+  Color _getTypeColor(EventType type) {
+    switch (type) {
+      case EventType.tryOut: return const Color(0xFF6366F1);
+      case EventType.liveClass: return const Color(0xFF10B981);
+      case EventType.deadline: return const Color(0xFFEF4444);
+      case EventType.importantDate: return const Color(0xFFF59E0B);
+      default: return Colors.grey;
+    }
+  }
+
+  IconData _getTypeIcon(EventType type) {
+    switch (type) {
+      case EventType.tryOut: return Icons.quiz;
+      case EventType.liveClass: return Icons.video_call;
+      case EventType.deadline: return Icons.flag;
+      case EventType.importantDate: return Icons.event_note;
+      default: return Icons.event;
+    }
+  }
+
+  Color _getPriorityColor(EventPriority priority) {
+    switch (priority) {
+      case EventPriority.urgent: return const Color(0xFFEF4444);
+      case EventPriority.high: return const Color(0xFFF59E0B);
+      case EventPriority.medium: return const Color(0xFF6366F1);
+      case EventPriority.low: return Colors.grey;
+    }
+  }
+
+  String _formatEventTime(CalendarEvent event) {
+    final now = DateTime.now();
+    final diff = event.startTime.difference(now);
+    
+    if (diff.inHours < 24) {
+      return '${diff.inHours}h ${diff.inMinutes.remainder(60)}m lagi';
+    }
+    return '${diff.inDays} hari lagi';
+  }
+}
+
+// ==================== CALENDAR SCREEN ====================
+
+class CalendarScreen extends ConsumerWidget {
+  const CalendarScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedDate = ref.watch(selectedDateProvider);
+    final events = ref.watch(calendarEventsProvider);
+
+    final dayEvents = events.where((e) {
+      return e.startTime.year == selectedDate.year &&
+             e.startTime.month == selectedDate.month &&
+             e.startTime.day == selectedDate.day;
+    }).toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Kalender & Jadwal'),
+        actions: [            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange[50],
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.trending_up, color: Colors.orange),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Gap: ${topChoice.gapFromCurrent.toStringAsFixed(1)} poin lagi!',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(BuildContext context) {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 4,
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: 1.0,
+      children: [
+        _buildActionCard(context, 'Try Out', Icons.quiz, const Color(0xFF6366F1)),
+        _buildActionCard(context, 'Materi', Icons.book, const Color(0xFF10B981)),
+        _buildActionCard(context, 'Jadwal', Icons.calendar_today, const Color(0xFFEC4899)),
+        _buildActionCard(context, 'Forum', Icons.forum, const Color(0xFFF59E0B)),
+      ],
+    );
+  }
+
+  Widget _buildActionCard(BuildContext context, String label, IconData icon, Color color) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCountdown(BuildContext context, PersonalTarget target) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Colors.white24,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.access_time, color: Colors.white, size: 32),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Countdown SNBT 2025',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                Text(
+                  '${target.daysUntilExam} Hari Lagi',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getTierName(AchievementTier tier) {
+    switch (tier) {
+      case AchievementTier.bronze: return 'Bronze';
+      case AchievementTier.silver: return 'Silver';
+      case AchievementTier.gold: return 'Gold';
+      case AchievementTier.platinum: return 'Platinum';
+      case AchievementTier.diamond: return 'Diamond';
+    }
+  }
+}
+
+// ==================== UNIVERSITY EXPLORER SCREEN ====================
+
+class UniversityExplorerScreen extends ConsumerWidget {
+  const UniversityExplorerScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final universities = ref.watch(universitiesProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Eksplorasi Universitas'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: () {},
+          ),
+        ],
+      ),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(20),
+        itemCount: universities.length,
+        itemBuilder: (context, index) {
+          return UniversityCard(university: universities[index]);
+        },
+      ),
+    );
+  }
+}
+
+class UniversityCard extends ConsumerWidget {
+  final University university;
+
+  const UniversityCard({super.key, required this.university});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: () {
+          ref.read(selectedUniversityProvider.notifier).state = university;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => UniversityDetailScreen(university: university),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(university.logo, style: const TextStyle(fontSize: 32)),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          university.shortName,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          university.location,
+                          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.amber[50],
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.star, size: 16, color: Colors.amber),
+                        const SizedBox(width: 4),
+                        Text(
+                          '#${university.ranking}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                university.description,
+                style: TextStyle(color: Colors.grey[700]),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _buildInfoChip(Icons.people, '${university.totalStudents ~/ 1000}K mahasiswa'),
+                  const SizedBox(width: 12),
+                  _buildInfoChip(Icons.school, 'Akreditasi ${university.accreditation}'),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.grey[700]),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== UNIVERSITY DETAIL SCREEN ====================
+
+class UniversityDetailScreen extends StatelessWidget {
+  final University university;
+
+  const UniversityDetailScreen({super.key, required this.university});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 200,
+            pinned: true,
+            flexibleSpace: FlexibleSpaceBar(
+              title: Text(university.shortName),
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Theme.of(context).colorScheme.primary,
+                      Theme.of(context).colorScheme.secondary,
+                    ],
+                  ),
+                ),
+                child: Center(
+                  child: Text(university.logo, style: const TextStyle(fontSize: 80)),
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    university.name,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    university.description,
+                    style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildInfoSection(),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Program Studi Populer',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  ...university.faculties.expand((faculty) => 
+                    faculty.majors.map((major) => MajorCard(major: major, university: university))
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          _buildInfoRow(Icons.location_on, 'Lokasi', university.location),
+          const Divider(height: 24),
+          _buildInfoRow(Icons.people, 'Total Mahasiswa', '${university.totalStudents} mahasiswa'),
+          const Divider(height: 24),
+          _buildInfoRow(Icons.verified, 'Akreditasi', university.accreditation),
+          const Divider(height: 24),
+          _buildInfoRow(Icons.star, 'Ranking Nasional', '#${university.ranking}'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, color: const Color(0xFF6366F1)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+              Text(
+                value,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class MajorCard extends StatelessWidget {
+  final Major major;
+  final University university;
+
+  const MajorCard({super.key, required this.major, required this.university});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MajorDetailScreen(major: major, university: university),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      major.name,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 16,
+                    color: Colors.grey[400],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildChip('Passing Grade: ${major.passingGrade.averageScore.toStringAsFixed(0)}', Colors.blue),
+                  _buildChip('Daya Tampung: ${major.capacity}', Colors.green),
+                  _buildChip('Rasio: 1:${major.competitionRatio.toStringAsFixed(1)}', Colors.orange),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+// ==================== MAJOR DETAIL SCREEN ====================
+
+class MajorDetailScreen extends StatelessWidget {
+  final Major major;
+  final University university;
+
+  const MajorDetailScreen({super.key, required this.major, required this.university});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(major.name),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    university.shortName,
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    major.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Passing Grade',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            _buildPassingGradeChart(),
+            const SizedBox(height: 24),
+            const Text(
+              'Informasi Program Studi',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            _buildInfoCard('Deskripsi', major.description),
+            _buildInfoCard('Daya Tampung', '${major.capacity} mahasiswa'),
+            _buildInfoCard('Peminat', '${major.applicants} pendaftar'),
+            _buildInfoCard('Rasio Persaingan', '1 : ${major.competitionRatio.toStringAsFixed(1)}'),
+            const SizedBox(height: 24),
+            const Text(
+              'Prospek Karir',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ...major.careerProspects.map((career) => _buildCareerItem(career)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPassingGradeChart() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildScoreItem('Terendah', major.passingGrade.lowestScore, Colors.orange),
+              _buildScoreItem('Rata-rata', major.passingGrade.averageScore, Colors.blue),
+              _buildScoreItem('Tertinggi', major.passingGrade.highestScore, Colors.green),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.purple[50],
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.trending_up, color: Colors.purple),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Prediksi 2025: ${major.passingGrade.predictedScore.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreItem(String label, double score, Color color) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          score.toStringAsFixed(2),
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoCard(String label, String value) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: Colors.grey[700]),
+          ),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCareerItem(String career) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.work_outline, color: Color(0xFF6366F1)),
+          const SizedBox(width: 12),
+          Text(career),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== PERSONAL TARGET SCREEN ====================
+
+class PersonalTargetScreen extends ConsumerWidget {
+  const PersonalTargetScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final target = ref.watch(personalTargetProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Target & Rencana Belajar'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () {},
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildCurrentScoreCard(context, target),
+            const SizedBox(height: 20),
+            const Text(
+              'Pilihan Universitas',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ...target.choices.map((choice) => TargetChoiceCard(choice: choice, ref: ref)),
+            const SizedBox(height: 24),
+            const Text(
+              'Gap Analysis Per Mata Pelajaran',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ...target.subjectGaps.entries.map((entry) => _buildGapCard(context, entry)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCurrentScoreCard(BuildContext context, PersonalTarget target) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Skor Kamu Saat Ini',
+            style: TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            target.currentScore.toStringAsFixed(1),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 48,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Icon(Icons.calendar_today, color: Colors.white70, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                '${target.daysUntilExam} hari menuju ujian',
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGapCard(BuildContext context, MapEntry<SubjectCategory, double> entry) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _getSubjectName(entry.key),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text(
+                '+${entry.value.toStringAsFixed(1)} poin',
+                style: const TextStyle(
+                  color: Color(0xFFEF4444),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: 1 - (entry.value / 100),
+              minHeight: 8,
+              backgroundColor: Colors.grey[200],
+              valueColor: const AlwaysStoppedAnimation(Color(0xFF10B981)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getSubjectName(SubjectCategory category) {
+    const names = {
+      SubjectCategory.matematikaSaintek: 'Matematika Saintek',
+      SubjectCategory.fisika: 'Fisika',
+      SubjectCategory.kimia: 'Kimia',
+    };
+    return names[category] ?? category.name;
+  }
+}
+
+class TargetChoiceCard extends StatelessWidget {
+  final UniversityChoice choice;
+  final WidgetRef ref;
+
+  const TargetChoiceCard({super.key, required this.choice, required this.ref});
+
+  @override
+  Widget build(BuildContext context) {
+    final universities = ref.watch(universitiesProvider);
+    final university = universities.firstWhere((u) => u.id == choice.universityId);
+    
+    final major = university.faculties
+        .expand((f) => f.majors)
+        .firstWhere((m) => m.id == choice.majorId);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: choice.priority == 1 ? const Color(0xFF6366F1) : Colors.grey[200]!,
+          width: choice.priority == 1 ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _getPriorityColor(choice.priority).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'Pilihan ${choice.priority}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: _getPriorityColor(choice.priority),
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _getProbabilityColor(choice.admissionProbability).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.analytics,
+                      size: 14,
+                      color: _getProbabilityColor(choice.admissionProbability),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${(choice.admissionProbability * 100).toInt()}%',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: _getProbabilityColor(choice.admissionProbability),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            university.shortName,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            major.name,
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Target Score', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  Text(
+                    choice.requiredScore.toStringAsFixed(1),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text('Gap', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  Text(
+                    '+${choice.gapFromCurrent.toStringAsFixed(1)}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFEF4444),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getPriorityColor(int priority) {
+    switch (priority) {
+      case 1: return const Color(0xFF6366F1);
+      case 2: return const Color(0xFF10B981);
+      case 3: return const Color(0xFFF59E0B);
+      default: return Colors.grey;
+    }
+  }
+
+  Color _getProbabilityColor(double probability) {
+    if (probability >= 0.7) return const Color(0xFF10B981);
+    if (probability >= 0.4) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
+}
+
+// ==================== ANALYTICS SCREEN ====================
+
+class AnalyticsScreen extends ConsumerWidget {
+  const AnalyticsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final analytics = ref.watch(analyticsProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Analitik Performa'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildPredictionCard(context, analytics.prediction),
+            const SizedBox(height: 20),
+            const Text(
+              'Tren Skor Try Out',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            _buildScoreChart(context, analytics.scoreHistory),
+            const SizedBox(height: 24),
+            const Text(
+              'Analitik Per Mata Pelajaran',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ...analytics.subjectAnalytics.values.map((subject) => 
+              SubjectAnalyticsCard(analytics: subject)
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Waktu Belajar Mingguan',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            _buildStudyTimeChart(context, analytics.weeklyStudyTime),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPredictionCard(BuildContext context, PredictedScore prediction) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.psychology, color: Colors.white, size: 28),
+              const SizedBox(width: 12),
+              const Text(
+                'Prediksi Skor SNBT',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            prediction.predictedSNBT.toStringAsFixed(1),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 48,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.trending_up, color: Colors.white, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  'Confidence: ${(prediction.confidence * 100).toInt()}%',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreChart(BuildContext context, List<ScoreHistory> history) {
+    return Container(
+      height: 200,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: CustomPaint(
+        painter: ScoreChartPainter(history),
+        child: Container(),
+      ),
+    );
+  }
+
+  Widget _buildStudyTimeChart(BuildContext context, List<WeeklyStudyTime> weeklyTime) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: weeklyTime.map((week) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Minggu ${week.weekNumber}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${(week.totalMinutes / 60).toStringAsFixed(1)} jam',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ),
+                    Text(
+                      '${week.totalMinutes} menit',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(
+                    value: week.totalMinutes / 1500, // Max 25 hours per week
+                    minHeight: 8,
+                    backgroundColor: Colors.grey[200],
+                    valueColor: const AlwaysStoppedAnimation(Color(0xFF6366F1)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class SubjectAnalyticsCard extends StatelessWidget {
+  final SubjectAnalytics analytics;
+
+  const SubjectAnalyticsCard({super.key, required this.analytics});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _getSubjectName(analytics.subject),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _getTrendColor(analytics.trend).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      analytics.trend > 0 ? Icons.trending_up : Icons.trending_down,
+                      size: 16,
+                      color: _getTrendColor(analytics.trend),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${analytics.trend > 0 ? '+' : ''}${analytics.trend.toStringAsFixed(1)}%',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: _getTrendColor(analytics.trend),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _buildStat('Rata-rata', '${analytics.averageScore.toStringAsFixed(1)}%'),
+              const SizedBox(width: 32),
+              _buildStat('Akurasi', '${(analytics.accuracy * 100).toStringAsFixed(0)}%'),
+              const SizedBox(width: 32),
+              _buildStat('Soal', '${analytics.questionsAttempted}'),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (analytics.weakTopics.isNotEmpty) ...[
+            const Text(
+              'Perlu Ditingkatkan:',
+              style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: analytics.weakTopics.map((topic) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.warning_amber, size: 14, color: Colors.red),
+                      const SizedBox(width: 4),
+                      Text(
+                        topic,
+                        style: const TextStyle(fontSize: 12, color: Colors.red),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+          if (analytics.strongTopics.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Sudah Dikuasai:',
+              style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: analytics.strongTopics.map((topic) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_circle, size: 14, color: Colors.green),
+                      const SizedBox(width: 4),
+                      Text(
+                        topic,
+                        style: const TextStyle(fontSize: 12, color: Colors.green),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStat(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+        ),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  Color _getTrendColor(double trend) {
+    return trend > 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+  }
+
+  String _getSubjectName(SubjectCategory category) {
+    const names = {
+      SubjectCategory.matematikaSaintek: 'Matematika Saintek',
+      SubjectCategory.fisika: 'Fisika',
+    };
+    return names[category] ?? category.name;
+  }
+}
+
+// ==================== ACHIEVEMENTS SCREEN ====================
+
+class AchievementsScreen extends ConsumerWidget {
+  const AchievementsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final achievements = ref.watch(achievementsProvider);
+    final level = ref.watch(studentLevelProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Prestasi & Level'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildLevelCard(context, level),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Achievement',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  '${achievements.where((a) => a.isUnlocked).length}/${achievements.length}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ...achievements.map((achievement) => AchievementCard(achievement: achievement)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLevelCard(BuildContext context, StudentLevel level) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            _getTierColor(level.tier),
+            _getTierColor(level.tier).withOpacity(0.7),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Text(
+            _getTierName(level.tier),
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Level ${level.level}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 48,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: level.progressToNextLevel,
+              minHeight: 12,
+              backgroundColor: Colors.white24,
+              valueColor: const AlwaysStoppedAnimation(Colors.white),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${level.currentXP} / ${level.xpForNextLevel} XP',
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Perks Terbuka:',
+            style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          ...level.unlockedPerks.map((perk) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Text(
+                  perk,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ],
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+
+  Color _getTierColor(AchievementTier tier) {
+    switch (tier) {
+      case AchievementTier.bronze: return const Color(0xFFCD7F32);
+      case AchievementTier.silver: return const Color(0xFFC0C0C0);
+      case AchievementTier.gold: return const Color(0xFFFFD700);
+      case AchievementTier.platinum: return const Color(0xFFE5E4E2);
+      case AchievementTier.diamond: return const Color(0xFFB9F2FF);
+    }
+  }
+
+  String _getTierName(AchievementTier tier) {
+    switch (tier) {
+      case AchievementTier.bronze: return 'BRONZE';
+      case AchievementTier.silver: return 'SILVER';
+      case AchievementTier.gold: return 'GOLD';
+      case AchievementTier.platinum: return 'PLATINUM';
+      case AchievementTier.diamond: return 'DIAMOND';
+    }
+  }
+}
+
+class AchievementCard extends StatelessWidget {
+  final Achievement achievement;
+
+  const AchievementCard({super.key, required this.achievement});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: achievement.isUnlocked ? Colors.white : Colors.grey[100],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: achievement.isUnlocked 
+              ? _getTierColor(achievement.tier)
+              : Colors.grey[300]!,
+          width: 2,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: achievement.isUnlocked 
+                  ? _getTierColor(achievement.tier).withOpacity(0.1)
+                  : Colors.grey[200],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: Text(
+                achievement.icon,
+                style: TextStyle(
+                  fontSize: 32,
+                  opacity: achievement.isUnlocked ? 1.0 : 0.3,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      achievement.title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: achievement.isUnlocked ? Colors.black : Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (achievement.isUnlocked)
+                      Icon(
+                        Icons.check_circle,
+                        size: 18,
+                        color: _getTierColor(achievement.tier),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  achievement.description,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: achievement.isUnlocked ? Colors.grey[600] : Colors.grey[400],
+                  ),
+                ),
+                if (!achievement.isUnlocked && achievement.progress > 0) ...[
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: LinearProgressIndicator(
+                      value: achievement.progress,
+                      minHeight: 6,
+                      backgroundColor: Colors.grey[300],
+                      valueColor: AlwaysStoppedAnimation(_getTierColor(achievement.tier)),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${(achievement.progress * 100).toInt()}% selesai',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Column(
+            children: [
+              Text(
+                '+${achievement.points}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: achievement.isUnlocked 
+                      ? _getTierColor(achievement.tier)
+                      : Colors.grey,
+                ),
+              ),
+              const Text(
+                'XP',
+                style: TextStyle(fontSize: 10, color: Colors.grey),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getTierColor(AchievementTier tier) {
+    switch (tier) {
+      case AchievementTier.bronze: return const Color(0xFFCD7F32);
+      case AchievementTier.silver: return const Color(0xFF94A3B8);
+      case AchievementTier.gold: return const Color(0xFFFFD700);
+      case AchievementTier.platinum: return const Color(0xFF6366F1);
+      case AchievementTier.diamond: return const Color(0xFF06B6D4);
+    }
+  }
+}
+
+// ==================== CUSTOM CHART PAINTER ====================
+
+class ScoreChartPainter extends CustomPainter {
+  final List<ScoreHistory> history;
+
+  ScoreChartPainter(this.history);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (history.isEmpty) return;
+
+    final paint = Paint()
+      ..color = const Color(0xFF6366F1)
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path();
+    
+    final maxScore = history.map((h) => h.score).reduce((a, b) => a > b ? a : b);
+    final minScore = history.map((h) => h.score).reduce((a, b) => a < b ? a : b);
+    final range = maxScore - minScore;
+
+    for (var i = 0; i < history.length; i++) {
+      final x = (size.width / (history.length - 1)) * i;
+      final normalizedScore = (history[i].score - minScore) / range;
+      final y = size.height - (size.height * normalizedScore);
+      
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    canvas.drawPath(path, paint);
+
+    // Draw points
+    final pointPaint = Paint()
+      ..color = const Color(0xFF6366F1)
+      ..style = PaintingStyle.fill;
+
+    for (var i = 0; i < history.length; i++) {
+      final x = (size.width / (history.length - 1)) * i;
+      final normalizedScore = (history[i].score - minScore) / range;
+      final y = size.height - (size.height * normalizedScore);
+      
+      canvas.drawCircle(Offset(x, y), 5, pointPaint);
+    }
+
+    // Draw gradient fill
+    final gradientPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          const Color(0xFF6366F1).withOpacity(0.3),
+          const Color(0xFF6366F1).withOpacity(0.0),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.fill;
+
+    final fillPath = Path.from(path);
+    fillPath.lineTo(size.width, size.height);
+    fillPath.lineTo(0, size.height);
+    fillPath.close();
+
+    canvas.drawPath(fillPath, gradientPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}// pubspec.yaml dependencies:
+// flutter_riverpod: ^2.4.0
+// fl_chart: ^0.65.0
+// table_calendar: ^3.0.9
+// intl: ^0.18.0
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:math' as math;
+
+// ==================== STEP 1: UNIVERSITY DATABASE MODELS ====================
+
+class University {
+  final String id;
+  final String name;
+  final String shortName;
+  final String location;
+  final String logo;
+  final String description;
+  final UniversityType type;
+  final List<Faculty> faculties;
+  final String? imageUrl;
+  final double ranking;
+  final int totalStudents;
+  final String accreditation;
+
+  University({
+    required this.id,
+    required this.name,
+    required this.shortName,
+    required this.location,
+    required this.logo,
+    required this.description,
+    required this.type,
+    required this.faculties,
+    this.imageUrl,
+    required this.ranking,
+    required this.totalStudents,
+    required this.accreditation,
+  });
+}
+
+enum UniversityType { ptn, pts }
+
+class Faculty {
+  final String id;
+  final String name;
+  final List<Major> majors;
+
+  Faculty({
+    required this.id,
+    required this.name,
+    required this.majors,
+  });
+}
+
+class Major {
+  final String id;
+  final String name;
+  final String facultyId;
+  final MajorCategory category;
+  final PassingGrade passingGrade;
+  final int capacity;
+  final int applicants;
+  final String description;
+  final List<String> careerProspects;
+
+  Major({
+    required this.id,
+    required this.name,
+    required this.facultyId,
+    required this.category,
+    required this.passingGrade,
+    required this.capacity,
+    required this.applicants,
+    required this.description,
+    required this.careerProspects,
+  });
+
+  double get competitionRatio => applicants / capacity;
+}
+
+enum MajorCategory { saintek, soshum }
+
+class PassingGrade {
+  final String majorId;
+  final Map<int, double> historicalScores; // year -> score
+  final double predictedScore;
+  final double lowestScore;
+  final double averageScore;
+  final double highestScore;
+
+  PassingGrade({
+    required this.majorId,
+    required this.historicalScores,
+    required this.predictedScore,
+    required this.lowestScore,
+    required this.averageScore,
+    required this.highestScore,
+  });
+}
+
+// ==================== STEP 2: PERSONAL TARGET SYSTEM ====================
+
+class PersonalTarget {
+  final String studentId;
+  final List<UniversityChoice> choices;
+  final double currentScore;
+  final DateTime targetExamDate;
+  final Map<SubjectCategory, double> subjectGaps;
+  final StudyPlan studyPlan;
+
+  PersonalTarget({
+    required this.studentId,
+    required this.choices,
+    required this.currentScore,
+    required this.targetExamDate,
+    required this.subjectGaps,
+    required this.studyPlan,
+  });
+
+  int get daysUntilExam => targetExamDate.difference(DateTime.now()).inDays;
+}
+
+class UniversityChoice {
+  final int priority; // 1, 2, 3
+  final String universityId;
+  final String majorId;
+  final double requiredScore;
+  final double gapFromCurrent;
+  final double admissionProbability;
+
+  UniversityChoice({
+    required this.priority,
+    required this.universityId,
+    required this.majorId,
+    required this.requiredScore,
+    required this.gapFromCurrent,
+    required this.admissionProbability,
+  });
+}
+
+class StudyPlan {
+  final String id;
+  final DateTime startDate;
+  final DateTime endDate;
+  final List<WeeklyPlan> weeklyPlans;
+  final Map<SubjectCategory, int> hoursPerSubject;
+
+  StudyPlan({
+    required this.id,
+    required this.startDate,
+    required this.endDate,
+    required this.weeklyPlans,
+    required this.hoursPerSubject,
+  });
+}
+
+class WeeklyPlan {
+  final int weekNumber;
+  final List<DailyTask> tasks;
+  final List<SubjectCategory> focusSubjects;
+
+  WeeklyPlan({
+    required this.weekNumber,
+    required this.tasks,
+    required this.focusSubjects,
+  });
+}
+
+class DailyTask {
+  final String id;
+  final String title;
+  final SubjectCategory subject;
+  final DateTime dueDate;
+  final bool isCompleted;
+  final int estimatedMinutes;
+
+  DailyTask({
+    required this.id,
+    required this.title,
+    required this.subject,
+    required this.dueDate,
+    required this.isCompleted,
+    required this.estimatedMinutes,
+  });
+}
+
+// ==================== STEP 3: ACHIEVEMENT SYSTEM ====================
+
+enum AchievementType {
+  streakBronze, // 7 days
+  streakSilver, // 30 days
+  streakGold, // 100 days
+  perfectScore,
+  tryOut10,
+  tryOut50,
+  subjectMaster,
+  studyMarathon, // 24 hours in a week
+  earlyBird, // Study before 6 AM
+  nightOwl, // Study after 10 PM
+  consistent, // Study every day for a month
+  improvement, // Improve score by 20%
+}
+
+class Achievement {
+  final String id;
+  final AchievementType type;
+  final String title;
+  final String description;
+  final String icon;
+  final DateTime? unlockedAt;
+  final int points;
+  final AchievementTier tier;
+  final double progress; // 0.0 to 1.0
+
+  Achievement({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.description,
+    required this.icon,
+    this.unlockedAt,
+    required this.points,
+    required this.tier,
+    this.progress = 0.0,
+  });
+
+  bool get isUnlocked => unlockedAt != null;
+}
+
+enum AchievementTier { bronze, silver, gold, platinum, diamond }
+
+class StudentLevel {
+  final int level;
+  final int currentXP;
+  final int xpForNextLevel;
+  final AchievementTier tier;
+  final List<String> unlockedPerks;
+
+  StudentLevel({
+    required this.level,
+    required this.currentXP,
+    required this.xpForNextLevel,
+    required this.tier,
+    required this.unlockedPerks,
+  });
+
+  double get progressToNextLevel => currentXP / xpForNextLevel;
+}
+
+// ==================== STEP 4: ANALYTICS & CHARTS ====================
+
+class PerformanceAnalytics {
+  final String studentId;
+  final List<ScoreHistory> scoreHistory;
+  final Map<SubjectCategory, SubjectAnalytics> subjectAnalytics;
+  final List<WeeklyStudyTime> weeklyStudyTime;
+  final PredictedScore prediction;
+
+  PerformanceAnalytics({
+    required this.studentId,
+    required this.scoreHistory,
+    required this.subjectAnalytics,
+    required this.weeklyStudyTime,
+    required this.prediction,
+  });
+}
+
+class ScoreHistory {
+  final DateTime date;
+  final double score;
+  final String tryOutId;
+
+  ScoreHistory({
+    required this.date,
+    required this.score,
+    required this.tryOutId,
+  });
+}
+
+class SubjectAnalytics {
+  final SubjectCategory subject;
+  final double averageScore;
+  final double trend; // positive = improving
+  final List<String> strongTopics;
+  final List<String> weakTopics;
+  final int questionsAttempted;
+  final double accuracy;
+
+  SubjectAnalytics({
+    required this.subject,
+    required this.averageScore,
+    required this.trend,
+    required this.strongTopics,
+    required this.weakTopics,
+    required this.questionsAttempted,
+    required this.accuracy,
+  });
+}
+
+class WeeklyStudyTime {
+  final int weekNumber;
+  final Map<SubjectCategory, int> minutesPerSubject;
+  final int totalMinutes;
+
+  WeeklyStudyTime({
+    required this.weekNumber,
+    required this.minutesPerSubject,
+    required this.totalMinutes,
+  });
+}
+
+class PredictedScore {
+  final double predictedSNBT;
+  final double confidence; // 0.0 to 1.0
+  final DateTime predictionDate;
+  final Map<SubjectCategory, double> subjectPredictions;
+
+  PredictedScore({
+    required this.predictedSNBT,
+    required this.confidence,
+    required this.predictionDate,
+    required this.subjectPredictions,
+  });
+}
+
+// ==================== EXISTING MODELS (from previous code) ====================
+
+enum SubjectCategory {
+  penalaranMatematika,
+  literasiBahasaIndonesia,
+  literasiBahasaInggris,
+  penalaran,
+  matematikaSaintek,
+  fisika,
+  kimia,
+  biologi,
+}
+
+class User {
+  final String id;
+  final String name;
+  final String email;
+  final String avatar;
+  final DateTime joinedDate;
+
+  User({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.avatar,
+    required this.joinedDate,
+  });
+}
+
+// ==================== MOCK DATA ====================
+
+final _mockUniversities = [
+  University(
+    id: 'ui',
+    name: 'Universitas Indonesia',
+    shortName: 'UI',
+    location: 'Depok, Jawa Barat',
+    logo: '🎓',
+    description: 'Universitas terkemuka di Indonesia dengan berbagai program studi unggulan',
+    type: UniversityType.ptn,
+    ranking: 1,
+    totalStudents: 47000,
+    accreditation: 'A',
+    faculties: [
+      Faculty(
+        id: 'fk_ui',
+        name: 'Fakultas Kedokteran',
+        majors: [
+          Major(
+            id: 'pendidikan_dokter_ui',
+            name: 'Pendidikan Dokter',
+            facultyId: 'fk_ui',
+            category: MajorCategory.saintek,
+            capacity: 100,
+            applicants: 3500,
+            description: 'Program pendidikan dokter terbaik di Indonesia',
+            careerProspects: ['Dokter Umum', 'Dokter Spesialis', 'Peneliti Medis'],
+            passingGrade: PassingGrade(
+              majorId: 'pendidikan_dokter_ui',
+              historicalScores: {2022: 685.50, 2023: 692.30, 2024: 698.75},
+              predictedScore: 705.00,
+              lowestScore: 680.00,
+              averageScore: 692.18,
+              highestScore: 715.50,
+            ),
+          ),
+        ],
+      ),
+      Faculty(
+        id: 'ft_ui',
+        name: 'Fakultas Teknik',
+        majors: [
+          Major(
+            id: 'teknik_informatika_ui',
+            name: 'Teknik Informatika',
+            facultyId: 'ft_ui',
+            category: MajorCategory.saintek,
+            capacity: 120,
+            applicants: 2800,
+            description: 'Program studi teknologi informasi terdepan',
+            careerProspects: ['Software Engineer', 'Data Scientist', 'AI Engineer'],
+            passingGrade: PassingGrade(
+              majorId: 'teknik_informatika_ui',
+              historicalScores: {2022: 658.20, 2023: 665.40, 2024: 672.30},
+              predictedScore: 680.00,
+              lowestScore: 650.00,
+              averageScore: 665.30,
+              highestScore: 695.00,
+            ),
+          ),
+        ],
+      ),
+    ],
+  ),
+  University(
+    id: 'itb',
+    name: 'Institut Teknologi Bandung',
+    shortName: 'ITB',
+    location: 'Bandung, Jawa Barat',
+    logo: '🏛️',
+    description: 'Institut teknologi terbaik dengan fokus STEM',
+    type: UniversityType.ptn,
+    ranking: 2,
+    totalStudents: 22000,
+    accreditation: 'A',
+    faculties: [
+      Faculty(
+        id: 'stei_itb',
+        name: 'STEI',
+        majors: [
+          Major(
+            id: 'teknik_informatika_itb',
+            name: 'Teknik Informatika',
+            facultyId: 'stei_itb',
+            category: MajorCategory.saintek,
+            capacity: 150,
+            applicants: 3200,
+            description: 'Program informatika dengan kurikulum internasional',
+            careerProspects: ['Tech Lead', 'System Architect', 'Startup Founder'],
+            passingGrade: PassingGrade(
+              majorId: 'teknik_informatika_itb',
+              historicalScores: {2022: 670.00, 2023: 678.50, 2024: 685.20},
+              predictedScore: 692.00,
+              lowestScore: 665.00,
+              averageScore: 677.90,
+              highestScore: 710.00,
+            ),
+          ),
+        ],
+      ),
+    ],
+  ),
+  University(
+    id: 'ugm',
+    name: 'Universitas Gadjah Mada',
+    shortName: 'UGM',
+    location: 'Yogyakarta',
+    logo: '🎯',
+    description: 'Universitas tertua dan terbesar di Indonesia',
+    type: UniversityType.ptn,
+    ranking: 3,
+    totalStudents: 55000,
+    accreditation: 'A',
+    faculties: [
+      Faculty(
+        id: 'feb_ugm',
+        name: 'Fakultas Ekonomika dan Bisnis',
+        majors: [
+          Major(
+            id: 'akuntansi_ugm',
+            name: 'Akuntansi',
+            facultyId: 'feb_ugm',
+            category: MajorCategory.soshum,
+            capacity: 100,
+            applicants: 2100,
+            description: 'Program akuntansi terakreditasi internasional',
+            careerProspects: ['Akuntan', 'Auditor', 'Financial Analyst'],
+            passingGrade: PassingGrade(
+              majorId: 'akuntansi_ugm',
+              historicalScores: {2022: 625.00, 2023: 632.50, 2024: 640.00},
+              predictedScore: 648.00,
+              lowestScore: 620.00,
+              averageScore: 632.50,
+              highestScore: 665.00,
+            ),
+          ),
+        ],
+      ),
+    ],
+  ),
+];
+
+final _mockPersonalTarget = PersonalTarget(
+  studentId: 'user1',
+  currentScore: 625.5,
+  targetExamDate: DateTime(2025, 5, 15),
+  choices: [
+    UniversityChoice(
+      priority: 1,
+      universityId: 'ui',
+      majorId: 'teknik_informatika_ui',
+      requiredScore: 672.30,
+      gapFromCurrent: 46.80,
+      admissionProbability: 0.45,
+    ),
+    UniversityChoice(
+      priority: 2,
+      universityId: 'itb',
+      majorId: 'teknik_informatika_itb',
+      requiredScore: 685.20,
+      gapFromCurrent: 59.70,
+      admissionProbability: 0.32,
+    ),
+    UniversityChoice(
+      priority: 3,
+      universityId: 'ugm',
+      majorId: 'akuntansi_ugm',
+      requiredScore: 640.00,
+      gapFromCurrent: 14.50,
+      admissionProbability: 0.78,
+    ),
+  ],
+  subjectGaps: {
+    SubjectCategory.matematikaSaintek: 15.5,
+    SubjectCategory.fisika: 22.3,
+    SubjectCategory.kimia: 9.0,
+  },
+  studyPlan: StudyPlan(
+    id: 'plan1',
+    startDate: DateTime.now(),
+    endDate: DateTime(2025, 5, 15),
+    weeklyPlans: [],
+    hoursPerSubject: {
+      SubjectCategory.matematikaSaintek: 10,
+      SubjectCategory.fisika: 8,
+      SubjectCategory.kimia: 6,
+    },
+  ),
+);
+
+final _mockAchievements = [
+  Achievement(
+    id: 'ach1',
+    type: AchievementType.streakBronze,
+    title: 'Konsisten 7 Hari',
+    description: 'Belajar 7 hari berturut-turut',
+    icon: '🔥',
+    unlockedAt: DateTime.now().subtract(const Duration(days: 2)),
+    points: 50,
+    tier: AchievementTier.bronze,
+    progress: 1.0,
+  ),
+  Achievement(
+    id: 'ach2',
+    type: AchievementType.streakSilver,
+    title: 'Konsisten 30 Hari',
+    description: 'Belajar 30 hari berturut-turut',
+    icon: '🔥',
+    unlockedAt: null,
+    points: 200,
+    tier: AchievementTier.silver,
+    progress: 0.23,
+  ),
+  Achievement(
+    id: 'ach3',
+    type: AchievementType.perfectScore,
+    title: 'Nilai Sempurna',
+    description: 'Raih skor 100% di try out',
+    icon: '💯',
+    unlockedAt: null,
+    points: 500,
+    tier: AchievementTier.gold,
+    progress: 0.0,
+  ),
+  Achievement(
+    id: 'ach4',
+    type: AchievementType.tryOut10,
+    title: 'Try Out Master',
+    description: 'Selesaikan 10 try out',
+    icon: '📝',
+    unlockedAt: null,
+    points: 100,
+    tier: AchievementTier.bronze,
+    progress: 0.4,
+  ),
+];
+
+final _mockStudentLevel = StudentLevel(
+  level: 12,
+  currentXP: 3450,
+  xpForNextLevel: 4000,
+  tier: AchievementTier.silver,
+  unlockedPerks: ['Akses Try Out Premium', 'Konsultasi Gratis', 'Badge Khusus'],
+);
+
+final _mockAnalytics = PerformanceAnalytics(
+  studentId: 'user1',
+  scoreHistory: [
+    ScoreHistory(date: DateTime.now().subtract(const Duration(days: 30)), score: 580.0, tryOutId: 'to1'),
+    ScoreHistory(date: DateTime.now().subtract(const Duration(days: 23)), score: 595.5, tryOutId: 'to2'),
+    ScoreHistory(date: DateTime.now().subtract(const Duration(days: 16)), score: 610.0, tryOutId: 'to3'),
+    ScoreHistory(date: DateTime.now().subtract(const Duration(days: 9)), score: 625.5, tryOutId: 'to4'),
+    ScoreHistory(date: DateTime.now().subtract(const Duration(days: 2)), score: 625.5, tryOutId: 'to5'),
+  ],
+  subjectAnalytics: {
+    SubjectCategory.matematikaSaintek: SubjectAnalytics(
+      subject: SubjectCategory.matematikaSaintek,
+      averageScore: 78.5,
+      trend: 5.2,
+      strongTopics: ['Aljabar', 'Fungsi'],
+      weakTopics: ['Integral', 'Trigonometri'],
+      questionsAttempted: 450,
+      accuracy: 0.785,
+    ),
+    SubjectCategory.fisika: SubjectAnalytics(
+      subject: SubjectCategory.fisika,
+      averageScore: 72.3,
+      trend: 3.8,
+      strongTopics: ['Mekanika'],
+      weakTopics: ['Gelombang', 'Optik'],
+      questionsAttempted: 380,
+      accuracy: 0.723,
+    ),
+  },
+  weeklyStudyTime: [
+    WeeklyStudyTime(
+      weekNumber: 1,
+      minutesPerSubject: {
+        SubjectCategory.matematikaSaintek: 420,
+        SubjectCategory.fisika: 300,
+        SubjectCategory.kimia: 240,
+      },
+      totalMinutes: 960,
+    ),
+    WeeklyStudyTime(
+      weekNumber: 2,
+      minutesPerSubject: {
+        SubjectCategory.matematikaSaintek: 480,
+        SubjectCategory.fisika: 360,
+        SubjectCategory.kimia: 280,
+      },
+      totalMinutes: 1120,
+    ),
+  ],
+  prediction: PredictedScore(
+    predictedSNBT: 645.8,
+    confidence: 0.82,
+    predictionDate: DateTime.now(),
+    subjectPredictions: {
+      SubjectCategory.matematikaSaintek: 82.5,
+      SubjectCategory.fisika: 76.3,
+      SubjectCategory.kimia: 79.0,
+    },
+  ),
+);
+
+// ==================== PROVIDERS ====================
+
+final universitiesProvider = Provider<List<University>>((ref) => _mockUniversities);
+final personalTargetProvider = StateProvider<PersonalTarget>((ref) => _mockPersonalTarget);
+final achievementsProvider = StateProvider<List<Achievement>>((ref) => _mockAchievements);
+final studentLevelProvider = StateProvider<StudentLevel>((ref) => _mockStudentLevel);
+final analyticsProvider = Provider<PerformanceAnalytics>((ref) => _mockAnalytics);
+final selectedUniversityProvider = StateProvider<University?>((ref) => null);
+
+final currentUserProvider = Provider<User>((ref) {
+  return User(
+    id: 'user1',
+    name: 'Budi Santoso',
+    email: 'budi@example.com',
+    avatar: '👨‍🎓',
+    joinedDate: DateTime(2024, 1, 15),
+  );
+});
+
+// ==================== MAIN APP ====================
+
+void main() {
+  runApp(const ProviderScope(child: EnhancedBimbelApp()));
+}
+
+class EnhancedBimbelApp extends StatelessWidget {
+  const EnhancedBimbelApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Bimbel Pro - Enhanced',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+      ),
+      home: const MainNavigationScreen(),
+    );
+  }
+}
+
+// ==================== MAIN NAVIGATION ====================
+
+class MainNavigationScreen extends ConsumerStatefulWidget {
+  const MainNavigationScreen({super.key});
+
+  @override
+  ConsumerState<MainNavigationScreen> createState() => _MainNavigationScreenState();
+}
+
+class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
+  int _selectedIndex = 0;
+
+  final _screens = const [
+    EnhancedDashboardScreen(),
+    UniversityExplorerScreen(),
+    PersonalTargetScreen(),
+    AnalyticsScreen(),
+    AchievementsScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _screens[_selectedIndex],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Beranda',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.school_outlined),
+            selectedIcon: Icon(Icons.school),
+            label: 'Universitas',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.flag_outlined),
+            selectedIcon: Icon(Icons.flag),
+            label: 'Target',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.analytics_outlined),
+            selectedIcon: Icon(Icons.analytics),
+            label: 'Analitik',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.emoji_events_outlined),
+            selectedIcon: Icon(Icons.emoji_events),
+            label: 'Prestasi',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== ENHANCED DASHBOARD ====================
+
+class EnhancedDashboardScreen extends ConsumerWidget {
+  const EnhancedDashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+    final target = ref.watch(personalTargetProvider);
+    final level = ref.watch(studentLevelProvider);
+
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildWelcomeHeader(context, user, level),
+              const SizedBox(height: 20),
+              _buildTargetProgress(context, target),
+              const SizedBox(height: 20),
+              _buildQuickActions(context),
+              const SizedBox(height: 20),
+              _buildCountdown(context, target),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWelcomeHeader(BuildContext context, User user, StudentLevel level) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(user.avatar, style: const TextStyle(fontSize: 48)),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Level ${level.level} • ${_getTierName(level.tier)}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${level.currentXP} / ${level.xpForNextLevel} XP',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                  Text(
+                    'Next: Level ${level.level + 1}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: level.progressToNextLevel,
+                  minHeight: 8,
+                  backgroundColor: Colors.white24,
+                  valueColor: const AlwaysStoppedAnimation(Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTargetProgress(BuildContext context, PersonalTarget target) {
+    final topChoice = target.choices.first;
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.flag, color: Color(0xFF6366F1)),
+              const SizedBox(width: 8),
+              const Text(
+                'Target Utama',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Skor Sekarang', style: TextStyle(color: Colors.grey)),
+                    Text(
+                      target.currentScore.toStringAsFixed(1),
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward, color: Colors.grey),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('Target', style: TextStyle(color: Colors.grey)),
+                    Text(
+                      topChoice.requiredScore.toStringAsFixed(1),
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF10B981),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(

@@ -1,0 +1,428 @@
+// pubspec.yaml dependencies:
+/*
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.4.9
+  cached_network_image: ^3.3.0
+  video_player: ^2.8.1
+  flutter_staggered_grid_view: ^0.7.0
+  shimmer: ^3.0.0
+  photo_view: ^0.14.0
+  share_plus: ^7.2.1
+  path_provider: ^2.1.1
+  dio: ^5.3.2
+  flutter_animate: ^4.2.0+1
+  smooth_page_indicator: ^1.1.0
+*/
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:video_player/video_player.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:photo_view/photo_view.dart';
+import 'package:photo_view/photo_view_gallery.dart';
+import 'package:smooth_page_indicator/smooth_page_indicator.dart';
+import 'dart:math' as math;
+
+// Models
+
+
+// pubspec.yaml dependencies:
+/*
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.4.9
+  cached_network_image: ^3.3.0
+  video_player: ^2.8.1
+  flutter_staggered_grid_view: ^0.7.0
+  shimmer: ^3.0.0
+*/
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:video_player/video_player.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:shimmer/shimmer.dart';
+
+// Models
+class MediaItem {
+  final String id;
+  final String url;
+  final String title;
+  final String author;
+  final int likes;
+  final int views;
+  final MediaType type;
+  final String category;
+  final double aspectRatio;
+
+  MediaItem({
+    required this.id,
+    required this.url,
+    required this.title,
+    required this.author,
+    required this.likes,
+    required this.views,
+    required this.type,
+    required this.category,
+    this.aspectRatio = 1.0,
+  });
+}
+
+enum MediaType { image, video }
+
+enum FilterCategory { all, nature, urban, portrait, travel, lifestyle }
+
+// State Management with Riverpod
+class GalleryState {
+  final List<MediaItem> items;
+  final FilterCategory selectedFilter;
+  final bool isLoading;
+
+  GalleryState({
+    required this.items,
+    required this.selectedFilter,
+    required this.isLoading,
+  });
+
+  GalleryState copyWith({
+    List<MediaItem>? items,
+    FilterCategory? selectedFilter,
+    bool? isLoading,
+  }) {
+    return GalleryState(
+      items: items ?? this.items,
+      selectedFilter: selectedFilter ?? this.selectedFilter,
+      isLoading: isLoading ?? this.isLoading,
+    );
+  }
+}
+
+class GalleryNotifier extends StateNotifier<GalleryState> {
+  GalleryNotifier()
+      : super(GalleryState(
+          items: [],
+          selectedFilter: FilterCategory.all,
+          isLoading: true,
+        )) {
+    _loadMedia();
+  }
+
+  void _loadMedia() {
+    // Simulate API call
+    Future.delayed(const Duration(seconds: 2), () {
+      state = state.copyWith(
+        items: _generateDummyData(),
+        isLoading: false,
+      );
+    });
+  }
+
+  void setFilter(FilterCategory filter) {
+    state = state.copyWith(selectedFilter: filter);
+  }
+
+  List<MediaItem> get filteredItems {
+    if (state.selectedFilter == FilterCategory.all) {
+      return state.items;
+    }
+    return state.items
+        .where((item) => item.category == state.selectedFilter.name)
+        .toList();
+  }
+
+  List<MediaItem> _generateDummyData() {
+    return [
+      MediaItem(
+        id: '1',
+        url: 'https://picsum.photos/400/600',
+        title: 'Mountain Sunset',
+        author: 'Alex Chen',
+        likes: 234,
+        views: 1200,
+        type: MediaType.image,
+        category: 'nature',
+        aspectRatio: 0.67,
+      ),
+      MediaItem(
+        id: '2',
+        url: 'https://picsum.photos/400/400',
+        title: 'City Lights',
+        author: 'Maya Rodriguez',
+        likes: 189,
+        views: 890,
+        type: MediaType.image,
+        category: 'urban',
+        aspectRatio: 1.0,
+      ),
+      MediaItem(
+        id: '3',
+        url: 'https://picsum.photos/400/500',
+        title: 'Portrait Study',
+        author: 'James Wilson',
+        likes: 456,
+        views: 2100,
+        type: MediaType.image,
+        category: 'portrait',
+        aspectRatio: 0.8,
+      ),
+      MediaItem(
+        id: '4',
+        url: 'https://picsum.photos/400/700',
+        title: 'Ocean Waves',
+        author: 'Sarah Kim',
+        likes: 678,
+        views: 3400,
+        type: MediaType.image,
+        category: 'nature',
+        aspectRatio: 0.57,
+      ),
+      MediaItem(
+        id: '5',
+        url: 'https://picsum.photos/400/300',
+        title: 'Street Art',
+        author: 'David Park',
+        likes: 123,
+        views: 567,
+        type: MediaType.image,
+        category: 'urban',
+        aspectRatio: 1.33,
+      ),
+      MediaItem(
+        id: '6',
+        url: 'https://picsum.photos/400/600',
+        title: 'Travel Memories',
+        author: 'Emma Thompson',
+        likes: 890,
+        views: 4500,
+        type: MediaType.image,
+        category: 'travel',
+        aspectRatio: 0.67,
+      ),
+    ];
+  }
+}
+
+final galleryProvider = StateNotifierProvider<GalleryNotifier, GalleryState>(
+  (ref) => GalleryNotifier(),
+);
+
+// Main App
+void main() {
+  runApp(const ProviderScope(child: MyApp()));
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Modern Gallery',
+      theme: ThemeData(
+        primarySwatch: Colors.purple,
+        useMaterial3: true,
+      ),
+      home: const GalleryScreen(),
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+// Main Gallery Screen
+class GalleryScreen extends ConsumerWidget {
+  const GalleryScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final galleryState = ref.watch(galleryProvider);
+
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF667eea),
+              Color(0xFF764ba2),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              _buildFilterTabs(ref),
+              Expanded(
+                child: galleryState.isLoading
+                    ? _buildLoadingGrid()
+                    : _buildGalleryGrid(ref),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          const Text(
+            'Gallery',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w300,
+              color: Colors.white,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Discover amazing moments',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.white.withOpacity(0.8),
+              fontWeight: FontWeight.w300,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterTabs(WidgetRef ref) {
+    final selectedFilter = ref.watch(galleryProvider).selectedFilter;
+    
+    return Container(
+      height: 50,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: FilterCategory.values.length,
+        itemBuilder: (context, index) {
+          final category = FilterCategory.values[index];
+          final isSelected = category == selectedFilter;
+          
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            child: GestureDetector(
+              onTap: () => ref.read(galleryProvider.notifier).setFilter(category),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.white.withOpacity(0.2)
+                      : Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(25),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  category.name.toUpperCase(),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildLoadingGrid() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: MasonryGridView.count(
+        crossAxisCount: 2,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+        itemCount: 8,
+        itemBuilder: (context, index) {
+          return Shimmer.fromColors(
+            baseColor: Colors.white.withOpacity(0.1),
+            highlightColor: Colors.white.withOpacity(0.2),
+            child: Container(
+              height: (index % 3 + 2) * 80.0,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildGalleryGrid(WidgetRef ref) {
+    final notifier = ref.read(galleryProvider.notifier);
+    final filteredItems = notifier.filteredItems;
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: MasonryGridView.count(
+        crossAxisCount: 2,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+        itemCount: filteredItems.length,
+        itemBuilder: (context, index) {
+          return GalleryItemWidget(
+            item: filteredItems[index],
+            index: index,
+          );
+        },
+      ),
+    );
+  }
+}
+
+// Gallery Item Widget
+
+
+// Image Detail Screen
+
+
+
+
+// State Management
+
+
+
+// Main App
+
+
+// Collections Screen
+
+
+// Collection Card Widget
+
+
+// Photo Player Screen
+
+
+// Slideshow Screen
+
+// Gallery Screen (Updated)
+
+
+// Media Item Widget (Updated)
+
+// Collection Detail Screen

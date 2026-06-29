@@ -1,0 +1,2 @@
+
+class PriorityLevelConfigurationStatus {final List<PriorityLevelConfigurationCondition>? conditions; PriorityLevelConfigurationStatus({this.conditions}); factory PriorityLevelConfigurationStatus.fromJson(Map<String, dynamic> json) {return PriorityLevelConfigurationStatus(conditions: json['conditions'] != null ? (json['conditions'] as List).map((e) => PriorityLevelConfigurationCondition.fromJson(e)).toList() : null);} Map<String, dynamic> toJson() {return {if (conditions != null) 'conditions' : conditions!.map((e) => e.toJson()).toList()};}}

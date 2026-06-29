@@ -1,0 +1,75 @@
+import 'package:fl_chart/fl_chart.dart';
+
+class AdvancedCharts {
+  Widget createViolinPlot(List<List<double>> data) {
+    return CustomPaint(
+      painter: ViolinPlotPainter(
+        data: data,
+        style: ViolinPlotStyle(
+          fillColor: Colors.blue.withOpacity(0.3),
+          strokeColor: Colors.blue,
+          showMedian: true,
+          showQuartiles: true
+        )
+      )
+    );
+  }
+  
+  Widget createBubblePlot(List<Point3D> data) {
+    return ScatterChart(
+      ScatterChartData(
+        spots: data.map((point) => ScatterSpot(
+          point.x,
+          point.y,
+          size: point.z * 10, // Bubble size based on z value
+          color: Colors.blue.withOpacity(0.6)
+        )).toList(),
+        borderData: FlBorderData(show: true),
+        gridData: FlGridData(show: true),
+      )
+    );
+  }
+}
+
+
+class AdvancedCharts {
+  // Previous chart methods remain...
+
+  Widget createSunburstChart(Map<String, dynamic> hierarchicalData) {
+    return CustomPaint(
+      painter: SunburstChartPainter(
+        data: hierarchicalData,
+        style: SunburstStyle(
+          colorScheme: ColorScheme.sequential,
+          innerRadius: 50,
+          outerRadius: 200,
+          animationDuration: Duration(milliseconds: 800),
+          labelStyle: TextStyle(fontSize: 12),
+          showValues: true,
+        )
+      )
+    );
+  }
+
+  Widget createNetworkGraph(
+    List<Node> nodes,
+    List<Edge> edges, {
+    required ForceDirectedLayout layout,
+  }) {
+    return CustomPaint(
+      painter: NetworkGraphPainter(
+        nodes: nodes,
+        edges: edges,
+        layout: layout,
+        style: NetworkGraphStyle(
+          nodeRadius: 8,
+          edgeThickness: 1.5,
+          nodeLabelStyle: TextStyle(fontSize: 10),
+          interactive: true,
+          zoomable: true,
+          draggable: true,
+        )
+      )
+    );
+  }
+}

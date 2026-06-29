@@ -1,0 +1,338 @@
+import 'package:flutter/material.dart';
+import 'package:xml/xml.dart';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
+// Main parser class with comprehensive SVG support
+class SvgParser {
+  static SvgData parse(String svgCode) {
+    final document = XmlDocument.parse(svgCode);
+    final svgElement = document.findElements('svg').first;
+    
+    double? width = _parseDouble(svgElement.getAttribute('width'));
+    double? height = _parseDouble(svgElement.getAttribute('height'));
+    
+    // Parse viewBox if width/height not specified
+    final viewBox = _parseViewBox(svgElement.getAttribute('viewBox'));
+    if (width == null || height == null) {
+      width = viewBox?[2] ?? 100;
+      height = viewBox?[3] ?? 100;
+    }
+    
+    final elements = <SvgElement>[];
+    final defs = <String, XmlElement>{};
+    
+    // Parse defs first
+    for (var defsElement in svgElement.findElements('defs')) {
+      _parseDefs(defsElement, defs);
+    }
+    
+    _parseElements(svgElement, elements, SvgStyle(), defs);
+    
+    return SvgData(
+      width: width,
+      height: height,
+      viewBox: viewBox,
+      elements: elements,
+    );
+  }
+  
+  static void _parseDefs(XmlElement defsElement, Map<String, XmlElement> defs) {
+    for (var child in defsElement.children.whereType<XmlElement>()) {
+      final id = child.getAttribute('id');
+      if (id != null) {
+        defs[id] = child;
+      }
+    }
+  }
+  
+  static List<double>? _parseViewBox(String? viewBox) {
+    if (viewBox == null) return null;
+    final values = viewBox.trim().split(RegExp(r'[\s,]+'));
+    if (values.length != 4) return null;
+    return values.map((v) => double.tryParse(v) ?? 0).toList();
+  }
+  
+  static void _parseElements(
+    XmlElement parent,
+    List<SvgElement> elements,
+    SvgStyle inheritedStyle,
+    Map<String, XmlElement> defs,
+  ) {
+    for (var node in parent.children) {
+      if (node is XmlElement) {
+        final style = _mergeStyles(inheritedStyle, node);
+        
+        switch (node.name.local) {
+          case 'path':
+            elements.add(_parsePath(node, style));
+            break;
+          case 'rect':
+            elements.add(_parseRect(node, style));
+            break;
+          case 'circle':
+            elements.add(_parseCircle(node, style));
+            break;
+          case 'ellipse':
+            elements.add(_parseEllipse(node, style));
+            break;
+          case 'line':
+            elements.add(_parseLine(node, style));
+            break;
+          case 'polyline':
+            elements.add(_parsePolyline(node, style));
+            break;
+          case 'polygon':
+            elements.add(_parsePolygon(node, style));
+            break;
+          case 'text':
+            elements.add(_parseText(node, style));
+            break;
+          case 'g':
+            final transform = _parseTransform(node.getAttribute('transform'));
+            final group = SvgGroup(transform: transform, style: style);
+            _parseElements(node, group.children, style, defs);
+            elements.add(group);
+            break;
+          case 'use':
+            final href = node.getAttribute('href') ?? node.getAttribute('xlink:href');
+            if (href != null && href.startsWith('#')) {
+              final refId = href.substring(1);
+              if (defs.containsKey(refId)) {
+                _parseElements(defs[refId]!, elements, style, defs);
+              }
+            }
+            break;
+          case 'defs':
+          case 'style':
+            // Skip, already processed
+            break;
+          default:
+            // Try to parse unknown elements recursively
+            _parseElements(node, elements, style, defs);
+        }
+      }
+    }
+  }
+  
+}
+
+
+
+// Data models
+class SvgData {
+  final double width;
+  final double height;
+  final List<double>? viewBox;
+  final List<SvgElement> elements;
+  
+  SvgData({
+    required this.width,
+    required this.height,
+    this.viewBox,
+    required this.elements,
+  });
+}
+
+abstract class SvgElement {
+  final SvgStyle style;
+  final Matrix4? transform;
+  
+  SvgElement({required this.style, this.transform});
+  
+  void paint(Canvas canvas, Size size);
+  
+  void applyTransform(Canvas canvas) {
+    if (transform != null) {
+      canvas.save();
+      canvas.transform(transform!.storage);
+    }
+  }
+  
+  void restoreTransform(Canvas canvas) {
+    if (transform != null) {
+      canvas.restore();
+    }
+  }
+}
+
+class SvgGroup extends SvgElement {
+  final List<SvgElement> children = [];
+  
+  SvgGroup({required super.style, super.transform});
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    applyTransform(canvas);
+    for (var child in children) {
+      child.paint(canvas, size);
+    }
+    restoreTransform(canvas);
+  }
+}
+
+class SvgPath extends SvgElement {
+  final String d;
+  
+  SvgPath({required this.d, required super.style, super.transform});
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    applyTransform(canvas);
+    final path = _parsePath(d);
+    path.fillType = style.fillRule ?? PathFillType.nonZero;
+    
+    if (style.fill?.color != null && !style.fill!.isNone) {
+      canvas.drawPath(path, style.createFillPaint());
+    }
+    
+    if (style.stroke?.color != null && !style.stroke!.isNone) {
+      canvas.drawPath(path, style.createStrokePaint());
+    }
+    restoreTransform(canvas);
+  }
+  
+  Path _parsePath(String d) {
+    final path = Path();
+    final commands = _tokenizePath(d);
+    
+    double currentX = 0, currentY = 0;
+    double startX = 0, startY = 0;
+    double lastControlX = 0, lastControlY = 0;
+    String? lastCommand;
+    
+    for (var i = 0; i < commands.length; i++) {
+      var cmd = commands[i];
+      
+      // Handle implicit commands
+      if (RegExp(r'^-?\d').hasMatch(cmd)) {
+        if (lastCommand == 'M') cmd = 'L';
+        else if (lastCommand == 'm') cmd = 'l';
+        else if (lastCommand != null) cmd = lastCommand;
+        i--; // Re-process this token
+      }
+      
+      switch (cmd) {
+        case 'M':
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          startX = currentX;
+          startY = currentY;
+          path.moveTo(currentX, currentY);
+          lastCommand = 'M';
+          break;
+          
+        case 'm':
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          startX = currentX;
+          startY = currentY;
+          path.moveTo(currentX, currentY);
+          lastCommand = 'm';
+          break;
+          
+        case 'L':
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          lastCommand = 'L';
+          break;
+          
+        case 'l':
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          lastCommand = 'l';
+          break;
+          
+        case 'H':
+          currentX = double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          lastCommand = 'H';
+          break;
+          
+        case 'h':
+          currentX += double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          lastCommand = 'h';
+          break;
+          
+        case 'V':
+          currentY = double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          lastCommand = 'V';
+          break;
+          
+        case 'v':
+          currentY += double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          lastCommand = 'v';
+          break;
+          
+        case 'C':
+          final x1 = double.parse(commands[++i]);
+          final y1 = double.parse(commands[++i]);
+          final x2 = double.parse(commands[++i]);
+          final y2 = double.parse(commands[++i]);
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          path.cubicTo(x1, y1, x2, y2, currentX, currentY);
+          lastControlX = x2;
+          lastControlY = y2;
+          lastCommand = 'C';
+          break;
+          
+        case 'c':
+          final x1 = currentX + double.parse(commands[++i]);
+          final y1 = currentY + double.parse(commands[++i]);
+          final x2 = currentX + double.parse(commands[++i]);
+          final y2 = currentY + double.parse(commands[++i]);
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          path.cubicTo(x1, y1, x2, y2, currentX, currentY);
+          lastControlX = x2;
+          lastControlY = y2;
+          lastCommand = 'c';
+          break;
+          
+        case 'S':
+          final x2 = double.parse(commands[++i]);
+          final y2 = double.parse(commands[++i]);
+          final x1 = 2 * currentX - lastControlX;
+          final y1 = 2 * currentY - lastControlY;
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          path.cubicTo(x1, y1, x2, y2, currentX, currentY);
+          lastControlX = x2;
+          lastControlY = y2;
+          lastCommand = 'S';
+          break;
+          
+        case 's':
+          final x2 = currentX + double.parse(commands[++i]);
+          final y2 = currentY + double.parse(commands[++i]);
+          final x1 = 2 * currentX - lastControlX;
+          final y1 = 2 * currentY - lastControlY;
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          path.cubicTo(x1, y1, x2, y2, currentX, currentY);
+          lastControlX = x2;
+          lastControlY = y2;
+          lastCommand = 's';
+          break;
+          
+        case 'Q':
+          final x1 = double.parse(commands[++i]);
+          final y1 = double.parse(commands[++i]);
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          path.quadraticBezierTo(x1, y1, currentX, currentY);
+          lastControlX = x1;
+          lastControlY = y1;
+          lastCommand = 'Q';
+          break;
+          
+        case 'q':
+          final x1 = currentX + double.parse(commands[++i]);
+          final y1 = currentY + double.parse(commands[++i]);
+          current

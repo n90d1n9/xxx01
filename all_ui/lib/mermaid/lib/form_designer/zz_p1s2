@@ -1,0 +1,1562 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:convert';
+
+// ============================================================================
+// PHASE 1 - STEP 2: EXTENDED KEYBOARD SHORTCUTS & CLIPBOARD
+// ============================================================================
+
+// Clipboard Manager
+class ClipboardManager extends StateNotifier<List<FieldConfig>> {
+  ClipboardManager() : super([]);
+
+  void copy(List<FieldConfig> fields) {
+    state = fields;
+  }
+
+  void clear() {
+    state = [];
+  }
+
+  bool get hasData => state.isNotEmpty;
+}
+
+final clipboardProvider = StateNotifierProvider<ClipboardManager, List<FieldConfig>>((ref) {
+  return ClipboardManager();
+});
+
+// ============================================================================
+// PROVIDERS (Updated)
+// ============================================================================
+
+final historyManagerProvider = StateNotifierProvider<HistoryManager, HistoryState>((ref) {
+  return HistoryManager();
+});
+
+final formFieldsProvider = StateNotifierProvider<FormFieldsNotifier, List<FieldConfig>>((ref) {
+  return FormFieldsNotifier(ref);
+});
+
+final selectedFieldProvider = StateProvider<FieldConfig?>((ref) => null);
+final selectedFieldsProvider = StateProvider<Set<String>>((ref) => {}); // Multi-select
+final previewModeProvider = StateProvider<bool>((ref) => false);
+final searchQueryProvider = StateProvider<String>((ref) => '');
+final autoSaveProvider = StateProvider<bool>((ref) => true);
+final lastSavedProvider = StateProvider<DateTime?>((ref) => null);
+final showSearchProvider = StateProvider<bool>((ref) => false);
+
+// ============================================================================
+// MAIN DESIGNER WITH ENHANCED KEYBOARD SHORTCUTS
+// ============================================================================
+
+class FormBuilderDesigner extends ConsumerWidget {
+  const FormBuilderDesigner({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyState = ref.watch(historyManagerProvider);
+    final canUndo = historyState.currentIndex >= 0;
+    final canRedo = historyState.currentIndex < historyState.history.length - 1;
+    final selectedField = ref.watch(selectedFieldProvider);
+    final selectedFields = ref.watch(selectedFieldsProvider);
+    final clipboard = ref.watch(clipboardProvider);
+    final showSearch = ref.watch(showSearchProvider);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF1E1E1E),
+      appBar: AppBar(
+        title: const Text('🎨 Form Builder - Phase 1: Step 2 - Keyboard Shortcuts'),
+        backgroundColor: const Color(0xFF2D2D2D),
+        actions: [
+          // Search toggle
+          IconButton(
+            icon: Icon(showSearch ? Icons.search_off : Icons.search),
+            tooltip: 'Search (Ctrl+F)',
+            onPressed: () {
+              ref.read(showSearchProvider.notifier).state = !showSearch;
+            },
+          ),
+          const VerticalDivider(),
+          // Undo button
+          IconButton(
+            icon: const Icon(Icons.undo),
+            tooltip: 'Undo (Ctrl+Z)',
+            onPressed: canUndo ? () {
+              ref.read(historyManagerProvider.notifier).undo();
+            } : null,
+          ),
+          // Redo button
+          IconButton(
+            icon: const Icon(Icons.redo),
+            tooltip: 'Redo (Ctrl+Y)',
+            onPressed: canRedo ? () {
+              ref.read(historyManagerProvider.notifier).redo();
+            } : null,
+          ),
+          const VerticalDivider(),
+          // Copy
+          IconButton(
+            icon: const Icon(Icons.content_copy),
+            tooltip: 'Copy (Ctrl+C)',
+            onPressed: (selectedField != null || selectedFields.isNotEmpty) ? () {
+              _handleCopy(ref);
+            } : null,
+          ),
+          // Paste
+          IconButton(
+            icon: const Icon(Icons.content_paste),
+            tooltip: 'Paste (Ctrl+V)',
+            onPressed: clipboard.isNotEmpty ? () {
+              _handlePaste(ref);
+            } : null,
+          ),
+          // Delete
+          IconButton(
+            icon: const Icon(Icons.delete),
+            tooltip: 'Delete (Del)',
+            onPressed: (selectedField != null || selectedFields.isNotEmpty) ? () {
+              _handleDelete(ref);
+            } : null,
+          ),
+          const VerticalDivider(),
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'History',
+            onPressed: () => _showHistory(context, ref),
+          ),
+          IconButton(
+            icon: const Icon(Icons.code),
+            tooltip: 'Export',
+            onPressed: () => _showExportDialog(context, ref),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Search bar
+          if (showSearch) SearchBar(onSearch: (query) {
+            ref.read(searchQueryProvider.notifier).state = query;
+          }),
+          // Keyboard shortcuts hint
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: Colors.blue.withOpacity(0.1),
+            child: Row(
+              children: [
+                const Icon(Icons.keyboard, size: 16, color: Colors.blue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Shortcuts: Ctrl+Z/Y (Undo/Redo) • Ctrl+C/V (Copy/Paste) • Del (Delete) • Ctrl+F (Search) • Ctrl+A (Select All) • Esc (Deselect)',
+                    style: TextStyle(color: Colors.blue[200], fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Main content
+          Expanded(
+            child: Focus(
+              autofocus: true,
+              onKey: (node, event) => _handleKeyEvent(event, ref),
+              child: Row(
+                children: [
+                  const ComponentPalette(),
+                  const Expanded(child: FormCanvas()),
+                  const PropertiesPanel(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  KeyEventResult _handleKeyEvent(RawKeyEvent event, WidgetRef ref) {
+    if (event is! RawKeyDownEvent) return KeyEventResult.ignored;
+
+    final isCtrl = event.isControlPressed;
+    final isShift = event.isShiftPressed;
+    final key = event.logicalKey;
+
+    // Ctrl+Z - Undo
+    if (isCtrl && key == LogicalKeyboardKey.keyZ && !isShift) {
+      final canUndo = ref.read(historyManagerProvider).currentIndex >= 0;
+      if (canUndo) {
+        ref.read(historyManagerProvider.notifier).undo();
+        return KeyEventResult.handled;
+      }
+    }
+
+    // Ctrl+Y or Ctrl+Shift+Z - Redo
+    if ((isCtrl && key == LogicalKeyboardKey.keyY) ||
+        (isCtrl && isShift && key == LogicalKeyboardKey.keyZ)) {
+      final historyState = ref.read(historyManagerProvider);
+      final canRedo = historyState.currentIndex < historyState.history.length - 1;
+      if (canRedo) {
+        ref.read(historyManagerProvider.notifier).redo();
+        return KeyEventResult.handled;
+      }
+    }
+
+    // Ctrl+C - Copy
+    if (isCtrl && key == LogicalKeyboardKey.keyC) {
+      _handleCopy(ref);
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+V - Paste
+    if (isCtrl && key == LogicalKeyboardKey.keyV) {
+      _handlePaste(ref);
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+X - Cut
+    if (isCtrl && key == LogicalKeyboardKey.keyX) {
+      _handleCopy(ref);
+      _handleDelete(ref);
+      return KeyEventResult.handled;
+    }
+
+    // Delete or Backspace - Delete selected
+    if (key == LogicalKeyboardKey.delete || key == LogicalKeyboardKey.backspace) {
+      _handleDelete(ref);
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+A - Select All
+    if (isCtrl && key == LogicalKeyboardKey.keyA) {
+      _handleSelectAll(ref);
+      return KeyEventResult.handled;
+    }
+
+    // Escape - Deselect
+    if (key == LogicalKeyboardKey.escape) {
+      ref.read(selectedFieldProvider.notifier).state = null;
+      ref.read(selectedFieldsProvider.notifier).state = {};
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+F - Toggle Search
+    if (isCtrl && key == LogicalKeyboardKey.keyF) {
+      ref.read(showSearchProvider.notifier).state = !ref.read(showSearchProvider);
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+D - Duplicate
+    if (isCtrl && key == LogicalKeyboardKey.keyD) {
+      final selectedField = ref.read(selectedFieldProvider);
+      if (selectedField != null) {
+        ref.read(formFieldsProvider.notifier).duplicateField(selectedField);
+        return KeyEventResult.handled;
+      }
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  void _handleCopy(WidgetRef ref) {
+    final selectedField = ref.read(selectedFieldProvider);
+    final selectedFields = ref.read(selectedFieldsProvider);
+
+    if (selectedFields.isNotEmpty) {
+      final fields = ref.read(formFieldsProvider);
+      final fieldsToCopy = fields.where((f) => selectedFields.contains(f.id)).toList();
+      ref.read(clipboardProvider.notifier).copy(fieldsToCopy);
+    } else if (selectedField != null) {
+      ref.read(clipboardProvider.notifier).copy([selectedField]);
+    }
+  }
+
+  void _handlePaste(WidgetRef ref) {
+    final clipboard = ref.read(clipboardProvider);
+    for (final field in clipboard) {
+      final newField = _duplicateFieldRecursive(field);
+      ref.read(formFieldsProvider.notifier).addField(newField);
+    }
+  }
+
+  void _handleDelete(WidgetRef ref) {
+    final selectedField = ref.read(selectedFieldProvider);
+    final selectedFields = ref.read(selectedFieldsProvider);
+
+    if (selectedFields.isNotEmpty) {
+      for (final id in selectedFields) {
+        ref.read(formFieldsProvider.notifier).deleteField(id);
+      }
+      ref.read(selectedFieldsProvider.notifier).state = {};
+    } else if (selectedField != null) {
+      ref.read(formFieldsProvider.notifier).deleteField(selectedField.id);
+      ref.read(selectedFieldProvider.notifier).state = null;
+    }
+  }
+
+  void _handleSelectAll(WidgetRef ref) {
+    final fields = ref.read(formFieldsProvider);
+    final allIds = fields.map((f) => f.id).toSet();
+    ref.read(selectedFieldsProvider.notifier).state = allIds;
+  }
+
+  FieldConfig _duplicateFieldRecursive(FieldConfig field) {
+    return field.copyWith(
+      id: 'field_${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecond}',
+      name: field.name != null ? '${field.name}_copy' : null,
+      children: field.children?.map((child) => _duplicateFieldRecursive(child)).toList(),
+    );
+  }
+
+  void _showHistory(BuildContext context, WidgetRef ref) {
+    final historyState = ref.read(historyManagerProvider);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('History', style: TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: 400,
+          height: 400,
+          child: historyState.history.isEmpty
+              ? const Center(
+                  child: Text('No history yet', style: TextStyle(color: Colors.white54)),
+                )
+              : ListView.builder(
+                  itemCount: historyState.history.length,
+                  itemBuilder: (context, index) {
+                    final command = historyState.history[index];
+                    final isCurrent = index == historyState.currentIndex;
+                    
+                    return ListTile(
+                      leading: Icon(
+                        isCurrent ? Icons.radio_button_checked : Icons.circle_outlined,
+                        color: isCurrent ? Colors.blue : Colors.white54,
+                        size: 16,
+                      ),
+                      title: Text(
+                        command.description,
+                        style: TextStyle(
+                          color: isCurrent ? Colors.white : Colors.white54,
+                          fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showExportDialog(BuildContext context, WidgetRef ref) {
+    final config = ref.read(formFieldsProvider.notifier).exportConfig();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Export Config', style: TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: 600,
+          height: 400,
+          child: SingleChildScrollView(
+            child: SelectableText(
+              config,
+              style: const TextStyle(
+                color: Color(0xFF4EC9B0),
+                fontFamily: 'monospace',
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.copy),
+            label: const Text('Copy'),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: config));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('✅ Copied!')),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// SEARCH BAR WIDGET
+// ============================================================================
+
+class SearchBar extends StatelessWidget {
+  final Function(String) onSearch;
+
+  const SearchBar({Key? key, required this.onSearch}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      color: const Color(0xFF252526),
+      child: TextField(
+        autofocus: true,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          hintText: 'Search fields...',
+          hintStyle: const TextStyle(color: Colors.white54),
+          prefixIcon: const Icon(Icons.search, color: Colors.white54),
+          filled: true,
+          fillColor: const Color(0xFF1E1E1E),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+        onChanged: onSearch,
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// FORM CANVAS WITH MULTI-SELECT
+// ============================================================================
+
+class FormCanvas extends ConsumerWidget {
+  const FormCanvas({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fields = ref.watch(formFieldsProvider);
+    final searchQuery = ref.watch(searchQueryProvider);
+
+    // Filter fields based on search
+    final filteredFields = searchQuery.isEmpty
+        ? fields
+        : fields.where((field) {
+            final label = field.label?.toLowerCase() ?? '';
+            final name = field.name?.toLowerCase() ?? '';
+            final type = field.type.toLowerCase();
+            final query = searchQuery.toLowerCase();
+            return label.contains(query) || name.contains(query) || type.contains(query);
+          }).toList();
+
+    if (fields.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.inbox, size: 80, color: Colors.white24),
+            const SizedBox(height: 16),
+            Text(
+              'Add components to get started',
+              style: TextStyle(color: Colors.white.withOpacity(0.5)),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '⌨️ Keyboard Shortcuts:',
+                    style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '• Ctrl+Z / Ctrl+Y - Undo/Redo\n'
+                    '• Ctrl+C / Ctrl+V - Copy/Paste\n'
+                    '• Ctrl+X - Cut\n'
+                    '• Del - Delete selected\n'
+                    '• Ctrl+A - Select all\n'
+                    '• Ctrl+D - Duplicate\n'
+                    '• Ctrl+F - Search\n'
+                    '• Esc - Deselect',
+                    style: TextStyle(color: Colors.blue[200], fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (filteredFields.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.search_off, size: 60, color: Colors.white24),
+            const SizedBox(height: 16),
+            Text(
+              'No fields match "$searchQuery"',
+              style: TextStyle(color: Colors.white.withOpacity(0.5)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            children: filteredFields.asMap().entries.map((entry) {
+              return FieldCard(field: entry.value, index: entry.key);
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// FIELD CARD WITH MULTI-SELECT
+// ============================================================================
+
+class FieldCard extends ConsumerWidget {
+  final FieldConfig field;
+  final int index;
+
+  const FieldCard({Key? key, required this.field, required this.index}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedField = ref.watch(selectedFieldProvider);
+    final selectedFields = ref.watch(selectedFieldsProvider);
+    final isSelected = selectedField?.id == field.id;
+    final isMultiSelected = selectedFields.contains(field.id);
+
+    return GestureDetector(
+      onTap: () {
+        if (RawKeyboard.instance.keysPressed.contains(LogicalKeyboardKey.controlLeft) ||
+            RawKeyboard.instance.keysPressed.contains(LogicalKeyboardKey.controlRight)) {
+          // Ctrl+Click - Toggle multi-select
+          final newSet = Set<String>.from(selectedFields);
+          if (isMultiSelected) {
+            newSet.remove(field.id);
+          } else {
+            newSet.add(field.id);
+          }
+          ref.read(selectedFieldsProvider.notifier).state = newSet;
+        } else {
+          // Regular click - Select single
+          ref.read(selectedFieldProvider.notifier).state = field;
+          ref.read(selectedFieldsProvider.notifier).state = {};
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2D2D2D),
+          border: Border.all(
+            color: (isSelected || isMultiSelected) ? Colors.blue : const Color(0xFF3D3D3D),
+            width: (isSelected || isMultiSelected) ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // Multi-select checkbox
+              if (selectedFields.isNotEmpty || isMultiSelected)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Icon(
+                    isMultiSelected ? Icons.check_box : Icons.check_box_outline_blank,
+                    color: isMultiSelected ? Colors.blue : Colors.white54,
+                    size: 20,
+                  ),
+                ),
+              Icon(Icons.drag_indicator, color: Colors.white.withOpacity(0.3), size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        if (field.label != null)
+                          Text(
+                            field.label!,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                          ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            field.type,
+                            style: const TextStyle(color: Colors.blue, fontSize: 10),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E1E),
+                        border: Border.all(color: const Color(0xFF3D3D3D)),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        field.hint ?? 'Field preview',
+                        style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.content_copy, size: 18),
+                    color: Colors.white70,
+                    tooltip: 'Duplicate (Ctrl+D)',
+                    onPressed: () => ref.read(formFieldsProvider.notifier).duplicateField(field),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, size: 18),
+                    color: Colors.red,
+                    tooltip: 'Delete (Del)',
+                    onPressed: () => ref.read(formFieldsProvider.notifier).deleteField(field.id),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+abstract class FormCommand {
+  void execute();
+  void undo();
+  String get description;
+}
+
+class AddFieldCommand extends FormCommand {
+  final FormFieldsNotifier notifier;
+  final FieldConfig field;
+  final String? parentId;
+  
+  AddFieldCommand(this.notifier, this.field, {this.parentId});
+  
+  @override
+  void execute() => notifier.addFieldDirect(field, parentId: parentId);
+  
+  @override
+  void undo() => notifier.deleteFieldDirect(field.id);
+  
+  @override
+  String get description => 'Add ${field.type}';
+}
+
+class DeleteFieldCommand extends FormCommand {
+  final FormFieldsNotifier notifier;
+  final FieldConfig field;
+  final int index;
+  
+  DeleteFieldCommand(this.notifier, this.field, this.index);
+  
+  @override
+  void execute() => notifier.deleteFieldDirect(field.id);
+  
+  @override
+  void undo() => notifier.insertFieldDirect(field, index);
+  
+  @override
+  String get description => 'Delete ${field.type}';
+}
+
+class UpdateFieldCommand extends FormCommand {
+  final FormFieldsNotifier notifier;
+  final FieldConfig oldField;
+  final FieldConfig newField;
+  
+  UpdateFieldCommand(this.notifier, this.oldField, this.newField);
+  
+  @override
+  void execute() => notifier.updateFieldDirect(newField.id, newField);
+  
+  @override
+  void undo() => notifier.updateFieldDirect(oldField.id, oldField);
+  
+  @override
+  String get description => 'Update ${newField.type}';
+}
+
+class ReorderFieldCommand extends FormCommand {
+  final FormFieldsNotifier notifier;
+  final int oldIndex;
+  final int newIndex;
+  
+  ReorderFieldCommand(this.notifier, this.oldIndex, this.newIndex);
+  
+  @override
+  void execute() => notifier.reorderFieldDirect(oldIndex, newIndex);
+  
+  @override
+  void undo() => notifier.reorderFieldDirect(newIndex, oldIndex);
+  
+  @override
+  String get description => 'Reorder field';
+}
+
+// History Manager
+class HistoryManager extends StateNotifier<HistoryState> {
+  HistoryManager() : super(HistoryState());
+
+  void executeCommand(FormCommand command) {
+    command.execute();
+    
+    // Remove any commands after current position
+    final newHistory = state.history.sublist(0, state.currentIndex + 1);
+    newHistory.add(command);
+    
+    // Limit history to 50 commands
+    if (newHistory.length > 50) {
+      newHistory.removeAt(0);
+    }
+    
+    state = HistoryState(
+      history: newHistory,
+      currentIndex: newHistory.length - 1,
+    );
+  }
+
+  void undo() {
+    if (canUndo) {
+      state.history[state.currentIndex].undo();
+      state = state.copyWith(currentIndex: state.currentIndex - 1);
+    }
+  }
+
+  void redo() {
+    if (canRedo) {
+      state.history[state.currentIndex + 1].execute();
+      state = state.copyWith(currentIndex: state.currentIndex + 1);
+    }
+  }
+
+  bool get canUndo => state.currentIndex >= 0;
+  bool get canRedo => state.currentIndex < state.history.length - 1;
+  
+  void clear() {
+    state = HistoryState();
+  }
+}
+
+class HistoryState {
+  final List<FormCommand> history;
+  final int currentIndex;
+
+  HistoryState({
+    this.history = const [],
+    this.currentIndex = -1,
+  });
+
+  HistoryState copyWith({
+    List<FormCommand>? history,
+    int? currentIndex,
+  }) {
+    return HistoryState(
+      history: history ?? this.history,
+      currentIndex: currentIndex ?? this.currentIndex,
+    );
+  }
+}
+
+// ============================================================================
+// PROVIDERS
+// ============================================================================
+
+final historyManagerProvider = StateNotifierProvider<HistoryManager, HistoryState>((ref) {
+  return HistoryManager();
+});
+
+final formFieldsProvider = StateNotifierProvider<FormFieldsNotifier, List<FieldConfig>>((ref) {
+  return FormFieldsNotifier(ref);
+});
+
+final selectedFieldProvider = StateProvider<FieldConfig?>((ref) => null);
+final selectedFieldsProvider = StateProvider<Set<String>>((ref) => {}); // Multi-select
+final previewModeProvider = StateProvider<bool>((ref) => false);
+final searchQueryProvider = StateProvider<String>((ref) => '');
+final autoSaveProvider = StateProvider<bool>((ref) => true);
+final lastSavedProvider = StateProvider<DateTime?>((ref) => null);
+
+class FormFieldsNotifier extends StateNotifier<List<FieldConfig>> {
+  final Ref ref;
+  
+  FormFieldsNotifier(this.ref) : super([]);
+
+  // Public methods that create commands
+  void addField(FieldConfig field, {String? parentId}) {
+    final command = AddFieldCommand(this, field, parentId: parentId);
+    ref.read(historyManagerProvider.notifier).executeCommand(command);
+  }
+
+  void updateField(String id, FieldConfig updatedField) {
+    final oldField = _findFieldById(state, id);
+    if (oldField != null) {
+      final command = UpdateFieldCommand(this, oldField, updatedField);
+      ref.read(historyManagerProvider.notifier).executeCommand(command);
+    }
+  }
+
+  void deleteField(String id) {
+    final field = _findFieldById(state, id);
+    final index = _findFieldIndexById(state, id);
+    if (field != null && index != -1) {
+      final command = DeleteFieldCommand(this, field, index);
+      ref.read(historyManagerProvider.notifier).executeCommand(command);
+    }
+  }
+
+  void reorderField(int oldIndex, int newIndex) {
+    final command = ReorderFieldCommand(this, oldIndex, newIndex);
+    ref.read(historyManagerProvider.notifier).executeCommand(command);
+  }
+
+  // Direct methods (used by commands, don't create new commands)
+  void addFieldDirect(FieldConfig field, {String? parentId}) {
+    if (parentId != null) {
+      state = _addFieldToContainer(state, parentId, field);
+    } else {
+      state = [...state, field];
+    }
+  }
+
+  void insertFieldDirect(FieldConfig field, int index) {
+    final newState = List<FieldConfig>.from(state);
+    newState.insert(index, field);
+    state = newState;
+  }
+
+  void updateFieldDirect(String id, FieldConfig updatedField) {
+    state = _updateFieldRecursive(state, id, updatedField);
+  }
+
+  void deleteFieldDirect(String id) {
+    state = _deleteFieldRecursive(state, id);
+  }
+
+  void reorderFieldDirect(int oldIndex, int newIndex) {
+    final newState = List<FieldConfig>.from(state);
+    final field = newState.removeAt(oldIndex);
+    newState.insert(newIndex, field);
+    state = newState;
+  }
+
+  // Bulk operations for multi-select
+  void deleteSelectedFields(Set<String> ids) {
+    for (final id in ids) {
+      deleteField(id);
+    }
+  }
+
+  void duplicateField(FieldConfig field) {
+    final newField = _duplicateFieldRecursive(field);
+    addField(newField);
+  }
+
+  void clear() {
+    state = [];
+    ref.read(historyManagerProvider.notifier).clear();
+  }
+
+  // Helper methods
+  FieldConfig? _findFieldById(List<FieldConfig> fields, String id) {
+    for (final field in fields) {
+      if (field.id == id) return field;
+      if (field.children != null) {
+        final found = _findFieldById(field.children!, id);
+        if (found != null) return found;
+      }
+    }
+    return null;
+  }
+
+  int _findFieldIndexById(List<FieldConfig> fields, String id) {
+    for (int i = 0; i < fields.length; i++) {
+      if (fields[i].id == id) return i;
+    }
+    return -1;
+  }
+
+  List<FieldConfig> _addFieldToContainer(List<FieldConfig> fields, String parentId, FieldConfig newField) {
+    return fields.map((field) {
+      if (field.id == parentId && field.children != null) {
+        return field.copyWith(children: [...field.children!, newField]);
+      } else if (field.children != null) {
+        return field.copyWith(children: _addFieldToContainer(field.children!, parentId, newField));
+      }
+      return field;
+    }).toList();
+  }
+
+  List<FieldConfig> _updateFieldRecursive(List<FieldConfig> fields, String id, FieldConfig updatedField) {
+    return fields.map((field) {
+      if (field.id == id) {
+        return updatedField;
+      } else if (field.children != null) {
+        return field.copyWith(children: _updateFieldRecursive(field.children!, id, updatedField));
+      }
+      return field;
+    }).toList();
+  }
+
+  List<FieldConfig> _deleteFieldRecursive(List<FieldConfig> fields, String id) {
+    return fields
+        .where((field) => field.id != id)
+        .map((field) {
+          if (field.children != null) {
+            return field.copyWith(children: _deleteFieldRecursive(field.children!, id));
+          }
+          return field;
+        })
+        .toList();
+  }
+
+  FieldConfig _duplicateFieldRecursive(FieldConfig field) {
+    return field.copyWith(
+      id: 'field_${DateTime.now().millisecondsSinceEpoch}',
+      name: field.name != null ? '${field.name}_copy' : null,
+      children: field.children?.map((child) => _duplicateFieldRecursive(child)).toList(),
+    );
+  }
+
+  String exportConfig() {
+    final config = {
+      'fields': state.map((f) => f.toJson()).toList(),
+      'actions': [
+        {'id': 'submit', 'label': 'Submit', 'type': 'primary', 'requiresValidation': true}
+      ],
+    };
+    return const JsonEncoder.withIndent('  ').convert(config);
+  }
+}
+
+// ============================================================================
+// DATA MODELS (Simplified - same as before)
+// ============================================================================
+
+class FieldConfig {
+  final String id;
+  final String type;
+  final String? name;
+  final String? label;
+  final String? title;
+  final String? description;
+  final String? hint;
+  final bool required;
+  final List<FieldConfig>? children;
+  final Map<String, dynamic>? options;
+  final String? visibleIf;
+  
+  FieldConfig({
+    required this.id,
+    required this.type,
+    this.name,
+    this.label,
+    this.title,
+    this.description,
+    this.hint,
+    this.required = false,
+    this.children,
+    this.options,
+    this.visibleIf,
+  });
+
+  bool get isContainer => ['container', 'row', 'column', 'card', 'grid'].contains(type);
+
+  FieldConfig copyWith({
+    String? id,
+    String? type,
+    String? name,
+    String? label,
+    String? title,
+    String? description,
+    String? hint,
+    bool? required,
+    List<FieldConfig>? children,
+    Map<String, dynamic>? options,
+    String? visibleIf,
+  }) {
+    return FieldConfig(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      name: name ?? this.name,
+      label: label ?? this.label,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      hint: hint ?? this.hint,
+      required: required ?? this.required,
+      children: children ?? this.children,
+      options: options ?? this.options,
+      visibleIf: visibleIf ?? this.visibleIf,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{'type': type};
+    if (name != null) json['name'] = name;
+    if (label != null) json['label'] = label;
+    if (title != null) json['title'] = title;
+    if (description != null) json['description'] = description;
+    if (hint != null) json['hint'] = hint;
+    if (required) json['required'] = required;
+    if (children != null) json['children'] = children!.map((c) => c.toJson()).toList();
+    if (options != null) json['options'] = options;
+    if (visibleIf != null && visibleIf!.isNotEmpty) json['visibleIf'] = visibleIf;
+    return json;
+  }
+}
+
+// ============================================================================
+// MAIN DESIGNER SCREEN WITH UNDO/REDO
+// ============================================================================
+
+class FormBuilderDesigner extends ConsumerWidget {
+  const FormBuilderDesigner({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyState = ref.watch(historyManagerProvider);
+    final canUndo = historyState.currentIndex >= 0;
+    final canRedo = historyState.currentIndex < historyState.history.length - 1;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF1E1E1E),
+      appBar: AppBar(
+        title: const Text('🎨 Form Builder - Phase 1: Undo/Redo'),
+        backgroundColor: const Color(0xFF2D2D2D),
+        actions: [
+          // Undo button
+          IconButton(
+            icon: const Icon(Icons.undo),
+            tooltip: 'Undo (Ctrl+Z)',
+            onPressed: canUndo ? () {
+              ref.read(historyManagerProvider.notifier).undo();
+            } : null,
+          ),
+          // Redo button
+          IconButton(
+            icon: const Icon(Icons.redo),
+            tooltip: 'Redo (Ctrl+Y)',
+            onPressed: canRedo ? () {
+              ref.read(historyManagerProvider.notifier).redo();
+            } : null,
+          ),
+          // History viewer
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'History',
+            onPressed: () => _showHistory(context, ref),
+          ),
+          const VerticalDivider(),
+          IconButton(
+            icon: const Icon(Icons.code),
+            tooltip: 'Export',
+            onPressed: () => _showExportDialog(context, ref),
+          ),
+        ],
+      ),
+      body: Focus(
+        autofocus: true,
+        onKey: (node, event) {
+          if (event is RawKeyDownEvent) {
+            // Ctrl+Z for Undo
+            if (event.isControlPressed && event.logicalKey == LogicalKeyboardKey.keyZ) {
+              if (canUndo) ref.read(historyManagerProvider.notifier).undo();
+              return KeyEventResult.handled;
+            }
+            // Ctrl+Y or Ctrl+Shift+Z for Redo
+            if (event.isControlPressed && 
+                (event.logicalKey == LogicalKeyboardKey.keyY ||
+                 (event.isShiftPressed && event.logicalKey == LogicalKeyboardKey.keyZ))) {
+              if (canRedo) ref.read(historyManagerProvider.notifier).redo();
+              return KeyEventResult.handled;
+            }
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Row(
+          children: [
+            const ComponentPalette(),
+            const Expanded(child: FormCanvas()),
+            const PropertiesPanel(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showHistory(BuildContext context, WidgetRef ref) {
+    final historyState = ref.read(historyManagerProvider);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('History', style: TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: 400,
+          height: 400,
+          child: historyState.history.isEmpty
+              ? const Center(
+                  child: Text('No history yet', style: TextStyle(color: Colors.white54)),
+                )
+              : ListView.builder(
+                  itemCount: historyState.history.length,
+                  itemBuilder: (context, index) {
+                    final command = historyState.history[index];
+                    final isCurrent = index == historyState.currentIndex;
+                    
+                    return ListTile(
+                      leading: Icon(
+                        isCurrent ? Icons.radio_button_checked : Icons.circle_outlined,
+                        color: isCurrent ? Colors.blue : Colors.white54,
+                        size: 16,
+                      ),
+                      title: Text(
+                        command.description,
+                        style: TextStyle(
+                          color: isCurrent ? Colors.white : Colors.white54,
+                          fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      onTap: () {
+                        // Jump to this point in history
+                        final current = historyState.currentIndex;
+                        if (index < current) {
+                          for (int i = current; i > index; i--) {
+                            ref.read(historyManagerProvider.notifier).undo();
+                          }
+                        } else if (index > current) {
+                          for (int i = current; i < index; i++) {
+                            ref.read(historyManagerProvider.notifier).redo();
+                          }
+                        }
+                        Navigator.pop(context);
+                      },
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showExportDialog(BuildContext context, WidgetRef ref) {
+    final config = ref.read(formFieldsProvider.notifier).exportConfig();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Export Config', style: TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: 600,
+          height: 400,
+          child: SingleChildScrollView(
+            child: SelectableText(
+              config,
+              style: const TextStyle(
+                color: Color(0xFF4EC9B0),
+                fontFamily: 'monospace',
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.copy),
+            label: const Text('Copy'),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: config));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('✅ Copied!')),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// COMPONENT PALETTE (Simplified)
+// ============================================================================
+
+class ComponentPalette extends ConsumerWidget {
+  const ComponentPalette({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      width: 250,
+      color: const Color(0xFF252526),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Text(
+            'COMPONENTS',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildComponentButton(
+            context,
+            ref,
+            'Text Input',
+            Icons.text_fields,
+            () => _addField(ref, 'text', 'Text Input'),
+          ),
+          _buildComponentButton(
+            context,
+            ref,
+            'Email',
+            Icons.email,
+            () => _addField(ref, 'email', 'Email'),
+          ),
+          _buildComponentButton(
+            context,
+            ref,
+            'Number',
+            Icons.numbers,
+            () => _addField(ref, 'number', 'Number'),
+          ),
+          _buildComponentButton(
+            context,
+            ref,
+            'Dropdown',
+            Icons.arrow_drop_down_circle,
+            () => _addField(ref, 'select', 'Dropdown', options: ['Option 1', 'Option 2']),
+          ),
+          _buildComponentButton(
+            context,
+            ref,
+            'Checkbox',
+            Icons.check_box,
+            () => _addField(ref, 'checkbox', 'Checkbox'),
+          ),
+          const Divider(color: Colors.white24),
+          _buildComponentButton(
+            context,
+            ref,
+            'Container',
+            Icons.crop_square,
+            () => _addField(ref, 'container', null, isContainer: true),
+          ),
+          _buildComponentButton(
+            context,
+            ref,
+            'Row Layout',
+            Icons.view_week,
+            () => _addField(ref, 'row', null, isContainer: true),
+          ),
+          _buildComponentButton(
+            context,
+            ref,
+            'Column Layout',
+            Icons.view_agenda,
+            () => _addField(ref, 'column', null, isContainer: true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildComponentButton(
+    BuildContext context,
+    WidgetRef ref,
+    String label,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2D2D2D),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: Colors.blue),
+            const SizedBox(width: 12),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _addField(WidgetRef ref, String type, String? label, {bool isContainer = false, Map<String, dynamic>? options}) {
+    final field = FieldConfig(
+      id: 'field_${DateTime.now().millisecondsSinceEpoch}',
+      type: type,
+      name: isContainer ? null : '${type}_${DateTime.now().millisecondsSinceEpoch}',
+      label: label,
+      children: isContainer ? [] : null,
+      options: options,
+    );
+
+    ref.read(formFieldsProvider.notifier).addField(field);
+  }
+}
+
+// ============================================================================
+// FORM CANVAS (Simplified)
+// ============================================================================
+
+class FormCanvas extends ConsumerWidget {
+  const FormCanvas({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fields = ref.watch(formFieldsProvider);
+
+    if (fields.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.inbox, size: 80, color: Colors.white24),
+            const SizedBox(height: 16),
+            Text(
+              'Add components to get started',
+              style: TextStyle(color: Colors.white.withOpacity(0.5)),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              '✨ Undo/Redo with Ctrl+Z / Ctrl+Y',
+              style: TextStyle(color: Colors.blue, fontSize: 12),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            children: fields.asMap().entries.map((entry) {
+              return FieldCard(field: entry.value, index: entry.key);
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// FIELD CARD (Simplified)
+// ============================================================================
+
+class FieldCard extends ConsumerWidget {
+  final FieldConfig field;
+  final int index;
+
+  const FieldCard({Key? key, required this.field, required this.index}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedField = ref.watch(selectedFieldProvider);
+    final isSelected = selectedField?.id == field.id;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2D2D2D),
+        border: Border.all(
+          color: isSelected ? Colors.blue : const Color(0xFF3D3D3D),
+          width: isSelected ? 2 : 1,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: InkWell(
+        onTap: () => ref.read(selectedFieldProvider.notifier).state = field,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(Icons.drag_indicator, color: Colors.white.withOpacity(0.3), size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (field.label != null)
+                      Text(
+                        field.label!,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                      ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E1E),
+                        border: Border.all(color: const Color(0xFF3D3D3D)),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        field.hint ?? 'Field preview',
+                        style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.content_copy, size: 18),
+                    color: Colors.white70,
+                    onPressed: () => ref.read(formFieldsProvider.notifier).duplicateField(field),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, size: 18),
+                    color: Colors.red,
+                    onPressed: () => ref.read(formFieldsProvider.notifier).deleteField(field.id),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// PROPERTIES PANEL (Simplified)
+// ============================================================================
+
+class PropertiesPanel extends ConsumerWidget {
+  const PropertiesPanel({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedField = ref.watch(selectedFieldProvider);
+
+    if (selectedField == null) {
+      return Container(
+        width: 300,
+        color: const Color(0xFF252526),
+        child: const Center(
+          child: Text('No field selected', style: TextStyle(color: Colors.white54)),
+        ),
+      );
+    }
+
+    return Container(
+      width: 300,
+      color: const Color(0xFF252526),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'PROPERTIES',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('Label', style: TextStyle(color: Colors.white)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: TextEditingController(text: selectedField.label ?? ''),
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: const Color(0xFF1E1E1E),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+            onChanged: (value) {
+              ref.read(formFieldsProvider.notifier).updateField(
+                    selectedField.id,
+                    selectedField.copyWith(label: value),
+                  );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// MAIN APP
+// ============================================================================
+
+void main() {
+  runApp(
+    const ProviderScope(
+      child: MaterialApp(
+        title: 'Form Builder Designer - Enhanced',
+        debugShowCheckedModeBanner: false,
+        home: FormBuilderDesigner(),
+      ),
+    ),
+  );
+}

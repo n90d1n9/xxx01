@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/legacy.dart';
-import 'dart:math' as math;
-import 'package:flutter_riverpod/legacy.dart';
 
-import 'university.dart';
-import 'major.dart';
+import '../models/major.dart';
+import '../models/university.dart';
 
 class MajorDetailScreen extends StatelessWidget {
   final Major major;

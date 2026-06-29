@@ -1,0 +1,22 @@
+
+write professional, modern & trendy flutter screen using riverpod for route/navigation manager to organize menu item of route/navigation which placed on sidebar, toolbar, header, etc. for large screen, with following requirements:
+* Responsive Layout
+* using go_router
+* Add role-based route/navigation filtering
+* Create more complex access control
+* Add error handling and loading states
+* Local storage
+* Smooth transitions between screens
+
+* Modern Design Elements
+* Implement actual navigation using the route
+* Add more sophisticated selection logic
+* Create more complex route/navigation management features
+* Add authentication and user management
+* JSON Serialization
+
+* Public and authenticated routes
+* Role-based route access
+* Automatic redirection based on authentication state
+* breadcrumb
+* Bottom navigation bar with branch routing

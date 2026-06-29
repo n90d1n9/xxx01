@@ -1,0 +1,341 @@
+incidents = SafetyIncident.list("ORDER BY incidentDate DESC");
+        }
+        
+        return Response.ok(incidents).build();
+    }
+    
+    @POST
+    @Path("/safety-incidents")
+    public Response createSafetyIncident(SafetyIncident incident) {
+        // Generate incident number
+        long count = SafetyIncident.count("project", incident.project) + 1;
+        incident.incidentNumber = String.format("SI-%s-%04d", 
+                incident.project.projectCode, count);
+        
+        incident.persist();
+        return Response.status(201).entity(incident).build();
+    }
+    
+    @GET
+    @Path("/quality-inspections")
+    public Response getQualityInspections(@QueryParam("project") Long projectId,
+                                         @QueryParam("result") String result) {
+        List<QualityInspection> inspections;
+        
+        if (projectId != null && result != null) {
+            try {
+                QualityInspection.InspectionResult inspResult = 
+                        QualityInspection.InspectionResult.valueOf(result.toUpperCase());
+                inspections = QualityInspection.list("project.id = ?1 and result = ?2", 
+                        projectId, inspResult);
+            } catch (IllegalArgumentException e) {
+                return Response.status(400).entity("Invalid result: " + result).build();
+            }
+        } else if (projectId != null) {
+            inspections = QualityInspection.list("project.id", projectId);
+        } else {
+            inspections = QualityInspection.list("ORDER BY inspectionDate DESC");
+        }
+        
+        return Response.ok(inspections).build();
+    }
+    
+    @POST
+    @Path("/quality-inspections")
+    public Response createQualityInspection(QualityInspection inspection) {
+        // Generate inspection number
+        long count = QualityInspection.count("project", inspection.project) + 1;
+        inspection.inspectionNumber = String.format("QI-%s-%04d", 
+                inspection.project.projectCode, count);
+        
+        inspection.persist();
+        return Response.status(201).entity(inspection).build();
+    }
+    
+    @GET
+    @Path("/ncr")
+    public Response getNonConformanceReports(@QueryParam("project") Long projectId,
+                                           @QueryParam("status") String status) {
+        List<NonConformanceReport> ncrs;
+        
+        if (projectId != null && status != null) {
+            try {
+                NonConformanceReport.NCRStatus ncrStatus = 
+                        NonConformanceReport.NCRStatus.valueOf(status.toUpperCase());
+                ncrs = NonConformanceReport.list(
+                        "inspection.project.id = ?1 and status = ?2", projectId, ncrStatus);
+            } catch (IllegalArgumentException e) {
+                return Response.status(400).entity("Invalid status: " + status).build();
+            }
+        } else if (projectId != null) {
+            ncrs = NonConformanceReport.list("inspection.project.id", projectId);
+        } else {
+            ncrs = NonConformanceReport.list("ORDER BY issueDate DESC");
+        }
+        
+        return Response.ok(ncrs).build();
+    }
+    
+    @POST
+    @Path("/ncr")
+    public Response createNonConformanceReport(NonConformanceReport ncr) {
+        // Generate NCR number
+        long count = NonConformanceReport.count() + 1;
+        ncr.ncrNumber = String.format("NCR-%04d", count);
+        ncr.issueDate = LocalDate.now();
+        
+        ncr.persist();
+        return Response.status(201).entity(ncr).build();
+    }
+    
+    @GET
+    @Path("/labor-productivity")
+    public Response getLaborProductivity(@QueryParam("project") Long projectId,
+                                        @QueryParam("workPackage") Long workPackageId,
+                                        @QueryParam("fromDate") String fromDateStr,
+                                        @QueryParam("toDate") String toDateStr) {
+        List<LaborProductivity> productivity;
+        
+        StringBuilder query = new StringBuilder("1=1");
+        List<Object> params = new ArrayList<>();
+        
+        if (projectId != null) {
+            query.append(" and project.id = ?").append(params.size() + 1);
+            params.add(projectId);
+        }
+        
+        if (workPackageId != null) {
+            query.append(" and workPackage.id = ?").append(params.size() + 1);
+            params.add(workPackageId);
+        }
+        
+        if (fromDateStr != null) {
+            LocalDate fromDate = LocalDate.parse(fromDateStr);
+            query.append(" and date >= ?").append(params.size() + 1);
+            params.add(fromDate);
+        }
+        
+        if (toDateStr != null) {
+            LocalDate toDate = LocalDate.parse(toDateStr);
+            query.append(" and date <= ?").append(params.size() + 1);
+            params.add(toDate);
+        }
+        
+        query.append(" ORDER BY date DESC");
+        
+        productivity = LaborProductivity.list(query.toString(), params.toArray());
+        return Response.ok(productivity).build();
+    }
+    
+    @POST
+    @Path("/labor-productivity")
+    public Response recordLaborProductivity(LaborProductivity productivity) {
+        productivity.persist();
+        return Response.status(201).entity(productivity).build();
+    }
+}
+
+
+
+
+// ===== FINAL CONFIGURATION & DEPLOYMENT =====
+
+
+    
+    
+    
+    String.format("Weekly cost %.0f%% above average", 
+                                (costRatio.doubleValue() - 1) * 100),
+                        "Review recent material purchases and verify pricing accuracy");
+            }
+        }
+    }
+    
+    private void detectScheduleAnomalies(Project project) {
+        // Detect activities significantly behind schedule
+        List<ScheduleActivity> behindSchedule = ScheduleActivity
+                .list("schedule.project = ?1 and actualStart > lateStart", project);
+        
+        if (!behindSchedule.isEmpty()) {
+            BigDecimal anomalyScore = new BigDecimal(behindSchedule.size() * 20);
+            createAnomaly(project, AnomalyDetection.AnomalyType.SCHEDULE_ANOMALY,
+                    anomalyScore,
+                    String.format("%d activities are behind their late start dates", behindSchedule.size()),
+                    "Reassign resources and review critical path activities");
+        }
+    }
+    
+    private void detectProductivityAnomalies(Project project) {
+        LocalDate weekAgo = LocalDate.now().minusWeeks(1);
+        List<LaborProductivity> recentProductivity = LaborProductivity
+                .list("project = ?1 and date >= ?2", project, weekAgo);
+        
+        if (!recentProductivity.isEmpty()) {
+            double avgEfficiency = recentProductivity.stream()
+                    .filter(p -> p.efficiencyPercentage != null)
+                    .mapToDouble(p -> p.efficiencyPercentage.doubleValue())
+                    .average()
+                    .orElse(100.0);
+            
+            if (avgEfficiency < 60.0) { // Below 60% efficiency
+                BigDecimal anomalyScore = new BigDecimal((100 - avgEfficiency) / 2);
+                createAnomaly(project, AnomalyDetection.AnomalyType.PRODUCTIVITY_ANOMALY,
+                        anomalyScore,
+                        String.format("Average productivity efficiency: %.1f%%", avgEfficiency),
+                        "Investigate work methods, provide training, or review resource allocation");
+            }
+        }
+    }
+    
+    private void detectInvoiceAnomalies(Project project) {
+        // Detect suspicious invoice patterns
+        LocalDate monthAgo = LocalDate.now().minusMonths(1);
+        
+        List<Object[]> vendorInvoices = MaterialTransaction.find(
+                "SELECT vendor, COUNT(*), SUM(totalCost) " +
+                "FROM MaterialTransaction " +
+                "WHERE project = ?1 and transactionDate >= ?2 and transactionType = 'PURCHASE' " +
+                "GROUP BY vendor " +
+                "HAVING COUNT(*) > 20 OR SUM(totalCost) > 1000000000", // > 1B IDR
+                project, monthAgo.atStartOfDay()
+        ).project(Object[].class).list();
+        
+        for (Object[] vendorData : vendorInvoices) {
+            String vendor = (String) vendorData[0];
+            Long invoiceCount = (Long) vendorData[1];
+            BigDecimal totalAmount = (BigDecimal) vendorData[2];
+            
+            if (invoiceCount > 50 || totalAmount.compareTo(new BigDecimal("5000000000")) > 0) {
+                createAnomaly(project, AnomalyDetection.AnomalyType.INVOICE_ANOMALY,
+                        new BigDecimal("75"),
+                        String.format("Vendor %s: %d invoices, total: Rp %,.0f", 
+                                vendor, invoiceCount, totalAmount),
+                        "Review vendor invoices for potential fraud or pricing issues");
+            }
+        }
+    }
+    
+    private BigDecimal calculateAverageWeeklyCost(Project project) {
+        LocalDate monthAgo = LocalDate.now().minusMonths(1);
+        LocalDate weekAgo = LocalDate.now().minusWeeks(1);
+        
+        List<MaterialTransaction> historicalTransactions = MaterialTransaction
+                .list("project = ?1 and transactionDate BETWEEN ?2 AND ?3", 
+                        project, monthAgo.atStartOfDay(), weekAgo.atStartOfDay());
+        
+        if (historicalTransactions.isEmpty()) return BigDecimal.ZERO;
+        
+        BigDecimal totalCost = historicalTransactions.stream()
+                .map(t -> t.totalCost != null ? t.totalCost : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        long weekCount = monthAgo.until(weekAgo).getDays() / 7;
+        if (weekCount == 0) weekCount = 1;
+        
+        return totalCost.divide(new BigDecimal(weekCount), 2, java.math.RoundingMode.HALF_UP);
+    }
+    
+    private void createAnomaly(Project project, AnomalyDetection.AnomalyType type, 
+                             BigDecimal score, String description, String recommendation) {
+        AnomalyDetection anomaly = new AnomalyDetection();
+        anomaly.project = project;
+        anomaly.detectionDate = LocalDateTime.now();
+        anomaly.anomalyType = type;
+        anomaly.anomalyScore = score;
+        anomaly.description = description;
+        anomaly.recommendation = recommendation;
+        anomaly.persist();
+    }
+}
+
+
+// ===== INTEGRATION SERVICES =====
+
+
+
+
+// ===== ENHANCED REST CONTROLLERS =====
+
+
+  
+            
+    @Column(name = "region")
+    public String region;
+    
+    @Column(name = "rate_value", precision = 15, scale = 2)
+    public BigDecimal rateValue;
+    
+    @Column(name = "effective_date")
+    public LocalDate effectiveDate;
+    
+    @Column(name = "expiry_date")
+    public LocalDate expiryDate;
+    
+    @Column(name = "material_cost", precision = 15, scale = 2)
+    public BigDecimal materialCost;
+    
+    @Column(name = "labor_cost", precision = 15, scale = 2)
+    public BigDecimal laborCost;
+    
+    @Column(name = "equipment_cost", precision = 15, scale = 2)
+    public BigDecimal equipmentCost;
+    
+    @Column(name = "overhead_profit", precision = 15, scale = 2)
+    public BigDecimal overheadProfit;
+    
+    @Column(name = "is_active")
+    public Boolean isActive = true;
+}
+
+
+
+// ===== ANALYTICS & AI-DRIVEN FEATURES =====
+
+
+
+
+// ===== SYSTEM-LEVEL CAPABILITIES =====
+
+
+
+
+// ===== ADVANCED SERVICES =====
+
+package com.konstruksi.service.advanced;
+
+
+
+
+// ===== PROCUREMENT & SUPPLY CHAIN =====
+
+
+
+
+
+
+// ===== FIELD EXECUTION & SITE OPERATIONS =====
+
+
+
+
+
+
+
+// ===== REGULATORY & COMPLIANCE (INDONESIA-SPECIFIC) =====
+
+
+    
+    
+    
+    // ===== PROJECT PLANNING & CONTROL ENTITIES =====
+
+
+
+
+// ===== CONTRACT & LEGAL MANAGEMENT =====
+
+
+
+
+// ===== FINANCIAL & COMMERCIAL MANAGEMENT =====
+

@@ -1,0 +1,38 @@
+import 'persistent_volume_claim_status.dart';
+import 'object_meta.dart';
+
+class PersistentVolumeClaim {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final PersistentVolumeClaimSpec spec;
+  final PersistentVolumeClaimStatus? status;
+  PersistentVolumeClaim({
+    this.apiVersion = 'v1',
+    this.kind = 'PersistentVolumeClaim',
+    required this.metadata,
+    required this.spec,
+    this.status,
+  });
+  factory PersistentVolumeClaim.fromJson(Map<String, dynamic> json) {
+    return PersistentVolumeClaim(
+      apiVersion: json['apiVersion'] ?? 'v1',
+      kind: json['kind'] ?? 'PersistentVolumeClaim',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      spec: PersistentVolumeClaimSpec.fromJson(json['spec']),
+      status:
+          json['status'] != null
+              ? PersistentVolumeClaimStatus.fromJson(json['status'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      'spec': spec.toJson(),
+      if (status != null) 'status': status!.toJson(),
+    };
+  }
+}

@@ -1,0 +1,1001 @@
+// ==================== STEP 3: Testing & Debugging Framework ====================
+// Complete testing suite with mock data, breakpoints, and data inspection
+
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// ==================== TEST FRAMEWORK ====================
+
+class WorkflowTester {
+  final WorkflowData workflow;
+  final List<TestCase> testCases;
+  
+  WorkflowTester({
+    required this.workflow,
+    required this.testCases,
+  });
+
+  Future<TestSuiteResult> runAllTests() async {
+    final results = <TestResult>[];
+    final startTime = DateTime.now();
+
+    for (final testCase in testCases) {
+      final result = await runTest(testCase);
+      results.add(result);
+    }
+
+    final endTime = DateTime.now();
+    final passed = results.where((r) => r.passed).length;
+    final failed = results.where((r) => !r.passed).length;
+
+    return TestSuiteResult(
+      totalTests: testCases.length,
+      passed: passed,
+      failed: failed,
+      results: results,
+      duration: endTime.difference(startTime),
+    );
+  }
+
+  Future<TestResult> runTest(TestCase testCase) async {
+    final startTime = DateTime.now();
+    
+    try {
+      // Execute workflow with test input
+      final executor = WorkflowExecutor(
+        workflow: workflow,
+        initialContext: testCase.input,
+      );
+
+      final executionResult = await executor.execute();
+
+      // Check assertions
+      final assertionResults = <AssertionResult>[];
+      for (final assertion in testCase.assertions) {
+        final result = _checkAssertion(assertion, executionResult);
+        assertionResults.add(result);
+      }
+
+      final allPassed = assertionResults.every((r) => r.passed);
+
+      return TestResult(
+        testCase: testCase,
+        passed: allPassed,
+        executionResult: executionResult,
+        assertionResults: assertionResults,
+        duration: DateTime.now().difference(startTime),
+      );
+    } catch (e) {
+      return TestResult(
+        testCase: testCase,
+        passed: false,
+        executionResult: null,
+        assertionResults: [],
+        duration: DateTime.now().difference(startTime),
+        error: e.toString(),
+      );
+    }
+  }
+
+  AssertionResult _checkAssertion(Assertion assertion, ExecutionResult executionResult) {
+    try {
+      final actualValue = _getValueFromPath(
+        assertion.path,
+        executionResult,
+      );
+
+      bool passed = false;
+      String message = '';
+
+      switch (assertion.type) {
+        case AssertionType.equals:
+          passed = actualValue == assertion.expectedValue;
+          message = passed 
+            ? 'Value equals ${assertion.expectedValue}'
+            : 'Expected ${assertion.expectedValue}, got $actualValue';
+          break;
+
+        case AssertionType.notEquals:
+          passed = actualValue != assertion.expectedValue;
+          message = passed
+            ? 'Value does not equal ${assertion.expectedValue}'
+            : 'Value should not equal ${assertion.expectedValue}';
+          break;
+
+        case AssertionType.contains:
+          if (actualValue is String) {
+            passed = actualValue.contains(assertion.expectedValue.toString());
+          } else if (actualValue is List) {
+            passed = actualValue.contains(assertion.expectedValue);
+          }
+          message = passed
+            ? 'Contains ${assertion.expectedValue}'
+            : 'Does not contain ${assertion.expectedValue}';
+          break;
+
+        case AssertionType.greaterThan:
+          if (actualValue is num && assertion.expectedValue is num) {
+            passed = actualValue > assertion.expectedValue;
+          }
+          message = passed
+            ? '$actualValue > ${assertion.expectedValue}'
+            : '$actualValue is not greater than ${assertion.expectedValue}';
+          break;
+
+        case AssertionType.lessThan:
+          if (actualValue is num && assertion.expectedValue is num) {
+            passed = actualValue < assertion.expectedValue;
+          }
+          message = passed
+            ? '$actualValue < ${assertion.expectedValue}'
+            : '$actualValue is not less than ${assertion.expectedValue}';
+          break;
+
+        case AssertionType.notNull:
+          passed = actualValue != null;
+          message = passed ? 'Value is not null' : 'Value is null';
+          break;
+
+        case AssertionType.isNull:
+          passed = actualValue == null;
+          message = passed ? 'Value is null' : 'Value is not null';
+          break;
+
+        case AssertionType.isType:
+          passed = _checkType(actualValue, assertion.expectedValue.toString());
+          message = passed
+            ? 'Value is of type ${assertion.expectedValue}'
+            : 'Value is not of type ${assertion.expectedValue}';
+          break;
+      }
+
+      return AssertionResult(
+        assertion: assertion,
+        passed: passed,
+        actualValue: actualValue,
+        message: message,
+      );
+    } catch (e) {
+      return AssertionResult(
+        assertion: assertion,
+        passed: false,
+        actualValue: null,
+        message: 'Error checking assertion: $e',
+      );
+    }
+  }
+
+  dynamic _getValueFromPath(String path, ExecutionResult executionResult) {
+    final parts = path.split('.');
+    dynamic current = {
+      'output': executionResult.output,
+      'input': executionResult.input,
+      'status': executionResult.status.toString(),
+      'duration': executionResult.duration?.inMilliseconds,
+      'nodes': executionResult.nodeResults.map((n) => {
+        'id': n.nodeId,
+        'status': n.status.toString(),
+        'output': n.output,
+      }).toList(),
+    };
+
+    for (final part in parts) {
+      if (current is Map) {
+        current = current[part];
+      } else if (current is List && int.tryParse(part) != null) {
+        current = current[int.parse(part)];
+      } else {
+        return null;
+      }
+    }
+
+    return current;
+  }
+
+  bool _checkType(dynamic value, String typeName) {
+    switch (typeName.toLowerCase()) {
+      case 'string':
+        return value is String;
+      case 'number':
+      case 'int':
+        return value is int;
+      case 'double':
+        return value is double;
+      case 'bool':
+      case 'boolean':
+        return value is bool;
+      case 'list':
+      case 'array':
+        return value is List;
+      case 'map':
+      case 'object':
+        return value is Map;
+      default:
+        return false;
+    }
+  }
+}
+
+// ==================== TEST MODELS ====================
+
+class TestCase {
+  final String id;
+  final String name;
+  final String description;
+  final Map<String, dynamic> input;
+  final List<Assertion> assertions;
+  final Map<String, dynamic> mockData;
+  final Duration? timeout;
+
+  TestCase({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.input,
+    required this.assertions,
+    this.mockData = const {},
+    this.timeout,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'description': description,
+    'input': input,
+    'assertions': assertions.map((a) => a.toJson()).toList(),
+    'mockData': mockData,
+  };
+
+  factory TestCase.fromJson(Map<String, dynamic> json) => TestCase(
+    id: json['id'],
+    name: json['name'],
+    description: json['description'] ?? '',
+    input: json['input'] ?? {},
+    assertions: (json['assertions'] as List?)?.map((a) => Assertion.fromJson(a)).toList() ?? [],
+    mockData: json['mockData'] ?? {},
+  );
+}
+
+class Assertion {
+  final String id;
+  final String path;
+  final AssertionType type;
+  final dynamic expectedValue;
+  final String? description;
+
+  Assertion({
+    required this.id,
+    required this.path,
+    required this.type,
+    this.expectedValue,
+    this.description,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'path': path,
+    'type': type.toString(),
+    'expectedValue': expectedValue,
+    'description': description,
+  };
+
+  factory Assertion.fromJson(Map<String, dynamic> json) => Assertion(
+    id: json['id'],
+    path: json['path'],
+    type: AssertionType.values.firstWhere((e) => e.toString() == json['type']),
+    expectedValue: json['expectedValue'],
+    description: json['description'],
+  );
+}
+
+enum AssertionType {
+  equals,
+  notEquals,
+  contains,
+  greaterThan,
+  lessThan,
+  notNull,
+  isNull,
+  isType,
+}
+
+class TestResult {
+  final TestCase testCase;
+  final bool passed;
+  final ExecutionResult? executionResult;
+  final List<AssertionResult> assertionResults;
+  final Duration duration;
+  final String? error;
+
+  TestResult({
+    required this.testCase,
+    required this.passed,
+    this.executionResult,
+    required this.assertionResults,
+    required this.duration,
+    this.error,
+  });
+}
+
+class AssertionResult {
+  final Assertion assertion;
+  final bool passed;
+  final dynamic actualValue;
+  final String message;
+
+  AssertionResult({
+    required this.assertion,
+    required this.passed,
+    this.actualValue,
+    required this.message,
+  });
+}
+
+class TestSuiteResult {
+  final int totalTests;
+  final int passed;
+  final int failed;
+  final List<TestResult> results;
+  final Duration duration;
+
+  TestSuiteResult({
+    required this.totalTests,
+    required this.passed,
+    required this.failed,
+    required this.results,
+    required this.duration,
+  });
+
+  double get passRate => totalTests > 0 ? (passed / totalTests) * 100 : 0;
+}
+
+// ==================== DEBUGGER ====================
+
+class WorkflowDebugger {
+  final WorkflowData workflow;
+  final Set<String> breakpoints = {};
+  final Map<String, NodeSnapshot> snapshots = {};
+  final List<DebugEvent> events = [];
+  
+  bool isPaused = false;
+  String? currentNodeId;
+  ExecutionContext? currentContext;
+  
+  final StreamController<DebugEvent> _eventController = StreamController.broadcast();
+  Stream<DebugEvent> get eventStream => _eventController.stream;
+
+  WorkflowDebugger(this.workflow);
+
+  // Breakpoint Management
+  void addBreakpoint(String nodeId) {
+    breakpoints.add(nodeId);
+    _emitEvent(DebugEvent.breakpointAdded(nodeId));
+  }
+
+  void removeBreakpoint(String nodeId) {
+    breakpoints.remove(nodeId);
+    _emitEvent(DebugEvent.breakpointRemoved(nodeId));
+  }
+
+  void toggleBreakpoint(String nodeId) {
+    if (breakpoints.contains(nodeId)) {
+      removeBreakpoint(nodeId);
+    } else {
+      addBreakpoint(nodeId);
+    }
+  }
+
+  bool hasBreakpoint(String nodeId) => breakpoints.contains(nodeId);
+
+  void clearBreakpoints() {
+    breakpoints.clear();
+    _emitEvent(DebugEvent.breakpointsCleared());
+  }
+
+  // Execution Control
+  Future<void> pause(String nodeId) async {
+    isPaused = true;
+    currentNodeId = nodeId;
+    _emitEvent(DebugEvent.paused(nodeId));
+
+    // Wait for resume
+    while (isPaused) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+  }
+
+  void resume() {
+    isPaused = false;
+    _emitEvent(DebugEvent.resumed());
+  }
+
+  void stepOver() {
+    // Move to next node
+    resume();
+  }
+
+  void stepInto() {
+    // Step into subworkflow if exists
+    resume();
+  }
+
+  void stepOut() {
+    // Complete current subworkflow and return
+    resume();
+  }
+
+  // Snapshot Management
+  void captureSnapshot(String nodeId, Map<String, dynamic> input, Map<String, dynamic> output) {
+    final snapshot = NodeSnapshot(
+      nodeId: nodeId,
+      timestamp: DateTime.now(),
+      input: Map.from(input),
+      output: Map.from(output),
+      context: currentContext != null ? Map.from(currentContext!.variables) : {},
+    );
+
+    snapshots[nodeId] = snapshot;
+    _emitEvent(DebugEvent.snapshotCaptured(nodeId, snapshot));
+  }
+
+  NodeSnapshot? getSnapshot(String nodeId) => snapshots[nodeId];
+
+  List<NodeSnapshot> getAllSnapshots() => snapshots.values.toList();
+
+  void clearSnapshots() {
+    snapshots.clear();
+  }
+
+  // Data Inspection
+  Map<String, dynamic> inspectNode(String nodeId) {
+    final node = workflow.nodes.firstWhere((n) => n.id == nodeId);
+    final snapshot = snapshots[nodeId];
+
+    return {
+      'node': {
+        'id': node.id,
+        'type': node.type,
+        'label': node.label,
+        'config': node.config,
+      },
+      'snapshot': snapshot != null ? {
+        'timestamp': snapshot.timestamp.toIso8601String(),
+        'input': snapshot.input,
+        'output': snapshot.output,
+        'context': snapshot.context,
+      } : null,
+      'connections': {
+        'incoming': workflow.connections.where((c) => c.targetNodeId == nodeId).length,
+        'outgoing': workflow.connections.where((c) => c.sourceNodeId == nodeId).length,
+      },
+    };
+  }
+
+  // Event Management
+  void _emitEvent(DebugEvent event) {
+    events.add(event);
+    _eventController.add(event);
+  }
+
+  void dispose() {
+    _eventController.close();
+  }
+}
+
+class NodeSnapshot {
+  final String nodeId;
+  final DateTime timestamp;
+  final Map<String, dynamic> input;
+  final Map<String, dynamic> output;
+  final Map<String, dynamic> context;
+
+  NodeSnapshot({
+    required this.nodeId,
+    required this.timestamp,
+    required this.input,
+    required this.output,
+    required this.context,
+  });
+}
+
+abstract class DebugEvent {
+  final DateTime timestamp;
+  
+  DebugEvent() : timestamp = DateTime.now();
+
+  factory DebugEvent.breakpointAdded(String nodeId) = BreakpointAddedEvent;
+  factory DebugEvent.breakpointRemoved(String nodeId) = BreakpointRemovedEvent;
+  factory DebugEvent.breakpointsCleared() = BreakpointsClearedEvent;
+  factory DebugEvent.paused(String nodeId) = PausedEvent;
+  factory DebugEvent.resumed() = ResumedEvent;
+  factory DebugEvent.snapshotCaptured(String nodeId, NodeSnapshot snapshot) = SnapshotCapturedEvent;
+}
+
+class BreakpointAddedEvent extends DebugEvent {
+  final String nodeId;
+  BreakpointAddedEvent(this.nodeId);
+}
+
+class BreakpointRemovedEvent extends DebugEvent {
+  final String nodeId;
+  BreakpointRemovedEvent(this.nodeId);
+}
+
+class BreakpointsClearedEvent extends DebugEvent {}
+
+class PausedEvent extends DebugEvent {
+  final String nodeId;
+  PausedEvent(this.nodeId);
+}
+
+class ResumedEvent extends DebugEvent {}
+
+class SnapshotCapturedEvent extends DebugEvent {
+  final String nodeId;
+  final NodeSnapshot snapshot;
+  SnapshotCapturedEvent(this.nodeId, this.snapshot);
+}
+
+// ==================== DATA INSPECTOR UI ====================
+
+class DataInspectorWidget extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final String title;
+
+  const DataInspectorWidget({
+    Key? key,
+    required this.data,
+    required this.title,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2D2D2D),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: SingleChildScrollView(
+              child: _buildDataTree(data, 0),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDataTree(dynamic data, int level) {
+    if (data is Map) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: data.entries.map((entry) {
+          return _buildMapEntry(entry.key, entry.value, level);
+        }).toList(),
+      );
+    } else if (data is List) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: data.asMap().entries.map((entry) {
+          return _buildMapEntry('[${entry.key}]', entry.value, level);
+        }).toList(),
+      );
+    } else {
+      return _buildValueWidget(data);
+    }
+  }
+
+  Widget _buildMapEntry(String key, dynamic value, int level) {
+    return Padding(
+      padding: EdgeInsets.only(left: level * 20.0, bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (value is Map || value is List)
+                const Icon(Icons.arrow_right, color: Colors.white54, size: 16),
+              Text(
+                '$key: ',
+                style: const TextStyle(
+                  color: Colors.blue,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (value is! Map && value is! List)
+                Expanded(child: _buildValueWidget(value)),
+            ],
+          ),
+          if (value is Map || value is List)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: _buildDataTree(value, level + 1),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildValueWidget(dynamic value) {
+    Color valueColor = Colors.white70;
+    String displayValue = value.toString();
+
+    if (value == null) {
+      valueColor = Colors.grey;
+      displayValue = 'null';
+    } else if (value is String) {
+      valueColor = Colors.green;
+      displayValue = '"$value"';
+    } else if (value is num) {
+      valueColor = Colors.orange;
+    } else if (value is bool) {
+      valueColor = Colors.purple;
+    }
+
+    return Text(
+      displayValue,
+      style: TextStyle(
+        color: valueColor,
+        fontSize: 13,
+        fontFamily: 'monospace',
+      ),
+    );
+  }
+}
+
+// ==================== TEST RUNNER UI ====================
+
+class TestRunnerWidget extends ConsumerStatefulWidget {
+  final WorkflowData workflow;
+
+  const TestRunnerWidget({Key? key, required this.workflow}) : super(key: key);
+
+  @override
+  ConsumerState<TestRunnerWidget> createState() => _TestRunnerWidgetState();
+}
+
+class _TestRunnerWidgetState extends ConsumerState<TestRunnerWidget> {
+  List<TestCase> testCases = [];
+  TestSuiteResult? lastResult;
+  bool isRunning = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'Test Suite',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              ElevatedButton.icon(
+                onPressed: isRunning ? null : _addTestCase,
+                icon: const Icon(Icons.add),
+                label: const Text('Add Test'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: isRunning ? null : _runTests,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Run All'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (lastResult != null) _buildTestResults(),
+          const SizedBox(height: 16),
+          Expanded(
+            child: testCases.isEmpty
+                ? _buildEmptyState()
+                : _buildTestList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTestResults() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: lastResult!.failed == 0 ? Colors.green.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: lastResult!.failed == 0 ? Colors.green : Colors.red,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            lastResult!.failed == 0 ? Icons.check_circle : Icons.error,
+            color: lastResult!.failed == 0 ? Colors.green : Colors.red,
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${lastResult!.passed}/${lastResult!.totalTests} tests passed',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                'Duration: ${lastResult!.duration.inMilliseconds}ms',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            '${lastResult!.passRate.toStringAsFixed(1)}%',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.science, size: 64, color: Colors.white.withValues(alpha: 0.3)),
+          const SizedBox(height: 16),
+          Text(
+            'No tests yet',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: _addTestCase,
+            child: const Text('Create your first test'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTestList() {
+    return ListView.builder(
+      itemCount: testCases.length,
+      itemBuilder: (context, index) {
+        final testCase = testCases[index];
+        final result = lastResult?.results.firstWhere(
+          (r) => r.testCase.id == testCase.id,
+          orElse: () => lastResult!.results.first,
+        );
+
+        return Card(
+          color: const Color(0xFF2D2D2D),
+          child: ListTile(
+            leading: result != null
+                ? Icon(
+                    result.passed ? Icons.check_circle : Icons.error,
+                    color: result.passed ? Colors.green : Colors.red,
+                  )
+                : const Icon(Icons.circle_outlined, color: Colors.white54),
+            title: Text(testCase.name, style: const TextStyle(color: Colors.white)),
+            subtitle: Text(
+              testCase.description,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.play_arrow, color: Colors.blue),
+                  onPressed: () => _runSingleTest(testCase),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => _deleteTest(testCase),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _addTestCase() {
+    final testCase = TestCase(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: 'Test ${testCases.length + 1}',
+      description: 'Test description',
+      input: {'test': 'data'},
+      assertions: [
+        Assertion(
+          id: '1',
+          path: 'output.result',
+          type: AssertionType.notNull,
+        ),
+      ],
+    );
+
+    setState(() {
+      testCases.add(testCase);
+    });
+  }
+
+  Future<void> _runTests() async {
+    setState(() {
+      isRunning = true;
+    });
+
+    final tester = WorkflowTester(
+      workflow: widget.workflow,
+      testCases: testCases,
+    );
+
+    final result = await tester.runAllTests();
+
+    setState(() {
+      lastResult = result;
+      isRunning = false;
+    });
+  }
+
+  Future<void> _runSingleTest(TestCase testCase) async {
+    setState(() {
+      isRunning = true;
+    });
+
+    final tester = WorkflowTester(
+      workflow: widget.workflow,
+      testCases: [testCase],
+    );
+
+    final result = await tester.runTest(testCase);
+
+    setState(() {
+      isRunning = false;
+    });
+
+    // Show result dialog
+  }
+
+  void _deleteTest(TestCase testCase) {
+    setState(() {
+      testCases.removeWhere((t) => t.id == testCase.id);
+    });
+  }
+}
+
+// ==================== MOCK DATA GENERATOR ====================
+
+class MockDataGenerator {
+  static Map<String, dynamic> generateMockData(String nodeType) {
+    switch (nodeType) {
+      case 'webhook':
+        return {
+          'method': 'POST',
+          'path': '/webhook',
+          'body': {'event': 'test', 'data': 'mock data'},
+          'headers': {'Content-Type': 'application/json'},
+        };
+      case 'llm':
+        return {
+          'prompt': 'This is a test prompt',
+          'response': 'This is a mock AI response',
+          'tokens': 50,
+        };
+      case 'api':
+        return {
+          'statusCode': 200,
+          'data': {'success': true, 'message': 'Mock API response'},
+        };
+      default:
+        return {'mock': true, 'type': nodeType};
+    }
+  }
+
+  static Map<String, dynamic> generateRandomData(PortType portType) {
+    switch (portType) {
+      case PortType.string:
+        return {'value': 'random_string_${DateTime.now().millisecondsSinceEpoch}'};
+      case PortType.number:
+        return {'value': (DateTime.now().millisecondsSinceEpoch % 1000).toDouble()};
+      case PortType.boolean:
+        return {'value': DateTime.now().millisecondsSinceEpoch % 2 == 0};
+      case PortType.array:
+        return {'value': [1, 2, 3, 'test']};
+      case PortType.object:
+        return {'value': {'key1': 'value1', 'key2': 42}};
+      default:
+        return {'value': 'any type data'};
+    }
+  }
+}
+
+// Required stub classes
+enum PortType { string, number, boolean, object, array, any }
+class WorkflowData {
+  final String id;
+  final List<NodeData> nodes;
+  final List<ConnectionData> connections;
+  WorkflowData({required this.id, required this.nodes, required this.connections});
+}
+class NodeData {
+  final String id;
+  final String type;
+  final String label;
+  final Map<String, dynamic> config;
+  NodeData({required this.id, required this.type, required this.label, required this.config});
+}
+class ConnectionData {
+  final String sourceNodeId;
+  final String targetNodeId;
+  final String sourcePortId;
+  final String targetPortId;
+  ConnectionData({required this.sourceNodeId, required this.targetNodeId, required this.sourcePortId, required this.targetPortId});
+}
+class WorkflowExecutor {
+  final WorkflowData workflow;
+  final Map<String, dynamic> initialContext;
+  WorkflowExecutor({required this.workflow, this.initialContext = const {}});
+  Future<ExecutionResult> execute() async {
+    await Future.delayed(const Duration(seconds: 1));
+    return ExecutionResult(
+      executionId: '1',
+      workflowId: workflow.id,
+      status: ExecutionStatus.success,
+      startTime: DateTime.now(),
+      input: initialContext,
+      output: {'result': 'success'},
+      nodeResults: [],
+    );
+  }
+}
+class ExecutionResult {
+  final String executionId;
+  final String workflowId;
+  final ExecutionStatus status;
+  final DateTime startTime;
+  final DateTime? endTime;
+  final Map<String, dynamic> input;
+  final Map<String, dynamic> output;
+  final List<NodeExecutionResult> nodeResults;
+  ExecutionResult({required this.executionId, required this.workflowId, required this.status, required this.startTime, this.endTime, required this.input, required this.output, required this.nodeResults});
+  Duration? get duration => endTime != null ? endTime!.difference(startTime) : null;
+}
+class NodeExecutionResult {
+  final String nodeId;
+  final Map<String, dynamic> output;
+  NodeExecutionResult({required this.nodeId, required this.output});
+}
+
+class ExecutionContext {
+  final Map<String, dynamic> variables;
+  ExecutionContext({required this.variables});
+}

@@ -1,0 +1,39 @@
+import 'certificate_signing_request_spec.dart';
+import 'certificate_signing_request_status.dart';
+import 'object_meta.dart';
+
+class CertificateSigningRequest {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final CertificateSigningRequestSpec spec;
+  final CertificateSigningRequestStatus? status;
+  CertificateSigningRequest({
+    this.apiVersion = 'certificates.k8s.io/v1',
+    this.kind = 'CertificateSigningRequest',
+    required this.metadata,
+    required this.spec,
+    this.status,
+  });
+  factory CertificateSigningRequest.fromJson(Map<String, dynamic> json) {
+    return CertificateSigningRequest(
+      apiVersion: json['apiVersion'] ?? 'certificates.k8s.io/v1',
+      kind: json['kind'] ?? 'CertificateSigningRequest',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      spec: CertificateSigningRequestSpec.fromJson(json['spec']),
+      status:
+          json['status'] != null
+              ? CertificateSigningRequestStatus.fromJson(json['status'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      'spec': spec.toJson(),
+      if (status != null) 'status': status!.toJson(),
+    };
+  }
+}

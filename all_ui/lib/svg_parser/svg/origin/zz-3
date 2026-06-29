@@ -1,0 +1,1358 @@
+import 'package:flutter/material.dart';
+import 'package:xml/xml.dart';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
+// Main parser class with comprehensive SVG support
+class SvgParser {
+  static SvgData parse(String svgCode) {
+    final document = XmlDocument.parse(svgCode);
+    final svgElement = document.findElements('svg').first;
+    
+    double? width = _parseDouble(svgElement.getAttribute('width'));
+    double? height = _parseDouble(svgElement.getAttribute('height'));
+    
+    // Parse viewBox if width/height not specified
+    final viewBox = _parseViewBox(svgElement.getAttribute('viewBox'));
+    if (width == null || height == null) {
+      width = viewBox?[2] ?? 100;
+      height = viewBox?[3] ?? 100;
+    }
+    
+    final elements = <SvgElement>[];
+    final defs = <String, XmlElement>{};
+    
+    // Parse defs first
+    for (var defsElement in svgElement.findElements('defs')) {
+      _parseDefs(defsElement, defs);
+    }
+    
+    _parseElements(svgElement, elements, SvgStyle(), defs);
+    
+    return SvgData(
+      width: width,
+      height: height,
+      viewBox: viewBox,
+      elements: elements,
+    );
+  }
+  
+  static void _parseDefs(XmlElement defsElement, Map<String, XmlElement> defs) {
+    for (var child in defsElement.children.whereType<XmlElement>()) {
+      final id = child.getAttribute('id');
+      if (id != null) {
+        defs[id] = child;
+      }
+    }
+  }
+  
+  static List<double>? _parseViewBox(String? viewBox) {
+    if (viewBox == null) return null;
+    final values = viewBox.trim().split(RegExp(r'[\s,]+'));
+    if (values.length != 4) return null;
+    return values.map((v) => double.tryParse(v) ?? 0).toList();
+  }
+  
+  static void _parseElements(
+    XmlElement parent,
+    List<SvgElement> elements,
+    SvgStyle inheritedStyle,
+    Map<String, XmlElement> defs,
+  ) {
+    for (var node in parent.children) {
+      if (node is XmlElement) {
+        final style = _mergeStyles(inheritedStyle, node);
+        
+        switch (node.name.local) {
+          case 'path':
+            elements.add(_parsePath(node, style));
+            break;
+          case 'rect':
+            elements.add(_parseRect(node, style));
+            break;
+          case 'circle':
+            elements.add(_parseCircle(node, style));
+            break;
+          case 'ellipse':
+            elements.add(_parseEllipse(node, style));
+            break;
+          case 'line':
+            elements.add(_parseLine(node, style));
+            break;
+          case 'polyline':
+            elements.add(_parsePolyline(node, style));
+            break;
+          case 'polygon':
+            elements.add(_parsePolygon(node, style));
+            break;
+          case 'text':
+            elements.add(_parseText(node, style));
+            break;
+          case 'g':
+            final transform = _parseTransform(node.getAttribute('transform'));
+            final group = SvgGroup(transform: transform, style: style);
+            _parseElements(node, group.children, style, defs);
+            elements.add(group);
+            break;
+          case 'use':
+            final href = node.getAttribute('href') ?? node.getAttribute('xlink:href');
+            if (href != null && href.startsWith('#')) {
+              final refId = href.substring(1);
+              if (defs.containsKey(refId)) {
+                _parseElements(defs[refId]!, elements, style, defs);
+              }
+            }
+            break;
+          case 'defs':
+          case 'style':
+            // Skip, already processed
+            break;
+          default:
+            // Try to parse unknown elements recursively
+            _parseElements(node, elements, style, defs);
+        }
+      }
+    }
+  }
+  
+  static SvgStyle _mergeStyles(SvgStyle inherited, XmlElement element) {
+    final style = SvgStyle.from(inherited);
+    
+    // Parse style attribute
+    final styleAttr = element.getAttribute('style');
+    if (styleAttr != null) {
+      _parseStyleAttribute(styleAttr, style);
+    }
+    
+    // Override with individual attributes
+    final fill = element.getAttribute('fill');
+    if (fill != null) style.fill = _parsePaint(fill);
+    
+    final stroke = element.getAttribute('stroke');
+    if (stroke != null) style.stroke = _parsePaint(stroke);
+    
+    final strokeWidth = element.getAttribute('stroke-width');
+    if (strokeWidth != null) style.strokeWidth = _parseDouble(strokeWidth);
+    
+    final opacity = element.getAttribute('opacity');
+    if (opacity != null) style.opacity = _parseDouble(opacity);
+    
+    final fillOpacity = element.getAttribute('fill-opacity');
+    if (fillOpacity != null) style.fillOpacity = _parseDouble(fillOpacity);
+    
+    final strokeOpacity = element.getAttribute('stroke-opacity');
+    if (strokeOpacity != null) style.strokeOpacity = _parseDouble(strokeOpacity);
+    
+    final strokeLinecap = element.getAttribute('stroke-linecap');
+    if (strokeLinecap != null) style.strokeLinecap = _parseLineCap(strokeLinecap);
+    
+    final strokeLinejoin = element.getAttribute('stroke-linejoin');
+    if (strokeLinejoin != null) style.strokeLinejoin = _parseLineJoin(strokeLinejoin);
+    
+    final strokeMiterlimit = element.getAttribute('stroke-miterlimit');
+    if (strokeMiterlimit != null) style.strokeMiterlimit = _parseDouble(strokeMiterlimit);
+    
+    final strokeDasharray = element.getAttribute('stroke-dasharray');
+    if (strokeDasharray != null && strokeDasharray != 'none') {
+      style.strokeDasharray = _parseDashArray(strokeDasharray);
+    }
+    
+    final fillRule = element.getAttribute('fill-rule');
+    if (fillRule != null) style.fillRule = _parseFillRule(fillRule);
+    
+    return style;
+  }
+  
+  static void _parseStyleAttribute(String styleAttr, SvgStyle style) {
+    final declarations = styleAttr.split(';');
+    for (var decl in declarations) {
+      final parts = decl.split(':');
+      if (parts.length != 2) continue;
+      
+      final property = parts[0].trim();
+      final value = parts[1].trim();
+      
+      switch (property) {
+        case 'fill':
+          style.fill = _parsePaint(value);
+          break;
+        case 'stroke':
+          style.stroke = _parsePaint(value);
+          break;
+        case 'stroke-width':
+          style.strokeWidth = _parseDouble(value);
+          break;
+        case 'opacity':
+          style.opacity = _parseDouble(value);
+          break;
+        case 'fill-opacity':
+          style.fillOpacity = _parseDouble(value);
+          break;
+        case 'stroke-opacity':
+          style.strokeOpacity = _parseDouble(value);
+          break;
+        case 'stroke-linecap':
+          style.strokeLinecap = _parseLineCap(value);
+          break;
+        case 'stroke-linejoin':
+          style.strokeLinejoin = _parseLineJoin(value);
+          break;
+        case 'stroke-dasharray':
+          if (value != 'none') style.strokeDasharray = _parseDashArray(value);
+          break;
+        case 'fill-rule':
+          style.fillRule = _parseFillRule(value);
+          break;
+      }
+    }
+  }
+  
+  static Matrix4? _parseTransform(String? transform) {
+    if (transform == null || transform.isEmpty) return null;
+    
+    final matrix = Matrix4.identity();
+    final regex = RegExp(r'(\w+)\s*\(([^)]+)\)');
+    final matches = regex.allMatches(transform);
+    
+    for (var match in matches) {
+      final type = match.group(1);
+      final values = match.group(2)!.split(RegExp(r'[\s,]+'))
+          .map((v) => double.tryParse(v) ?? 0).toList();
+      
+      switch (type) {
+        case 'translate':
+          final tx = values[0];
+          final ty = values.length > 1 ? values[1] : 0.0;
+          matrix.translate(tx, ty);
+          break;
+        case 'scale':
+          final sx = values[0];
+          final sy = values.length > 1 ? values[1] : sx;
+          matrix.scale(sx, sy);
+          break;
+        case 'rotate':
+          final angle = values[0] * math.pi / 180;
+          if (values.length > 2) {
+            final cx = values[1];
+            final cy = values[2];
+            matrix.translate(cx, cy);
+            matrix.rotateZ(angle);
+            matrix.translate(-cx, -cy);
+          } else {
+            matrix.rotateZ(angle);
+          }
+          break;
+        case 'skewX':
+          final angle = values[0] * math.pi / 180;
+          matrix.multiply(Matrix4(
+            1, math.tan(angle), 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1,
+          ));
+          break;
+        case 'skewY':
+          final angle = values[0] * math.pi / 180;
+          matrix.multiply(Matrix4(
+            1, 0, 0, 0,
+            math.tan(angle), 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1,
+          ));
+          break;
+        case 'matrix':
+          if (values.length == 6) {
+            matrix.multiply(Matrix4(
+              values[0], values[2], 0, values[4],
+              values[1], values[3], 0, values[5],
+              0, 0, 1, 0,
+              0, 0, 0, 1,
+            ));
+          }
+          break;
+      }
+    }
+    
+    return matrix;
+  }
+  
+  static SvgPath _parsePath(XmlElement element, SvgStyle style) {
+    return SvgPath(
+      d: element.getAttribute('d') ?? '',
+      style: style,
+      transform: _parseTransform(element.getAttribute('transform')),
+    );
+  }
+  
+  static SvgRect _parseRect(XmlElement element, SvgStyle style) {
+    return SvgRect(
+      x: _parseDouble(element.getAttribute('x')) ?? 0,
+      y: _parseDouble(element.getAttribute('y')) ?? 0,
+      width: _parseDouble(element.getAttribute('width')) ?? 0,
+      height: _parseDouble(element.getAttribute('height')) ?? 0,
+      rx: _parseDouble(element.getAttribute('rx')) ?? 0,
+      ry: _parseDouble(element.getAttribute('ry')) ?? 0,
+      style: style,
+      transform: _parseTransform(element.getAttribute('transform')),
+    );
+  }
+  
+  static SvgCircle _parseCircle(XmlElement element, SvgStyle style) {
+    return SvgCircle(
+      cx: _parseDouble(element.getAttribute('cx')) ?? 0,
+      cy: _parseDouble(element.getAttribute('cy')) ?? 0,
+      r: _parseDouble(element.getAttribute('r')) ?? 0,
+      style: style,
+      transform: _parseTransform(element.getAttribute('transform')),
+    );
+  }
+  
+  static SvgEllipse _parseEllipse(XmlElement element, SvgStyle style) {
+    return SvgEllipse(
+      cx: _parseDouble(element.getAttribute('cx')) ?? 0,
+      cy: _parseDouble(element.getAttribute('cy')) ?? 0,
+      rx: _parseDouble(element.getAttribute('rx')) ?? 0,
+      ry: _parseDouble(element.getAttribute('ry')) ?? 0,
+      style: style,
+      transform: _parseTransform(element.getAttribute('transform')),
+    );
+  }
+  
+  static SvgLine _parseLine(XmlElement element, SvgStyle style) {
+    return SvgLine(
+      x1: _parseDouble(element.getAttribute('x1')) ?? 0,
+      y1: _parseDouble(element.getAttribute('y1')) ?? 0,
+      x2: _parseDouble(element.getAttribute('x2')) ?? 0,
+      y2: _parseDouble(element.getAttribute('y2')) ?? 0,
+      style: style,
+      transform: _parseTransform(element.getAttribute('transform')),
+    );
+  }
+  
+  static SvgPolyline _parsePolyline(XmlElement element, SvgStyle style) {
+    return SvgPolyline(
+      points: _parsePoints(element.getAttribute('points') ?? ''),
+      style: style,
+      transform: _parseTransform(element.getAttribute('transform')),
+    );
+  }
+  
+  static SvgPolygon _parsePolygon(XmlElement element, SvgStyle style) {
+    return SvgPolygon(
+      points: _parsePoints(element.getAttribute('points') ?? ''),
+      style: style,
+      transform: _parseTransform(element.getAttribute('transform')),
+    );
+  }
+  
+  static SvgText _parseText(XmlElement element, SvgStyle style) {
+    return SvgText(
+      x: _parseDouble(element.getAttribute('x')) ?? 0,
+      y: _parseDouble(element.getAttribute('y')) ?? 0,
+      text: element.text.trim(),
+      fontSize: _parseDouble(element.getAttribute('font-size')) ?? 16,
+      fontFamily: element.getAttribute('font-family') ?? 'sans-serif',
+      fontWeight: element.getAttribute('font-weight'),
+      textAnchor: element.getAttribute('text-anchor'),
+      style: style,
+      transform: _parseTransform(element.getAttribute('transform')),
+    );
+  }
+  
+  static List<Offset> _parsePoints(String pointsStr) {
+    final points = <Offset>[];
+    final coords = pointsStr.trim().split(RegExp(r'[\s,]+'));
+    
+    for (var i = 0; i < coords.length - 1; i += 2) {
+      final x = double.tryParse(coords[i]) ?? 0;
+      final y = double.tryParse(coords[i + 1]) ?? 0;
+      points.add(Offset(x, y));
+    }
+    
+    return points;
+  }
+  
+  static SvgPaint? _parsePaint(String? paintStr) {
+    if (paintStr == null || paintStr.isEmpty || paintStr == 'none') {
+      return SvgPaint.none();
+    }
+    
+    // Check for url reference (gradient, pattern, etc.)
+    if (paintStr.startsWith('url(')) {
+      final match = RegExp(r'url\(#([^)]+)\)').firstMatch(paintStr);
+      if (match != null) {
+        return SvgPaint.reference(match.group(1)!);
+      }
+    }
+    
+    final color = _parseColor(paintStr);
+    return color != null ? SvgPaint.color(color) : null;
+  }
+  
+  static Color? _parseColor(String? colorStr) {
+    if (colorStr == null || colorStr.isEmpty || colorStr == 'none') return null;
+    
+    colorStr = colorStr.trim().toLowerCase();
+    
+    // RGB/RGBA
+    if (colorStr.startsWith('rgb')) {
+      final match = RegExp(r'rgba?\(([^)]+)\)').firstMatch(colorStr);
+      if (match != null) {
+        final values = match.group(1)!.split(',').map((v) => v.trim()).toList();
+        final r = int.tryParse(values[0]) ?? 0;
+        final g = int.tryParse(values[1]) ?? 0;
+        final b = int.tryParse(values[2]) ?? 0;
+        final a = values.length > 3 ? (double.tryParse(values[3]) ?? 1.0) : 1.0;
+        return Color.fromRGBO(r, g, b, a);
+      }
+    }
+    
+    // Hex colors
+    if (colorStr.startsWith('#')) {
+      colorStr = colorStr.substring(1);
+      if (colorStr.length == 3) {
+        colorStr = colorStr.split('').map((c) => c + c).join();
+      }
+      if (colorStr.length == 6) {
+        return Color(int.parse('FF$colorStr', radix: 16));
+      }
+      if (colorStr.length == 8) {
+        return Color(int.parse(colorStr, radix: 16));
+      }
+    }
+    
+    // Named colors (extended list)
+    return _namedColors[colorStr];
+  }
+  
+  static final Map<String, Color> _namedColors = {
+    'black': Color(0xFF000000),
+    'white': Color(0xFFFFFFFF),
+    'red': Color(0xFFFF0000),
+    'green': Color(0xFF008000),
+    'blue': Color(0xFF0000FF),
+    'yellow': Color(0xFFFFFF00),
+    'cyan': Color(0xFF00FFFF),
+    'magenta': Color(0xFFFF00FF),
+    'gray': Color(0xFF808080),
+    'grey': Color(0xFF808080),
+    'orange': Color(0xFFFFA500),
+    'purple': Color(0xFF800080),
+    'brown': Color(0xFFA52A2A),
+    'pink': Color(0xFFFFC0CB),
+    'lime': Color(0xFF00FF00),
+    'navy': Color(0xFF000080),
+    'teal': Color(0xFF008080),
+    'olive': Color(0xFF808000),
+    'maroon': Color(0xFF800000),
+    'silver': Color(0xFFC0C0C0),
+    'transparent': Color(0x00000000),
+  };
+  
+  static StrokeCap _parseLineCap(String? value) {
+    switch (value?.toLowerCase()) {
+      case 'round': return StrokeCap.round;
+      case 'square': return StrokeCap.square;
+      default: return StrokeCap.butt;
+    }
+  }
+  
+  static StrokeJoin _parseLineJoin(String? value) {
+    switch (value?.toLowerCase()) {
+      case 'round': return StrokeJoin.round;
+      case 'bevel': return StrokeJoin.bevel;
+      default: return StrokeJoin.miter;
+    }
+  }
+  
+  static PathFillType _parseFillRule(String? value) {
+    return value?.toLowerCase() == 'evenodd' 
+        ? PathFillType.evenOdd 
+        : PathFillType.nonZero;
+  }
+  
+  static List<double>? _parseDashArray(String value) {
+    final values = value.split(RegExp(r'[\s,]+'));
+    return values.map((v) => double.tryParse(v) ?? 0).toList();
+  }
+  
+  static double? _parseDouble(String? value) {
+    if (value == null || value.isEmpty) return null;
+    return double.tryParse(value.replaceAll(RegExp(r'[a-zA-Z%]'), ''));
+  }
+}
+
+// Style class
+class SvgStyle {
+  SvgPaint? fill;
+  SvgPaint? stroke;
+  double? strokeWidth;
+  double? opacity;
+  double? fillOpacity;
+  double? strokeOpacity;
+  StrokeCap? strokeLinecap;
+  StrokeJoin? strokeLinejoin;
+  double? strokeMiterlimit;
+  List<double>? strokeDasharray;
+  PathFillType? fillRule;
+  
+  SvgStyle({
+    this.fill,
+    this.stroke,
+    this.strokeWidth = 1.0,
+    this.opacity = 1.0,
+    this.fillOpacity = 1.0,
+    this.strokeOpacity = 1.0,
+    this.strokeLinecap = StrokeCap.butt,
+    this.strokeLinejoin = StrokeJoin.miter,
+    this.strokeMiterlimit = 4.0,
+    this.strokeDasharray,
+    this.fillRule = PathFillType.nonZero,
+  }) {
+    fill ??= SvgPaint.color(Colors.black);
+  }
+  
+  SvgStyle.from(SvgStyle other)
+      : fill = other.fill,
+        stroke = other.stroke,
+        strokeWidth = other.strokeWidth,
+        opacity = other.opacity,
+        fillOpacity = other.fillOpacity,
+        strokeOpacity = other.strokeOpacity,
+        strokeLinecap = other.strokeLinecap,
+        strokeLinejoin = other.strokeLinejoin,
+        strokeMiterlimit = other.strokeMiterlimit,
+        strokeDasharray = other.strokeDasharray,
+        fillRule = other.fillRule;
+  
+  Paint createFillPaint() {
+    final paint = Paint()
+      ..style = PaintingStyle.fill;
+    
+    if (fill?.color != null) {
+      final totalOpacity = (opacity ?? 1.0) * (fillOpacity ?? 1.0);
+      paint.color = fill!.color!.withOpacity(
+        fill!.color!.opacity * totalOpacity,
+      );
+    }
+    
+    return paint;
+  }
+  
+  Paint createStrokePaint() {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth ?? 1.0
+      ..strokeCap = strokeLinecap ?? StrokeCap.butt
+      ..strokeJoin = strokeLinejoin ?? StrokeJoin.miter
+      ..strokeMiterLimit = strokeMiterlimit ?? 4.0;
+    
+    if (stroke?.color != null) {
+      final totalOpacity = (opacity ?? 1.0) * (strokeOpacity ?? 1.0);
+      paint.color = stroke!.color!.withOpacity(
+        stroke!.color!.opacity * totalOpacity,
+      );
+    }
+    
+    return paint;
+  }
+}
+
+// Paint representation
+class SvgPaint {
+  final Color? color;
+  final String? reference;
+  final bool isNone;
+  
+  SvgPaint.color(this.color) : reference = null, isNone = false;
+  SvgPaint.reference(this.reference) : color = null, isNone = false;
+  SvgPaint.none() : color = null, reference = null, isNone = true;
+}
+
+// Data models
+class SvgData {
+  final double width;
+  final double height;
+  final List<double>? viewBox;
+  final List<SvgElement> elements;
+  
+  SvgData({
+    required this.width,
+    required this.height,
+    this.viewBox,
+    required this.elements,
+  });
+}
+
+abstract class SvgElement {
+  final SvgStyle style;
+  final Matrix4? transform;
+  
+  SvgElement({required this.style, this.transform});
+  
+  void paint(Canvas canvas, Size size);
+  
+  void applyTransform(Canvas canvas) {
+    if (transform != null) {
+      canvas.save();
+      canvas.transform(transform!.storage);
+    }
+  }
+  
+  void restoreTransform(Canvas canvas) {
+    if (transform != null) {
+      canvas.restore();
+    }
+  }
+}
+
+class SvgGroup extends SvgElement {
+  final List<SvgElement> children = [];
+  
+  SvgGroup({required super.style, super.transform});
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    applyTransform(canvas);
+    for (var child in children) {
+      child.paint(canvas, size);
+    }
+    restoreTransform(canvas);
+  }
+}
+
+class SvgPath extends SvgElement {
+  final String d;
+  
+  SvgPath({required this.d, required super.style, super.transform});
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    applyTransform(canvas);
+    final path = _parsePath(d);
+    path.fillType = style.fillRule ?? PathFillType.nonZero;
+    
+    if (style.fill?.color != null && !style.fill!.isNone) {
+      canvas.drawPath(path, style.createFillPaint());
+    }
+    
+    if (style.stroke?.color != null && !style.stroke!.isNone) {
+      canvas.drawPath(path, style.createStrokePaint());
+    }
+    restoreTransform(canvas);
+  }
+  
+  Path _parsePath(String d) {
+    final path = Path();
+    final commands = _tokenizePath(d);
+    
+    double currentX = 0, currentY = 0;
+    double startX = 0, startY = 0;
+    double lastControlX = 0, lastControlY = 0;
+    String? lastCommand;
+    
+    for (var i = 0; i < commands.length; i++) {
+      var cmd = commands[i];
+      
+      // Handle implicit commands
+      if (RegExp(r'^-?\d').hasMatch(cmd)) {
+        if (lastCommand == 'M') cmd = 'L';
+        else if (lastCommand == 'm') cmd = 'l';
+        else if (lastCommand != null) cmd = lastCommand;
+        i--; // Re-process this token
+      }
+      
+      switch (cmd) {
+        case 'M':
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          startX = currentX;
+          startY = currentY;
+          path.moveTo(currentX, currentY);
+          lastCommand = 'M';
+          break;
+          
+        case 'm':
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          startX = currentX;
+          startY = currentY;
+          path.moveTo(currentX, currentY);
+          lastCommand = 'm';
+          break;
+          
+        case 'L':
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          lastCommand = 'L';
+          break;
+          
+        case 'l':
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          lastCommand = 'l';
+          break;
+          
+        case 'H':
+          currentX = double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          lastCommand = 'H';
+          break;
+          
+        case 'h':
+          currentX += double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          lastCommand = 'h';
+          break;
+          
+        case 'V':
+          currentY = double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          lastCommand = 'V';
+          break;
+          
+        case 'v':
+          currentY += double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          lastCommand = 'v';
+          break;
+          
+        case 'C':
+          final x1 = double.parse(commands[++i]);
+          final y1 = double.parse(commands[++i]);
+          final x2 = double.parse(commands[++i]);
+          final y2 = double.parse(commands[++i]);
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          path.cubicTo(x1, y1, x2, y2, currentX, currentY);
+          lastControlX = x2;
+          lastControlY = y2;
+          lastCommand = 'C';
+          break;
+          
+        case 'c':
+          final x1 = currentX + double.parse(commands[++i]);
+          final y1 = currentY + double.parse(commands[++i]);
+          final x2 = currentX + double.parse(commands[++i]);
+          final y2 = currentY + double.parse(commands[++i]);
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          path.cubicTo(x1, y1, x2, y2, currentX, currentY);
+          lastControlX = x2;
+          lastControlY = y2;
+          lastCommand = 'c';
+          break;
+          
+        case 'S':
+          final x2 = double.parse(commands[++i]);
+          final y2 = double.parse(commands[++i]);
+          final x1 = 2 * currentX - lastControlX;
+          final y1 = 2 * currentY - lastControlY;
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          path.cubicTo(x1, y1, x2, y2, currentX, currentY);
+          lastControlX = x2;
+          lastControlY = y2;
+          lastCommand = 'S';
+          break;
+          
+        case 's':
+          final x2 = currentX + double.parse(commands[++i]);
+          final y2 = currentY + double.parse(commands[++i]);
+          final x1 = 2 * currentX - lastControlX;
+          final y1 = 2 * currentY - lastControlY;
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          path.cubicTo(x1, y1, x2, y2, currentX, currentY);
+          lastControlX = x2;
+          lastControlY = y2;
+          lastCommand = 's';
+          break;
+          
+        case 'Q':
+          final x1 = double.parse(commands[++i]);
+          final y1 = double.parse(commands[++i]);
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          path.quadraticBezierTo(x1, y1, currentX, currentY);
+          lastControlX = x1;
+          lastControlY = y1;
+          lastCommand = 'Q';
+          break;
+          
+        case 'q':
+          final x1 = currentX + double.parse(commands[++i]);
+          final y1 = currentY + double.parse(commands[++i]);
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          path.quadraticBezierTo(x1, y1, currentX, currentY);
+          lastControlX = x1;
+          lastControlY = y1;
+          lastCommand = 'q';
+          break;
+          
+        case 'T':
+          final x1 = 2 * currentX - lastControlX;
+          final y1 = 2 * currentY - lastControlY;
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          path.quadraticBezierTo(x1, y1, currentX, currentY);
+          lastControlX = x1;
+          lastControlY = y1;
+          lastCommand = 'T';
+          break;
+          
+        case 't':
+          final x1 = 2 * currentX - lastControlX;
+          final y1 = 2 * currentY - lastControlY;
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          path.quadraticBezierTo(x1, y1, currentX, currentY);
+          lastControlX = x1;
+          lastControlY = y1;
+          lastCommand = 't';
+          break;
+          
+        case 'A':
+          final rx = double.parse(commands[++i]);
+          final ry = double.parse(commands[++i]);
+          final rotation = double.parse(commands[++i]);
+          final largeArc = int.parse(commands[++i]) == 1;
+          final sweep = int.parse(commands[++i]) == 1;
+          final x = double.parse(commands[++i]);
+          final y = double.parse(commands[++i]);
+          _addArc(path, currentX, currentY, rx, ry, rotation, largeArc, sweep, x, y);
+          currentX = x;
+          currentY = y;
+          lastCommand = 'A';
+          break;
+          
+        case 'a':
+          final rx = double.parse(commands[++i]);
+          final ry = double.parse(commands[++i]);
+          final rotation = double.parse(commands[++i]);
+          final largeArc = int.parse(commands[++i]) == 1;
+          final sweep = int.parse(commands[++i]) == 1;
+          final x = currentX + double.parse(commands[++i]);
+          final y = currentY + double.parse(commands[++i]);
+          _addArc(path, currentX, currentY, rx, ry, rotation, largeArc, sweep, x, y);
+          currentX = x;
+          currentY = y;
+          lastCommand = 'a';
+          break;
+          
+        case 'Z':
+        case 'z':
+          path.close();
+          currentX = startX;
+          currentY = startY;
+          lastCommand = cmd;
+          break;
+      }
+    }
+    
+    return path;
+  }
+  
+  void _addArc(Path path, double x1, double y1, double rx, double ry,
+      double rotation, bool largeArc, bool sweep, double x2, double y2) {
+    if (rx == 0 || ry == 0) {
+      path.lineTo(x2, y2);
+      return;
+    }
+    
+    rx = rx.abs();
+    ry = ry.abs();
+    
+    final phi = rotation * math.pi / 180;
+    final cosPhi = math.cos(phi);
+    final sinPhi = math.sin(phi);
+    
+    // Step 1: Transform to unit circle
+    final dx = (x1 - x2) / 2;
+    final dy = (y1 - y2) / 2;
+    final x1p = cosPhi * dx + sinPhi * dy;
+    final y1p = -sinPhi * dx + cosPhi * dy;
+    
+    // Step 2: Correct radii
+    final lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
+    if (lambda > 1) {
+      rx *= math.sqrt(lambda);
+      ry *= math.sqrt(lambda);
+    }
+    
+    // Step 3: Find center
+    final sq = math.max(0.0, (rx * rx * ry * ry - rx * rx * y1p * y1p - ry * ry * x1p * x1p) /
+        (rx * rx * y1p * y1p + ry * ry * x1p * x1p));
+    final sign = largeArc != sweep ? 1 : -1;
+    final coef = sign * math.sqrt(sq);
+    final cxp = coef * rx * y1p / ry;
+    final cyp = -coef * ry * x1p / rx;
+    
+    final cx = cosPhi * cxp - sinPhi * cyp + (x1 + x2) / 2;
+    final cy = sinPhi * cxp + cosPhi * cyp + (y1 + y2) / 2;
+    
+    // Step 4: Calculate angles
+    double angle(double ux, double uy, double vx, double vy) {
+      final dot = ux * vx + uy * vy;
+      final mod = math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
+      var rad = math.acos(dot / mod);
+      if (ux * vy - uy * vx < 0) rad = -rad;
+      return rad;
+    }
+    
+    final theta1 = angle(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry);
+    var dTheta = angle((x1p - cxp) / rx, (y1p - cyp) / ry, (-x1p - cxp) / rx, (-y1p - cyp) / ry);
+    
+    if (sweep && dTheta < 0) {
+      dTheta += 2 * math.pi;
+    } else if (!sweep && dTheta > 0) {
+      dTheta -= 2 * math.pi;
+    }
+    
+    // Draw arc using bezier curves
+    final segments = (dTheta.abs() / (math.pi / 2)).ceil();
+    final delta = dTheta / segments;
+    
+    for (var i = 0; i < segments; i++) {
+      final theta = theta1 + delta * i;
+      final thetaNext = theta + delta;
+      
+      final alpha = math.sin(delta) * (math.sqrt(4 + 3 * math.tan(delta / 2) * math.tan(delta / 2)) - 1) / 3;
+      
+      final cos1 = math.cos(theta);
+      final sin1 = math.sin(theta);
+      final cos2 = math.cos(thetaNext);
+      final sin2 = math.sin(thetaNext);
+      
+      final q1x = cos1 - sin1 * alpha;
+      final q1y = sin1 + cos1 * alpha;
+      final q2x = cos2 + sin2 * alpha;
+      final q2y = sin2 - cos2 * alpha;
+      
+      final cp1x = cosPhi * rx * q1x - sinPhi * ry * q1y + cx;
+      final cp1y = sinPhi * rx * q1x + cosPhi * ry * q1y + cy;
+      final cp2x = cosPhi * rx * q2x - sinPhi * ry * q2y + cx;
+      final cp2y = sinPhi * rx * q2x + cosPhi * ry * q2y + cy;
+      final ex = cosPhi * rx * cos2 - sinPhi * ry * sin2 + cx;
+      final ey = sinPhi * rx * cos2 + cosPhi * ry * sin2 + cy;
+      
+      path.cubicTo(cp1x, cp1y, cp2x, cp2y, ex, ey);
+    }
+  }
+  
+  List<String> _tokenizePath(String d) {
+    final tokens = <String>[];
+    final buffer = StringBuffer();
+    
+    for (var i = 0; i < d.length; i++) {
+      final char = d[i];
+      
+      if (RegExp(r'[MmLlHhVvCcSsQqTtAaZz]').hasMatch(char)) {
+        if (buffer.isNotEmpty) {
+          tokens.add(buffer.toString().trim());
+          buffer.clear();
+        }
+        tokens.add(char);
+      } else if (char == ',' || char == ' ' || char == '\n' || char == '\r' || char == '\t') {
+        if (buffer.isNotEmpty) {
+          tokens.add(buffer.toString().trim());
+          buffer.clear();
+        }
+      } else if (char == '-' && buffer.isNotEmpty && !buffer.toString().endsWith('e')) {
+        tokens.add(buffer.toString().trim());
+        buffer.clear();
+        buffer.write(char);
+      } else {
+        buffer.write(char);
+      }
+    }
+    
+    if (buffer.isNotEmpty) {
+      tokens.add(buffer.toString().trim());
+    }
+    
+    return tokens.where((t) => t.isNotEmpty).toList();
+  }
+}
+
+class SvgRect extends SvgElement {
+  final double x, y, width, height, rx, ry;
+  
+  SvgRect({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+    required this.rx,
+    required this.ry,
+    required super.style,
+    super.transform,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    applyTransform(canvas);
+    final rect = Rect.fromLTWH(x, y, width, height);
+    
+    if (rx > 0 || ry > 0) {
+      final rRect = RRect.fromRectAndRadius(rect, Radius.circular(rx > 0 ? rx : ry));
+      if (style.fill?.color != null && !style.fill!.isNone) {
+        canvas.drawRRect(rRect, style.createFillPaint());
+      }
+      if (style.stroke?.color != null && !style.stroke!.isNone) {
+        canvas.drawRRect(rRect, style.createStrokePaint());
+      }
+    } else {
+      if (style.fill?.color != null && !style.fill!.isNone) {
+        canvas.drawRect(rect, style.createFillPaint());
+      }
+      if (style.stroke?.color != null && !style.stroke!.isNone) {
+        canvas.drawRect(rect, style.createStrokePaint());
+      }
+    }
+    restoreTransform(canvas);
+  }
+}
+
+class SvgCircle extends SvgElement {
+  final double cx, cy, r;
+  
+  SvgCircle({
+    required this.cx,
+    required this.cy,
+    required this.r,
+    required super.style,
+    super.transform,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    applyTransform(canvas);
+    if (style.fill?.color != null && !style.fill!.isNone) {
+      canvas.drawCircle(Offset(cx, cy), r, style.createFillPaint());
+    }
+    if (style.stroke?.color != null && !style.stroke!.isNone) {
+      canvas.drawCircle(Offset(cx, cy), r, style.createStrokePaint());
+    }
+    restoreTransform(canvas);
+  }
+}
+
+class SvgEllipse extends SvgElement {
+  final double cx, cy, rx, ry;
+  
+  SvgEllipse({
+    required this.cx,
+    required this.cy,
+    required this.rx,
+    required this.ry,
+    required super.style,
+    super.transform,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    applyTransform(canvas);
+    final rect = Rect.fromCenter(center: Offset(cx, cy), width: rx * 2, height: ry * 2);
+    
+    if (style.fill?.color != null && !style.fill!.isNone) {
+      canvas.drawOval(rect, style.createFillPaint());
+    }
+    if (style.stroke?.color != null && !style.stroke!.isNone) {
+      canvas.drawOval(rect, style.createStrokePaint());
+    }
+    restoreTransform(canvas);
+  }
+}
+
+class SvgLine extends SvgElement {
+  final double x1, y1, x2, y2;
+  
+  SvgLine({
+    required this.x1,
+    required this.y1,
+    required this.x2,
+    required this.y2,
+    required super.style,
+    super.transform,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    applyTransform(canvas);
+    if (style.stroke?.color != null && !style.stroke!.isNone) {
+      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), style.createStrokePaint());
+    }
+    restoreTransform(canvas);
+  }
+}
+
+class SvgPolyline extends SvgElement {
+  final List<Offset> points;
+  
+  SvgPolyline({
+    required this.points,
+    required super.style,
+    super.transform,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty) return;
+    
+    applyTransform(canvas);
+    final path = Path()..moveTo(points[0].dx, points[0].dy);
+    for (var i = 1; i < points.length; i++) {
+      path.lineTo(points[i].dx, points[i].dy);
+    }
+    
+    if (style.fill?.color != null && !style.fill!.isNone) {
+      canvas.drawPath(path, style.createFillPaint());
+    }
+    if (style.stroke?.color != null && !style.stroke!.isNone) {
+      canvas.drawPath(path, style.createStrokePaint());
+    }
+    restoreTransform(canvas);
+  }
+}
+
+class SvgPolygon extends SvgElement {
+  final List<Offset> points;
+  
+  SvgPolygon({
+    required this.points,
+    required super.style,
+    super.transform,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty) return;
+    
+    applyTransform(canvas);
+    final path = Path()..moveTo(points[0].dx, points[0].dy);
+    for (var i = 1; i < points.length; i++) {
+      path.lineTo(points[i].dx, points[i].dy);
+    }
+    path.close();
+    
+    if (style.fill?.color != null && !style.fill!.isNone) {
+      canvas.drawPath(path, style.createFillPaint());
+    }
+    if (style.stroke?.color != null && !style.stroke!.isNone) {
+      canvas.drawPath(path, style.createStrokePaint());
+    }
+    restoreTransform(canvas);
+  }
+}
+
+class SvgText extends SvgElement {
+  final double x, y;
+  final String text;
+  final double fontSize;
+  final String fontFamily;
+  final String? fontWeight;
+  final String? textAnchor;
+  
+  SvgText({
+    required this.x,
+    required this.y,
+    required this.text,
+    required this.fontSize,
+    required this.fontFamily,
+    this.fontWeight,
+    this.textAnchor,
+    required super.style,
+    super.transform,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    applyTransform(canvas);
+    
+    final textStyle = TextStyle(
+      color: style.fill?.color ?? Colors.black,
+      fontSize: fontSize,
+      fontFamily: fontFamily,
+      fontWeight: fontWeight == 'bold' ? FontWeight.bold : FontWeight.normal,
+    );
+    
+    final textSpan = TextSpan(text: text, style: textStyle);
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    );
+    
+    textPainter.layout();
+    
+    double offsetX = x;
+    if (textAnchor == 'middle') {
+      offsetX -= textPainter.width / 2;
+    } else if (textAnchor == 'end') {
+      offsetX -= textPainter.width;
+    }
+    
+    textPainter.paint(canvas, Offset(offsetX, y - textPainter.height));
+    restoreTransform(canvas);
+  }
+}
+
+// CustomPainter implementation
+class SvgCustomPainter extends CustomPainter {
+  final SvgData svgData;
+  final BoxFit fit;
+  final Alignment alignment;
+  final bool clipToViewBox;
+  
+  SvgCustomPainter(
+    this.svgData, {
+    this.fit = BoxFit.contain,
+    this.alignment = Alignment.center,
+    this.clipToViewBox = true,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (svgData.elements.isEmpty) return;
+    
+    final viewBox = svgData.viewBox;
+    final srcWidth = viewBox?[2] ?? svgData.width;
+    final srcHeight = viewBox?[3] ?? svgData.height;
+    final srcX = viewBox?[0] ?? 0.0;
+    final srcY = viewBox?[1] ?? 0.0;
+    
+    // Calculate scaling and positioning
+    final srcSize = Size(srcWidth, srcHeight);
+    final dstSize = size;
+    
+    final fittedSizes = applyBoxFit(fit, srcSize, dstSize);
+    final srcRect = Rect.fromLTWH(srcX, srcY, srcWidth, srcHeight);
+    final dstRect = alignment.inscribe(fittedSizes.destination, Offset.zero & dstSize);
+    
+    canvas.save();
+    
+    // Clip to bounds if needed
+    if (clipToViewBox) {
+      canvas.clipRect(Offset.zero & size);
+    }
+    
+    // Apply transformation
+    final scaleX = dstRect.width / srcRect.width;
+    final scaleY = dstRect.height / srcRect.height;
+    
+    canvas.translate(dstRect.left, dstRect.top);
+    canvas.scale(scaleX, scaleY);
+    canvas.translate(-srcRect.left, -srcRect.top);
+    
+    // Paint all elements
+    for (var element in svgData.elements) {
+      element.paint(canvas, Size(srcWidth, srcHeight));
+    }
+    
+    canvas.restore();
+  }
+  
+  @override
+  bool shouldRepaint(SvgCustomPainter oldDelegate) {
+    return oldDelegate.svgData != svgData ||
+        oldDelegate.fit != fit ||
+        oldDelegate.alignment != alignment ||
+        oldDelegate.clipToViewBox != clipToViewBox;
+  }
+}
+
+// Usage widget with extensive customization
+class SvgPainterWidget extends StatelessWidget {
+  final String svgCode;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+  final Alignment alignment;
+  final bool clipToViewBox;
+  final Color? color;
+  
+  const SvgPainterWidget({
+    Key? key,
+    required this.svgCode,
+    this.width,
+    this.height,
+    this.fit = BoxFit.contain,
+    this.alignment = Alignment.center,
+    this.clipToViewBox = true,
+    this.color,
+  }) : super(key: key);
+  
+  @override
+  Widget build(BuildContext context) {
+    try {
+      final svgData = SvgParser.parse(svgCode);
+      
+      return CustomPaint(
+        painter: SvgCustomPainter(
+          svgData,
+          fit: fit,
+          alignment: alignment,
+          clipToViewBox: clipToViewBox,
+        ),
+        size: Size(
+          width ?? svgData.width,
+          height ?? svgData.height,
+        ),
+      );
+    } catch (e) {
+      return Container(
+        width: width ?? 100,
+        height: height ?? 100,
+        color: Colors.red.withOpacity(0.1),
+        child: Center(
+          child: Icon(Icons.error_outline, color: Colors.red),
+        ),
+      );
+    }
+  }
+}
+
+// Example usage with complex SVG:
+/*
+void main() {
+  runApp(MaterialApp(
+    home: Scaffold(
+      body: Center(
+        child: SvgPainterWidget(
+          svgCode: '''
+            <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="grad1">
+                  <stop offset="0%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
+                  <stop offset="100%" style="stop-color:rgb(255,0,0);stop-opacity:1" />
+                </linearGradient>
+              </defs>
+              
+              <g transform="translate(100, 100)">
+                <circle cx="0" cy="0" r="80" fill="blue" opacity="0.5"/>
+                <rect x="-40" y="-40" width="80" height="80" fill="red" opacity="0.5" 
+                      transform="rotate(45)"/>
+              </g>
+              
+              <path d="M 10,30 A 20,20 0,0,1 50,30 A 20,20 0,0,1 90,30 Q 90,60 50,90 
+                       Q 10,60 10,30 z" fill="pink" stroke="black" stroke-width="2"/>
+              
+              <polyline points="10,150 40,120 70,140 100,110" fill="none" 
+                        stroke="green" stroke-width="3" stroke-linecap="round"/>
+              
+              <text x="100" y="180" font-size="20" text-anchor="middle" 
+                    fill="navy">SVG Parser</text>
+            </svg>
+          ''',
+          width: 400,
+          height: 400,
+          fit: BoxFit.contain,
+        ),
+      ),
+    ),
+  ));
+}
+*/

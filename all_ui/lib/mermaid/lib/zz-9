@@ -1,0 +1,1006 @@
+// ULTIMATE REPORT BUILDER - WITH DRAG & DROP LAYOUT + PAGINATION
+// Enhanced with visual page builder, component library, and advanced UI
+
+import 'dart:async';
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+
+// ==================== LAYOUT & COMPONENT MODELS ====================
+
+/// Page layout configuration for report pages
+enum PageOrientation { portrait, landscape }
+enum PageSize { a4, a3, letter, legal, tabloid, custom }
+
+class PageLayout {
+  final String id;
+  final PageSize size;
+  final PageOrientation orientation;
+  final EdgeInsets margins;
+  final Color backgroundColor;
+  final String? backgroundImage;
+  final bool showHeader;
+  final bool showFooter;
+  final bool showPageNumbers;
+  final int columns;
+  final double columnGap;
+
+  PageLayout({
+    required this.id,
+    this.size = PageSize.a4,
+    this.orientation = PageOrientation.portrait,
+    this.margins = const EdgeInsets.all(40),
+    this.backgroundColor = Colors.white,
+    this.backgroundImage,
+    this.showHeader = true,
+    this.showFooter = true,
+    this.showPageNumbers = true,
+    this.columns = 1,
+    this.columnGap = 20,
+  });
+
+  double get width {
+    switch (size) {
+      case PageSize.a4:
+        return orientation == PageOrientation.portrait ? 595 : 842;
+      case PageSize.a3:
+        return orientation == PageOrientation.portrait ? 842 : 1191;
+      case PageSize.letter:
+        return orientation == PageOrientation.portrait ? 612 : 792;
+      case PageSize.legal:
+        return orientation == PageOrientation.portrait ? 612 : 1008;
+      case PageSize.tabloid:
+        return orientation == PageOrientation.portrait ? 792 : 1224;
+      case PageSize.custom:
+        return 800;
+    }
+  }
+
+  double get height {
+    switch (size) {
+      case PageSize.a4:
+        return orientation == PageOrientation.portrait ? 842 : 595;
+      case PageSize.a3:
+        return orientation == PageOrientation.portrait ? 1191 : 842;
+      case PageSize.letter:
+        return orientation == PageOrientation.portrait ? 792 : 612;
+      case PageSize.legal:
+        return orientation == PageOrientation.portrait ? 1008 : 612;
+      case PageSize.tabloid:
+        return orientation == PageOrientation.portrait ? 1224 : 792;
+      case PageSize.custom:
+        return 1000;
+    }
+  }
+}
+
+/// Visual component types for drag & drop
+enum ComponentType {
+  text,
+  table,
+  chart,
+  image,
+  divider,
+  spacer,
+  container,
+  header,
+  footer,
+  pageBreak,
+  qrCode,
+  barcode,
+  signature,
+  richText,
+  formula,
+  metric,
+  gauge,
+  progress,
+  timeline,
+  calendar,
+  map,
+  custom
+}
+
+/// Draggable report component
+class ReportComponent {
+  final String id;
+  final ComponentType type;
+  final String name;
+  final Offset position;
+  final Size size;
+  final int zIndex;
+  final bool locked;
+  final bool visible;
+  final double rotation;
+  final double opacity;
+  final Map<String, dynamic> properties;
+  final Map<String, dynamic> styling;
+  final String? dataBinding; // Bind to data source
+  final List<ComponentConstraint> constraints;
+
+  ReportComponent({
+    required this.id,
+    required this.type,
+    required this.name,
+    this.position = Offset.zero,
+    this.size = const Size(200, 100),
+    this.zIndex = 0,
+    this.locked = false,
+    this.visible = true,
+    this.rotation = 0,
+    this.opacity = 1.0,
+    this.properties = const {},
+    this.styling = const {},
+    this.dataBinding,
+    this.constraints = const [],
+  });
+
+  ReportComponent copyWith({
+    Offset? position,
+    Size? size,
+    int? zIndex,
+    bool? locked,
+    bool? visible,
+    Map<String, dynamic>? properties,
+  }) {
+    return ReportComponent(
+      id: id,
+      type: type,
+      name: name,
+      position: position ?? this.position,
+      size: size ?? this.size,
+      zIndex: zIndex ?? this.zIndex,
+      locked: locked ?? this.locked,
+      visible: visible ?? this.visible,
+      rotation: rotation,
+      opacity: opacity,
+      properties: properties ?? this.properties,
+      styling: styling,
+      dataBinding: dataBinding,
+      constraints: constraints,
+    );
+  }
+}
+
+/// Component positioning constraints
+enum ComponentConstraint {
+  topAlign,
+  bottomAlign,
+  leftAlign,
+  rightAlign,
+  centerHorizontal,
+  centerVertical,
+  matchParentWidth,
+  matchParentHeight,
+  aspectRatio
+}
+
+/// Report page with components
+class ReportPage {
+  final String id;
+  final String name;
+  final int pageNumber;
+  final PageLayout layout;
+  final List<ReportComponent> components;
+  final ReportComponent? header;
+  final ReportComponent? footer;
+  final bool isTemplate;
+
+  ReportPage({
+    required this.id,
+    required this.name,
+    required this.pageNumber,
+    required this.layout,
+    this.components = const [],
+    this.header,
+    this.footer,
+    this.isTemplate = false,
+  });
+
+  ReportPage copyWith({
+    List<ReportComponent>? components,
+    ReportComponent? header,
+    ReportComponent? footer,
+  }) {
+    return ReportPage(
+      id: id,
+      name: name,
+      pageNumber: pageNumber,
+      layout: layout,
+      components: components ?? this.components,
+      header: header ?? this.header,
+      footer: footer ?? this.footer,
+      isTemplate: isTemplate,
+    );
+  }
+}
+
+/// Pagination configuration
+class PaginationConfig {
+  final int currentPage;
+  final int totalPages;
+  final int itemsPerPage;
+  final int totalItems;
+  final bool showPageInfo;
+  final bool showQuickJump;
+  final bool showPageSizeSelector;
+  final List<int> pageSizeOptions;
+
+  PaginationConfig({
+    this.currentPage = 1,
+    this.totalPages = 1,
+    this.itemsPerPage = 50,
+    this.totalItems = 0,
+    this.showPageInfo = true,
+    this.showQuickJump = true,
+    this.showPageSizeSelector = true,
+    this.pageSizeOptions = const [10, 25, 50, 100, 200],
+  });
+
+  int get startItem => (currentPage - 1) * itemsPerPage + 1;
+  int get endItem => math.min(currentPage * itemsPerPage, totalItems);
+  bool get hasNext => currentPage < totalPages;
+  bool get hasPrevious => currentPage > 1;
+
+  PaginationConfig copyWith({
+    int? currentPage,
+    int? totalPages,
+    int? itemsPerPage,
+    int? totalItems,
+  }) {
+    return PaginationConfig(
+      currentPage: currentPage ?? this.currentPage,
+      totalPages: totalPages ?? this.totalPages,
+      itemsPerPage: itemsPerPage ?? this.itemsPerPage,
+      totalItems: totalItems ?? this.totalItems,
+      showPageInfo: showPageInfo,
+      showQuickJump: showQuickJump,
+      showPageSizeSelector: showPageSizeSelector,
+      pageSizeOptions: pageSizeOptions,
+    );
+  }
+}
+
+// ==================== DRAG & DROP STATE ====================
+
+class DragDropState {
+  final ReportComponent? draggedComponent;
+  final Offset? dragOffset;
+  final bool isDragging;
+  final List<ReportComponent> selectedComponents;
+  final ReportComponent? hoveredComponent;
+  final bool showGrid;
+  final bool snapToGrid;
+  final double gridSize;
+
+  DragDropState({
+    this.draggedComponent,
+    this.dragOffset,
+    this.isDragging = false,
+    this.selectedComponents = const [],
+    this.hoveredComponent,
+    this.showGrid = true,
+    this.snapToGrid = true,
+    this.gridSize = 10,
+  });
+
+  DragDropState copyWith({
+    ReportComponent? draggedComponent,
+    Offset? dragOffset,
+    bool? isDragging,
+    List<ReportComponent>? selectedComponents,
+    ReportComponent? hoveredComponent,
+    bool? showGrid,
+    bool? snapToGrid,
+  }) {
+    return DragDropState(
+      draggedComponent: draggedComponent ?? this.draggedComponent,
+      dragOffset: dragOffset ?? this.dragOffset,
+      isDragging: isDragging ?? this.isDragging,
+      selectedComponents: selectedComponents ?? this.selectedComponents,
+      hoveredComponent: hoveredComponent ?? this.hoveredComponent,
+      showGrid: showGrid ?? this.showGrid,
+      snapToGrid: snapToGrid ?? this.snapToGrid,
+      gridSize: gridSize,
+    );
+  }
+}
+
+// ==================== REPORT BUILDER STATE ====================
+
+class ReportBuilderState {
+  final List<ReportPage> pages;
+  final int currentPageIndex;
+  final PaginationConfig paginationConfig;
+  final DragDropState dragDropState;
+  final bool isPreviewMode;
+  final double zoom;
+  final Map<String, dynamic>? data;
+  final bool isLoading;
+  final String? error;
+
+  ReportBuilderState({
+    this.pages = const [],
+    this.currentPageIndex = 0,
+    this.paginationConfig = const PaginationConfig(),
+    this.dragDropState = const DragDropState(),
+    this.isPreviewMode = false,
+    this.zoom = 1.0,
+    this.data,
+    this.isLoading = false,
+    this.error,
+  });
+
+  ReportPage? get currentPage =>
+      pages.isEmpty ? null : pages[currentPageIndex];
+
+  ReportBuilderState copyWith({
+    List<ReportPage>? pages,
+    int? currentPageIndex,
+    PaginationConfig? paginationConfig,
+    DragDropState? dragDropState,
+    bool? isPreviewMode,
+    double? zoom,
+    Map<String, dynamic>? data,
+    bool? isLoading,
+    String? error,
+  }) {
+    return ReportBuilderState(
+      pages: pages ?? this.pages,
+      currentPageIndex: currentPageIndex ?? this.currentPageIndex,
+      paginationConfig: paginationConfig ?? this.paginationConfig,
+      dragDropState: dragDropState ?? this.dragDropState,
+      isPreviewMode: isPreviewMode ?? this.isPreviewMode,
+      zoom: zoom ?? this.zoom,
+      data: data ?? this.data,
+      isLoading: isLoading ?? this.isLoading,
+      error: error,
+    );
+  }
+}
+
+// ==================== PROVIDERS ====================
+
+final reportBuilderProvider =
+    StateNotifierProvider<ReportBuilderNotifier, ReportBuilderState>((ref) {
+  return ReportBuilderNotifier();
+});
+
+class ReportBuilderNotifier extends StateNotifier<ReportBuilderState> {
+  ReportBuilderNotifier() : super(ReportBuilderState()) {
+    _initializeDefaultPage();
+  }
+
+  void _initializeDefaultPage() {
+    final defaultLayout = PageLayout(id: 'default');
+    final page = ReportPage(
+      id: '1',
+      name: 'Page 1',
+      pageNumber: 1,
+      layout: defaultLayout,
+    );
+    state = state.copyWith(pages: [page]);
+  }
+
+  void addPage() {
+    final newPage = ReportPage(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: 'Page ${state.pages.length + 1}',
+      pageNumber: state.pages.length + 1,
+      layout: PageLayout(id: 'layout_${state.pages.length + 1}'),
+    );
+    state = state.copyWith(pages: [...state.pages, newPage]);
+  }
+
+  void removePage(int index) {
+    if (state.pages.length <= 1) return;
+    final pages = List<ReportPage>.from(state.pages);
+    pages.removeAt(index);
+    state = state.copyWith(
+      pages: pages,
+      currentPageIndex: math.min(state.currentPageIndex, pages.length - 1),
+    );
+  }
+
+  void setCurrentPage(int index) {
+    if (index >= 0 && index < state.pages.length) {
+      state = state.copyWith(currentPageIndex: index);
+    }
+  }
+
+  void addComponent(ComponentType type) {
+    if (state.currentPage == null) return;
+
+    final component = ReportComponent(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: type,
+      name: _getComponentName(type),
+      position: Offset(50, 50),
+      size: _getDefaultSize(type),
+      properties: _getDefaultProperties(type),
+    );
+
+    final updatedComponents = [...state.currentPage!.components, component];
+    final updatedPage = state.currentPage!.copyWith(components: updatedComponents);
+    final pages = List<ReportPage>.from(state.pages);
+    pages[state.currentPageIndex] = updatedPage;
+
+    state = state.copyWith(pages: pages);
+  }
+
+  void updateComponentPosition(String componentId, Offset position) {
+    if (state.currentPage == null) return;
+
+    final components = state.currentPage!.components.map((c) {
+      if (c.id == componentId) {
+        final snappedPosition = state.dragDropState.snapToGrid
+            ? _snapToGrid(position, state.dragDropState.gridSize)
+            : position;
+        return c.copyWith(position: snappedPosition);
+      }
+      return c;
+    }).toList();
+
+    final updatedPage = state.currentPage!.copyWith(components: components);
+    final pages = List<ReportPage>.from(state.pages);
+    pages[state.currentPageIndex] = updatedPage;
+
+    state = state.copyWith(pages: pages);
+  }
+
+  void updateComponentSize(String componentId, Size size) {
+    if (state.currentPage == null) return;
+
+    final components = state.currentPage!.components.map((c) {
+      return c.id == componentId ? c.copyWith(size: size) : c;
+    }).toList();
+
+    final updatedPage = state.currentPage!.copyWith(components: components);
+    final pages = List<ReportPage>.from(state.pages);
+    pages[state.currentPageIndex] = updatedPage;
+
+    state = state.copyWith(pages: pages);
+  }
+
+  void removeComponent(String componentId) {
+    if (state.currentPage == null) return;
+
+    final components = state.currentPage!.components
+        .where((c) => c.id != componentId)
+        .toList();
+
+    final updatedPage = state.currentPage!.copyWith(components: components);
+    final pages = List<ReportPage>.from(state.pages);
+    pages[state.currentPageIndex] = updatedPage;
+
+    state = state.copyWith(pages: pages);
+  }
+
+  void selectComponent(String componentId) {
+    final component = state.currentPage?.components
+        .firstWhere((c) => c.id == componentId);
+    
+    if (component != null) {
+      state = state.copyWith(
+        dragDropState: state.dragDropState.copyWith(
+          selectedComponents: [component],
+        ),
+      );
+    }
+  }
+
+  void deselectAll() {
+    state = state.copyWith(
+      dragDropState: state.dragDropState.copyWith(selectedComponents: []),
+    );
+  }
+
+  void toggleGrid() {
+    state = state.copyWith(
+      dragDropState: state.dragDropState.copyWith(
+        showGrid: !state.dragDropState.showGrid,
+      ),
+    );
+  }
+
+  void toggleSnapToGrid() {
+    state = state.copyWith(
+      dragDropState: state.dragDropState.copyWith(
+        snapToGrid: !state.dragDropState.snapToGrid,
+      ),
+    );
+  }
+
+  void setZoom(double zoom) {
+    state = state.copyWith(zoom: zoom.clamp(0.25, 2.0));
+  }
+
+  void togglePreviewMode() {
+    state = state.copyWith(isPreviewMode: !state.isPreviewMode);
+  }
+
+  void updatePagination(int page, int itemsPerPage) {
+    final totalPages = (state.paginationConfig.totalItems / itemsPerPage).ceil();
+    state = state.copyWith(
+      paginationConfig: state.paginationConfig.copyWith(
+        currentPage: page,
+        itemsPerPage: itemsPerPage,
+        totalPages: totalPages,
+      ),
+    );
+  }
+
+  Offset _snapToGrid(Offset position, double gridSize) {
+    return Offset(
+      (position.dx / gridSize).round() * gridSize,
+      (position.dy / gridSize).round() * gridSize,
+    );
+  }
+
+  String _getComponentName(ComponentType type) {
+    return '${type.name[0].toUpperCase()}${type.name.substring(1)} Component';
+  }
+
+  Size _getDefaultSize(ComponentType type) {
+    switch (type) {
+      case ComponentType.text:
+        return const Size(200, 40);
+      case ComponentType.table:
+        return const Size(400, 200);
+      case ComponentType.chart:
+        return const Size(350, 250);
+      case ComponentType.image:
+        return const Size(150, 150);
+      case ComponentType.divider:
+        return const Size(300, 2);
+      case ComponentType.metric:
+        return const Size(150, 100);
+      default:
+        return const Size(200, 100);
+    }
+  }
+
+  Map<String, dynamic> _getDefaultProperties(ComponentType type) {
+    switch (type) {
+      case ComponentType.text:
+        return {
+          'text': 'Sample Text',
+          'fontSize': 14.0,
+          'fontWeight': 'normal',
+          'color': Colors.black.value,
+        };
+      case ComponentType.table:
+        return {
+          'rows': 5,
+          'columns': 3,
+          'showHeader': true,
+        };
+      case ComponentType.chart:
+        return {
+          'chartType': 'bar',
+          'showLegend': true,
+        };
+      default:
+        return {};
+    }
+  }
+}
+
+// ==================== UI COMPONENTS ====================
+
+class ReportBuilderScreen extends ConsumerWidget {
+  const ReportBuilderScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(reportBuilderProvider);
+
+    return Scaffold(
+      appBar: _buildAppBar(context, ref, state),
+      body: Row(
+        children: [
+          // Component Library Panel
+          if (!state.isPreviewMode) _buildComponentLibrary(context, ref),
+          
+          // Main Canvas Area
+          Expanded(
+            child: Column(
+              children: [
+                _buildToolbar(context, ref, state),
+                Expanded(
+                  child: _buildCanvas(context, ref, state),
+                ),
+                _buildPaginationBar(context, ref, state),
+              ],
+            ),
+          ),
+          
+          // Properties Panel
+          if (!state.isPreviewMode && 
+              state.dragDropState.selectedComponents.isNotEmpty)
+            _buildPropertiesPanel(context, ref, state),
+        ],
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar(
+    BuildContext context,
+    WidgetRef ref,
+    ReportBuilderState state,
+  ) {
+    return AppBar(
+      title: const Text('Report Builder - Drag & Drop Layout'),
+      actions: [
+        IconButton(
+          icon: Icon(state.isPreviewMode ? Icons.edit : Icons.preview),
+          onPressed: () =>
+              ref.read(reportBuilderProvider.notifier).togglePreviewMode(),
+          tooltip: state.isPreviewMode ? 'Edit Mode' : 'Preview Mode',
+        ),
+        IconButton(
+          icon: const Icon(Icons.save),
+          onPressed: () {},
+          tooltip: 'Save',
+        ),
+        IconButton(
+          icon: const Icon(Icons.print),
+          onPressed: () {},
+          tooltip: 'Print',
+        ),
+        IconButton(
+          icon: const Icon(Icons.download),
+          onPressed: () {},
+          tooltip: 'Export',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildComponentLibrary(BuildContext context, WidgetRef ref) {
+    return Container(
+      width: 250,
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        border: Border(right: BorderSide(color: Colors.grey[300]!)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.widgets, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'Components',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(12),
+              children: [
+                _buildComponentCategory('Basic', [
+                  ComponentType.text,
+                  ComponentType.image,
+                  ComponentType.divider,
+                  ComponentType.spacer,
+                ], ref),
+                _buildComponentCategory('Data', [
+                  ComponentType.table,
+                  ComponentType.chart,
+                  ComponentType.metric,
+                ], ref),
+                _buildComponentCategory('Advanced', [
+                  ComponentType.gauge,
+                  ComponentType.progress,
+                  ComponentType.timeline,
+                  ComponentType.qrCode,
+                ], ref),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildComponentCategory(
+    String title,
+    List<ComponentType> components,
+    WidgetRef ref,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
+        ),
+        ...components.map((type) => _buildComponentTile(type, ref)),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildComponentTile(ComponentType type, WidgetRef ref) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        dense: true,
+        leading: Icon(_getComponentIcon(type), size: 20),
+        title: Text(
+          type.name[0].toUpperCase() + type.name.substring(1),
+          style: const TextStyle(fontSize: 13),
+        ),
+        onTap: () => ref.read(reportBuilderProvider.notifier).addComponent(type),
+        trailing: const Icon(Icons.add, size: 18),
+      ),
+    );
+  }
+
+  Widget _buildToolbar(
+    BuildContext context,
+    WidgetRef ref,
+    ReportBuilderState state,
+  ) {
+    return Container(
+      height: 50,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 16),
+          // Zoom controls
+          IconButton(
+            icon: const Icon(Icons.remove),
+            iconSize: 20,
+            onPressed: () => ref
+                .read(reportBuilderProvider.notifier)
+                .setZoom(state.zoom - 0.1),
+          ),
+          Text('${(state.zoom * 100).toInt()}%'),
+          IconButton(
+            icon: const Icon(Icons.add),
+            iconSize: 20,
+            onPressed: () => ref
+                .read(reportBuilderProvider.notifier)
+                .setZoom(state.zoom + 0.1),
+          ),
+          const VerticalDivider(),
+          // Grid controls
+          IconButton(
+            icon: Icon(
+              state.dragDropState.showGrid ? Icons.grid_on : Icons.grid_off,
+            ),
+            iconSize: 20,
+            onPressed: () =>
+                ref.read(reportBuilderProvider.notifier).toggleGrid(),
+            tooltip: 'Toggle Grid',
+          ),
+          IconButton(
+            icon: Icon(
+              state.dragDropState.snapToGrid
+                  ? Icons.align_horizontal_left
+                  : Icons.align_horizontal_center,
+            ),
+            iconSize: 20,
+            onPressed: () =>
+                ref.read(reportBuilderProvider.notifier).toggleSnapToGrid(),
+            tooltip: 'Snap to Grid',
+          ),
+          const VerticalDivider(),
+          // Alignment tools
+          IconButton(
+            icon: const Icon(Icons.align_horizontal_left),
+            iconSize: 20,
+            onPressed: () {},
+            tooltip: 'Align Left',
+          ),
+          IconButton(
+            icon: const Icon(Icons.align_horizontal_center),
+            iconSize: 20,
+            onPressed: () {},
+            tooltip: 'Align Center',
+          ),
+          IconButton(
+            icon: const Icon(Icons.align_horizontal_right),
+            iconSize: 20,
+            onPressed: () {},
+            tooltip: 'Align Right',
+          ),
+          const VerticalDivider(),
+          // Layer controls
+          IconButton(
+            icon: const Icon(Icons.flip_to_front),
+            iconSize: 20,
+            onPressed: () {},
+            tooltip: 'Bring to Front',
+          ),
+          IconButton(
+            icon: const Icon(Icons.flip_to_back),
+            iconSize: 20,
+            onPressed: () {},
+            tooltip: 'Send to Back',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCanvas(
+    BuildContext context,
+    WidgetRef ref,
+    ReportBuilderState state,
+  ) {
+    if (state.currentPage == null) {
+      return const Center(child: Text('No page available'));
+    }
+
+    return Container(
+      color: Colors.grey[300],
+      child: InteractiveViewer(
+        minScale: 0.25,
+        maxScale: 2.0,
+        constrained: false,
+        child: Center(
+          child: Transform.scale(
+            scale: state.zoom,
+            child: _buildPageCanvas(context, ref, state),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageCanvas(
+    BuildContext context,
+    WidgetRef ref,
+    ReportBuilderState state,
+  ) {
+    final page = state.currentPage!;
+    final layout = page.layout;
+
+    return GestureDetector(
+      onTap: () => ref.read(reportBuilderProvider.notifier).deselectAll(),
+      child: Container(
+        width: layout.width,
+        height: layout.height,
+        margin: const EdgeInsets.all(40),
+        decoration: BoxDecoration(
+          color: layout.backgroundColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            // Grid overlay
+            if (state.dragDropState.showGrid && !state.isPreviewMode)
+              _buildGridOverlay(layout, state.dragDropState.gridSize),
+            
+            // Page margins guide
+            if (!state.isPreviewMode)
+              _buildMarginsGuide(layout),
+            
+            // Components
+            ...page.components.map((component) {
+              return _buildDraggableComponent(
+                context,
+                ref,
+                component,
+                state.isPreviewMode,
+                state.dragDropState.selectedComponents.contains(component),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridOverlay(PageLayout layout, double gridSize) {
+    return CustomPaint(
+      size: Size(layout.width, layout.height),
+      painter: GridPainter(gridSize: gridSize),
+    );
+  }
+
+  Widget _buildMarginsGuide(PageLayout layout) {
+    return Positioned.fill(
+      child: Container(
+        margin: layout.margins,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDraggableComponent(
+    BuildContext context,
+    WidgetRef ref,
+    ReportComponent component,
+    bool isPreviewMode,
+    bool isSelected,
+  ) {
+    return Positioned(
+      left: component.position.dx,
+      top: component.position.dy,
+      child: GestureDetector(
+        onTap: () {
+          if (!isPreviewMode) {
+            ref.read(reportBuilderProvider.notifier).selectComponent(component.id);
+          }
+        },
+        onPanUpdate: (details) {
+          if (!isPreviewMode && !component.locked) {
+            final newPosition = component.position + details.delta;
+            ref
+                .read(reportBuilderProvider.notifier)
+                .updateComponentPosition(component.id, newPosition);
+          }
+        },
+        child: Container(
+          width: component.size.width,
+          height: component.size.height,
+          decoration: BoxDecoration(
+            border: isSelected && !isPreviewMode
+                ? Border.all(color: Colors.blue, width: 2)
+                : null,
+          ),
+          child: Stack(
+            children: [
+              _buildComponentContent(component),
+              
+              // Resize handles
+              if (isSelected && !isPreviewMode) ...[
+                _buildResizeHandle(
+                  ref,
+                  component,
+                  Alignment.bottomRight,
+                  const Icon(Icons.drag_indicator, size: 16),
+                ),
+              ],
+              
+              // Delete button
+              if (isSelected && !isPreviewMode)
+                Positioned(
+                  top: -10,
+                  right: -10,
+                  child: GestureDetector(
+                    onTap: () => ref
+                        .read(reportBuilderProvider.notifier)
+                        .removeComponent(component.id),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        size: 12,
+                        color: Colors.white

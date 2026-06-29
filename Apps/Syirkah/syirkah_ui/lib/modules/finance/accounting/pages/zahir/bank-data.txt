@@ -1,0 +1,510 @@
+
+
+
+
+
+AGI BANK
+Bank Artha Graha International
+
+AGRIS
+Bank Agris
+
+AGRONIAGA
+Bank BRI Agroniaga
+
+AMAR
+Bank Amar Indonesia
+
+ANDARA
+Bank Andara
+
+ANGLOMAS
+Anglomas International Bank
+
+ARTA_NIAGA_KENCANA
+Bank Arta Niaga Kencana
+
+ARTOS
+Bank Artos Indonesia (Bank Jago)
+
+BANGKOK PCL
+Bangkok Bank
+
+BANK ANDA
+PT. BANK ANTAR DAERAH
+
+BANK ANZ
+Bank ANZ Indonesia
+
+BANK HSBC BANK
+HSBC Indonesia
+
+BANK HSBC SYARIAH
+Hongkong and Shanghai Bank Corporation (HSBC) UUS
+
+BANK LIPPO NIAGA
+Bank CIMB Niaga
+
+BANK SUMSEL BABEL
+BPD Sumsel Dan Babel
+
+BANTEN
+BPD Banten
+
+BBI
+Bank Bisnis Internasional
+
+BCA
+Bank Central Asia (BCA).
+
+BCA SYARIAH
+Bank Central Asia (BCA) Syariah
+
+BCA_DIGITAL
+Bank Central Asia Digital (BluBCA)
+
+BII
+PT. BANK INTERNATIONAL INDONESIA Tbk.
+
+BII SYARIAH BANK
+PT. BANK INTERNATIONAL INDONESIA Tbk. SYARIAH
+
+BIPUSAT
+BANK INDONESIA PUSAT JAKARTA
+
+BJB SYARIAH
+Bank BJB Syariah
+
+BNI 46
+Bank Negara Indonesia (BNI)
+
+BNI SYARIAH
+PT. BANK BNI SYARIAH
+
+BNP PARIBAS
+Bank BNP Paribas
+
+BOA BOFA
+Bank of America Merill-Lynch
+
+BOC
+Bank of China (BOC)
+
+BOT MITSUBISHI
+Bank of Tokyo Mitsubishi UFJ (MUFJ)
+
+BPD ACEH SYARIAH
+BPD Aceh UUS
+
+BPD BALI
+BPD Bali
+
+BPD BENGKULU
+BPD Bengkulu
+
+BPD DIY
+BPD Daerah Istimewa Yogyakarta (DIY)
+
+BPD DKI
+Bank DKI
+
+BPD DKI SYARIAH
+Bank DKI UUS
+
+BPD ISTIMEWA ACEH
+BPD Aceh
+
+BPD JAMBI
+BPD Jambi
+
+BPD JATENG SYARIAH
+BPD Jawa Tengah UUS
+
+
+
+BPD JATIM
+BPD Jawa Timur
+
+BPD JATIM SYARIAH
+BPD Jawa Timur UUS
+
+BPD JAWA TENGAH
+BPD Jawa Tengah
+
+BPD KALBAR SYARIAH
+BPD Kalimantan Barat UUS
+
+BPD KALIMANTAN BARAT
+BPD Kalimantan Barat
+
+BPD KALIMANTAN SELATAN
+BPD Kalimantan Selatan
+
+BPD KALIMANTAN TIMUR
+BPD Kalimantan Timur
+
+BPD KALSEL SYARIAH
+BPD Kalimantan Selatan UUS
+
+BPD KALTENG
+BPD Kalimantan Tengah
+
+BPD KALTIM SYARIAH
+BPD Kalimantan Timur UUS
+
+BPD LAMPUNG
+BPD Lampung
+
+BPD MALUKU
+BPD Maluku
+
+BPD NTB
+BPD Nusa Tenggara Barat
+
+BPD NTT
+BPD Nusa Tenggara Timur
+
+BPD PAPUA
+BPD Papua
+
+BPD RIAU
+BPD Riau Dan Kepri
+
+BPD SULAWESI SELATAN
+BANK PEMBANGUNAN DAERAH SULAWESI SELATAN
+
+BPD SULAWESI TENGAH
+BPD Sulawesi Tengah
+
+BPD SULAWESI TENGGARA
+BPD Sulawesi Tenggara
+
+BPD SULAWESI UTARA
+BPD Sulut
+
+BPD SUMATERA BARAT
+BPD Sumatera Barat
+
+BPD SUMATERA UTARA
+BPD Sumut
+
+BRI
+Bank Rakyat Indonesia (BRI)
+
+BRI SYARIAH
+PT. BANK SYARIAH BRI
+
+BSI
+Bank Syariah Indonesia (BSI)
+
+BSM MANDIRI SYARIAH
+PT. BANK SYARIAH MANDIRI
+
+BTN
+Bank Tabungan Negara (BTN)
+
+BTN SYARIAH SYARIAH
+Bank Tabungan Negara (BTN) UUS
+
+BTPN BANK
+Bank Tabungan Pensiunan Nasional (BTPN)
+
+BTPN SYARIAH
+BTPN Syariah
+
+BUKOPIN
+Bank Bukopin
+
+BUKOPIN SYARIAH BANK
+Bank Syariah Bukopin
+
+BUMI ARTA
+Bank Bumi Arta
+
+CAPITAL
+Bank Capital Indonesia
+
+CCB
+China Construction Bank Indonesia
+
+CENTRATAMA
+Centratama Nasional Bank
+
+CIMB NIAGA SYARIAH
+Bank CIMB Niaga UUS
+
+CIMB_UUS
+Bank CIMB Niaga UUS
+
+CINATRUST
+Bank Chinatrust Indonesia
+
+
+
+CITI
+Citibank
+
+COMMON WEALTH
+Bank Commonwealth
+
+DANAMON
+Bank Danamon
+
+DANAMON SYARIAH
+Bank Danamon UUS
+
+DBS
+Bank DBS Indonesia
+
+DEUTSCHE
+Deutsche Bank
+
+DINAR_INDONESIA
+Bank Dinar Indonesia
+
+DIPO INTERNATIONAL
+PT. BANK DIPO INTERNATIONAL
+
+DIY SYARIAH
+BPD Daerah Istimewa Yogyakarta (DIY) UUS
+
+EKONOMI RAHARJA
+PT. BANK EKONOMI RAHARJA
+
+EXIMBANK
+Indonesia Eximbank
+
+FAMA INTERNATIONAL
+Bank Fama International
+
+GANESHA
+Bank Ganesha
+
+HANA
+Bank Hana
+
+HARDA
+Bank Harda Internasional
+
+ICB BUMIPUTERA
+PT. BANK ICB BUMIPUTERA TBK.
+
+ICBC BANK
+Bank ICBC Indonesia
+
+INA PERDANA
+Bank Ina Perdania
+
+INDEX
+Bank Index Selindo
+
+INDIA
+Bank of India Indonesia
+
+JABAR BANTEN
+Bank BJB
+
+JAMBI_UUS
+BPD Jambi UUS
+
+JASA JAKARTA
+Bank Jasa Jakarta
+
+JP MORGAN
+JP Morgan Chase Bank
+
+JTRUST
+Bank JTrust Indonesia
+
+KEB
+PT. BANK KEB INDONESIA
+
+KESAWAN
+PT. BANK KESAWAN
+
+KESEHJATERAAN EKONOMI
+Bank Kesejahteraan Ekonomi
+
+LIMAN
+PT. BANK LIMAN INTERNATIONAL
+
+MANDIRI
+Bank Mandiri
+
+MANDIRI_TASPEN
+Mandiri Taspen Pos
+
+MASPION BANK
+Bank Maspion Indonesia
+
+MAYA PADA BANK
+Bank Mayapada International
+
+MAYBANK SYARIAH
+Bank Maybank Syariah Indonesia
+
+MAYORA
+Bank Mayora
+
+MEGA BANK
+Bank Mega
+
+MEGA SYARIAH
+Bank Syariah Mega
+
+MESTIKA DHARMA
+Bank Mestika Dharma
+
+METRO
+PT. BANK METRO EKSPRESS
+
+
+
+MITRA_NIAGA
+Bank Mitra Niaga
+
+MITRANIAGA
+PT. BANK MITRANIAGA
+
+MIZUHO
+Bank Mizuho Indonesia
+
+MNC_INTERNASIONAL
+Bank MNC Internasional
+
+MUAMALAT
+Bank Muamalat Indonesia
+
+MULTI ARTA
+Bank Multi Arta Sentosa
+
+MUTIARA BANK
+PT. BANK MUTIARA, TBK
+
+NOBU BANK
+Bank Nationalnobu
+
+NUSA_TENGGARA_BARAT_UUS
+BPD Nusa Tenggara Barat UUS
+
+NUSANTARA PARAHYANGAN
+Bank Nusantara Parahyangan
+
+OCBC
+Bank OCBC NISP
+
+OCBC NISP SYARIAH
+Bank OCBC NISP UUS
+
+OKE
+Bank Oke Indonesia
+
+PAN INDONESIA SYARIAH
+Bank Panin Syariah
+
+PANIN BANK
+Bank Panin
+
+PERMATABANK PERMATA BANK
+Bank Permata
+
+PRIMA MASTER
+Prima Master Bank
+
+PUNDI INDONESIA
+PT. BANK PUNDI INDONESIA TBK
+
+QNB_INDONESIA
+Bank QNB Indonesia
+
+RABO BANK
+Bank Rabobank International Indonesia
+
+RBS BANK RBS
+Royal Bank of Scotland (RBS)
+
+RESONA PERDANIA
+Bank Resona PerdaniaA
+
+RIAU_DAN_KEPRI_UUS
+BPD Riau Dan Kepri UUS
+
+ROYALBANK
+Bank Royal Indonesia
+
+SAHABAT PURBA
+PT. BANK SAHABAT PURBA DANARTA
+
+SAHABAT_SAMPOERNA
+Bank Sahabat Sampoerna
+
+SAUDARA HS 1906
+Bank Himpunan Saudara 1906
+
+SAUDARA HS 1906
+PT. BANK HS 1906
+
+SBI
+Bank SBI Indonesia
+
+SHINHAN
+Bank Shinhan Indonesia
+
+SINAR HARAPAN
+PT. BANK SINAR HARAPAN BALI
+
+SINAR MAS BANK
+Bank Sinarmas
+
+SINARMAS SYARIAH
+Bank Sinarmas UUS
+
+STANCHARD SCB
+Standard Charted Bank
+
+SULSELBAR SYARIAH
+BPD Sulselbar UUS
+
+SUMATERA_BARAT_UUS
+BPD Sumatera Barat UUS
+
+SUMITOMO
+Bank Sumitomo Mitsui Indonesia
+
+SUMSEL BABEL SYARIAH
+BPD Sumsel Dan Babel UUS
+
+SUMSEL_DAN_BABEL_UUS
+BPD Sumsel Dan Babel UUS
+
+
+
+SUMUT SYARIAH
+BPD Sumut UUS
+
+SWADESI
+PT. BANK SWADESI Tbk.
+
+SYARIAH PERMATA BANK
+Bank Permata UUS
+
+UOB BUANA
+Bank UOB Indonesia
+
+VICTORIA INTERNATIONAL
+Bank Victoria Internasional
+
+VICTORIA SYARIAH
+Bank Victoria Syariah
+
+WINDU KENTJANA
+PT. BANK WINDU KENTJANA INTERNATIONAL TBK
+
+WOORI
+PT. BANK WOORI INDONESIA
+
+WOORI_SAUDARA
+Bank Woori Saudara Indonesia 1906
+
+YUDHA BHAKTI
+Bank Yudha Bhakti (Bank Neo Commerce)

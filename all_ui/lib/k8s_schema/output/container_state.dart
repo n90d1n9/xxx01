@@ -1,0 +1,33 @@
+import 'container_state_waiting.dart';
+import 'container_state_running.dart';
+import 'container_state_terminated.dart';
+
+class ContainerState {
+  final ContainerStateWaiting? waiting;
+  final ContainerStateRunning? running;
+  final ContainerStateTerminated? terminated;
+  ContainerState({this.waiting, this.running, this.terminated});
+  factory ContainerState.fromJson(Map<String, dynamic> json) {
+    return ContainerState(
+      waiting:
+          json['waiting'] != null
+              ? ContainerStateWaiting.fromJson(json['waiting'])
+              : null,
+      running:
+          json['running'] != null
+              ? ContainerStateRunning.fromJson(json['running'])
+              : null,
+      terminated:
+          json['terminated'] != null
+              ? ContainerStateTerminated.fromJson(json['terminated'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (waiting != null) 'waiting': waiting!.toJson(),
+      if (running != null) 'running': running!.toJson(),
+      if (terminated != null) 'terminated': terminated!.toJson(),
+    };
+  }
+}

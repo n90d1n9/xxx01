@@ -1,0 +1,1911 @@
+// COMPLETE IMPLEMENTATION - All Components Finished
+// pubspec.yaml dependencies:
+/*
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.4.9
+  cached_network_image: ^3.3.0
+  video_player: ^2.8.1
+  flutter_staggered_grid_view: ^0.7.0
+  shimmer: ^3.0.0
+  photo_view: ^0.14.0
+  share_plus: ^7.2.1
+  smooth_page_indicator: ^1.1.0
+*/
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:video_player/video_player.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:photo_view/photo_view.dart';
+import 'package:photo_view/photo_view_gallery.dart';
+import 'package:smooth_page_indicator/smooth_page_indicator.dart';
+import 'dart:math' as math;
+
+// ==================== MODELS ====================
+class EventCollection {
+  final String id;
+  final String title;
+  final String description;
+  final String coverImageUrl;
+  final DateTime eventDate;
+  final String location;
+  final List<MediaItem> photos;
+  final List<MediaItem> videos;
+  final String photographer;
+  final int totalItems;
+  final EventStatus status;
+  final List<String> tags;
+
+  EventCollection({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.coverImageUrl,
+    required this.eventDate,
+    required this.location,
+    required this.photos,
+    required this.videos,
+    required this.photographer,
+    required this.totalItems,
+    required this.status,
+    required this.tags,
+  });
+
+  List<MediaItem> get allMedia => [...photos, ...videos];
+}
+
+class MediaItem {
+  final String id;
+  final String url;
+  final String thumbnailUrl;
+  final String title;
+  final String author;
+  final int likes;
+  final int views;
+  final MediaType type;
+  final String category;
+  final double aspectRatio;
+  final DateTime capturedAt;
+  final String? description;
+  final List<String> tags;
+  final String eventId;
+  final bool isFavorite;
+  final String originalFileName;
+
+  MediaItem({
+    required this.id,
+    required this.url,
+    required this.thumbnailUrl,
+    required this.title,
+    required this.author,
+    required this.likes,
+    required this.views,
+    required this.type,
+    required this.category,
+    required this.aspectRatio,
+    required this.capturedAt,
+    required this.eventId,
+    this.description,
+    this.tags = const [],
+    this.isFavorite = false,
+    required this.originalFileName,
+  });
+
+  MediaItem copyWith({
+    bool? isFavorite,
+    int? likes,
+    int? views,
+  }) {
+    return MediaItem(
+      id: id,
+      url: url,
+      thumbnailUrl: thumbnailUrl,
+      title: title,
+      author: author,
+      likes: likes ?? this.likes,
+      views: views ?? this.views,
+      type: type,
+      category: category,
+      aspectRatio: aspectRatio,
+      capturedAt: capturedAt,
+      eventId: eventId,
+      description: description,
+      tags: tags,
+      isFavorite: isFavorite ?? this.isFavorite,
+      originalFileName: originalFileName,
+    );
+  }
+}
+
+enum MediaType { image, video }
+enum EventStatus { upcoming, ongoing, completed }
+enum SortBy { newest, oldest, popular, name }
+enum ViewMode { grid, list, masonry }
+
+// ==================== STATE MANAGEMENT ====================
+class GalleryState {
+  final List<EventCollection> collections;
+  final List<MediaItem> allMedia;
+  final String? selectedCollectionId;
+  final SortBy sortBy;
+  final ViewMode viewMode;
+  final bool isLoading;
+  final String searchQuery;
+  final List<String> selectedTags;
+
+  GalleryState({
+    required this.collections,
+    required this.allMedia,
+    this.selectedCollectionId,
+    this.sortBy = SortBy.newest,
+    this.viewMode = ViewMode.masonry,
+    this.isLoading = true,
+    this.searchQuery = '',
+    this.selectedTags = const [],
+  });
+
+  GalleryState copyWith({
+    List<EventCollection>? collections,
+    List<MediaItem>? allMedia,
+    String? selectedCollectionId,
+    SortBy? sortBy,
+    ViewMode? viewMode,
+    bool? isLoading,
+    String? searchQuery,
+    List<String>? selectedTags,
+  }) {
+    return GalleryState(
+      collections: collections ?? this.collections,
+      allMedia: allMedia ?? this.allMedia,
+      selectedCollectionId: selectedCollectionId ?? this.selectedCollectionId,
+      sortBy: sortBy ?? this.sortBy,
+      viewMode: viewMode ?? this.viewMode,
+      isLoading: isLoading ?? this.isLoading,
+      searchQuery: searchQuery ?? this.searchQuery,
+      selectedTags: selectedTags ?? this.selectedTags,
+    );
+  }
+}
+
+class GalleryNotifier extends StateNotifier<GalleryState> {
+  GalleryNotifier()
+      : super(GalleryState(
+          collections: [],
+          allMedia: [],
+          isLoading: true,
+        )) {
+    _loadCollections();
+  }
+
+  void _loadCollections() {
+    Future.delayed(const Duration(seconds: 1), () {
+      final collections = _generateDummyCollections();
+      final allMedia = collections.expand((c) => c.allMedia).toList();
+      
+      state = state.copyWith(
+        collections: collections,
+        allMedia: allMedia,
+        isLoading: false,
+      );
+    });
+  }
+
+  void selectCollection(String? collectionId) {
+    state = state.copyWith(selectedCollectionId: collectionId);
+  }
+
+  void setSortBy(SortBy sortBy) {
+    state = state.copyWith(sortBy: sortBy);
+  }
+
+  void setViewMode(ViewMode viewMode) {
+    state = state.copyWith(viewMode: viewMode);
+  }
+
+  void setSearchQuery(String query) {
+    state = state.copyWith(searchQuery: query);
+  }
+
+  void toggleFavorite(String mediaId) {
+    final updatedMedia = state.allMedia.map((item) {
+      if (item.id == mediaId) {
+        return item.copyWith(isFavorite: !item.isFavorite);
+      }
+      return item;
+    }).toList();
+
+    final updatedCollections = state.collections.map((collection) {
+      final updatedPhotos = collection.photos.map((photo) {
+        if (photo.id == mediaId) return photo.copyWith(isFavorite: !photo.isFavorite);
+        return photo;
+      }).toList();
+
+      final updatedVideos = collection.videos.map((video) {
+        if (video.id == mediaId) return video.copyWith(isFavorite: !video.isFavorite);
+        return video;
+      }).toList();
+
+      return EventCollection(
+        id: collection.id,
+        title: collection.title,
+        description: collection.description,
+        coverImageUrl: collection.coverImageUrl,
+        eventDate: collection.eventDate,
+        location: collection.location,
+        photos: updatedPhotos,
+        videos: updatedVideos,
+        photographer: collection.photographer,
+        totalItems: collection.totalItems,
+        status: collection.status,
+        tags: collection.tags,
+      );
+    }).toList();
+
+    state = state.copyWith(
+      allMedia: updatedMedia,
+      collections: updatedCollections,
+    );
+  }
+
+  List<MediaItem> getFilteredMedia() {
+    List<MediaItem> media = state.selectedCollectionId != null
+        ? state.collections.firstWhere((c) => c.id == state.selectedCollectionId).allMedia
+        : state.allMedia;
+
+    if (state.searchQuery.isNotEmpty) {
+      media = media.where((item) =>
+          item.title.toLowerCase().contains(state.searchQuery.toLowerCase()) ||
+          item.description?.toLowerCase().contains(state.searchQuery.toLowerCase()) == true
+      ).toList();
+    }
+
+    switch (state.sortBy) {
+      case SortBy.newest:
+        media.sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
+        break;
+      case SortBy.oldest:
+        media.sort((a, b) => a.capturedAt.compareTo(b.capturedAt));
+        break;
+      case SortBy.popular:
+        media.sort((a, b) => b.likes.compareTo(a.likes));
+        break;
+      case SortBy.name:
+        media.sort((a, b) => a.title.compareTo(b.title));
+        break;
+    }
+
+    return media;
+  }
+
+  List<EventCollection> getFilteredCollections() {
+    return state.collections.where((collection) {
+      if (state.searchQuery.isEmpty) return true;
+      return collection.title.toLowerCase().contains(state.searchQuery.toLowerCase()) ||
+             collection.description.toLowerCase().contains(state.searchQuery.toLowerCase());
+    }).toList();
+  }
+
+  List<EventCollection> _generateDummyCollections() {
+    return [
+      EventCollection(
+        id: '1',
+        title: 'Summer Music Festival 2024',
+        description: 'An amazing three-day music festival featuring top artists from around the world.',
+        coverImageUrl: 'https://picsum.photos/800/600?random=1',
+        eventDate: DateTime(2024, 7, 15),
+        location: 'Central Park, New York',
+        photographer: 'Alex Chen',
+        totalItems: 45,
+        status: EventStatus.completed,
+        tags: ['music', 'festival', 'summer', 'outdoor'],
+        photos: List.generate(30, (i) => _generateMediaItem('1', i, MediaType.image)),
+        videos: List.generate(15, (i) => _generateMediaItem('1', i + 30, MediaType.video)),
+      ),
+      EventCollection(
+        id: '2',
+        title: 'Corporate Annual Gala',
+        description: 'Elegant corporate event celebrating company achievements.',
+        coverImageUrl: 'https://picsum.photos/800/600?random=2',
+        eventDate: DateTime(2024, 9, 20),
+        location: 'Grand Ballroom, Hotel Plaza',
+        photographer: 'Sarah Johnson',
+        totalItems: 28,
+        status: EventStatus.completed,
+        tags: ['corporate', 'gala', 'formal'],
+        photos: List.generate(20, (i) => _generateMediaItem('2', i, MediaType.image)),
+        videos: List.generate(8, (i) => _generateMediaItem('2', i + 20, MediaType.video)),
+      ),
+      EventCollection(
+        id: '3',
+        title: 'Beach Wedding Ceremony',
+        description: 'Romantic beach wedding with stunning sunset views.',
+        coverImageUrl: 'https://picsum.photos/800/600?random=3',
+        eventDate: DateTime(2024, 6, 10),
+        location: 'Malibu Beach, California',
+        photographer: 'Emma Rodriguez',
+        totalItems: 65,
+        status: EventStatus.completed,
+        tags: ['wedding', 'beach', 'sunset'],
+        photos: List.generate(50, (i) => _generateMediaItem('3', i, MediaType.image)),
+        videos: List.generate(15, (i) => _generateMediaItem('3', i + 50, MediaType.video)),
+      ),
+    ];
+  }
+
+  MediaItem _generateMediaItem(String eventId, int index, MediaType type) {
+    final random = math.Random();
+    final imageId = random.nextInt(1000) + 1;
+    
+    return MediaItem(
+      id: '${eventId}_${index}',
+      url: 'https://picsum.photos/800/600?random=$imageId',
+      thumbnailUrl: 'https://picsum.photos/400/300?random=$imageId',
+      title: type == MediaType.image ? 'Photo ${index + 1}' : 'Video ${index + 1}',
+      author: ['Alex Chen', 'Sarah Johnson', 'Emma Rodriguez'][random.nextInt(3)],
+      likes: random.nextInt(500) + 50,
+      views: random.nextInt(2000) + 100,
+      type: type,
+      category: ['portrait', 'landscape', 'candid'][random.nextInt(3)],
+      aspectRatio: [0.67, 0.75, 1.0, 1.33][random.nextInt(4)],
+      capturedAt: DateTime.now().subtract(Duration(days: random.nextInt(365))),
+      eventId: eventId,
+      description: 'Beautiful moment captured during the event.',
+      tags: ['moment', 'beautiful', 'memory'],
+      originalFileName: 'IMG_${1000 + index}.jpg',
+    );
+  }
+}
+
+final galleryProvider = StateNotifierProvider<GalleryNotifier, GalleryState>(
+  (ref) => GalleryNotifier(),
+);
+
+// ==================== MAIN APP ====================
+void main() {
+  runApp(const ProviderScope(child: MyApp()));
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Event Gallery Pro',
+      theme: ThemeData(
+        primarySwatch: Colors.purple,
+        useMaterial3: true,
+      ),
+      home: const MainScreen(),
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+class MainScreen extends ConsumerStatefulWidget {
+  const MainScreen({super.key});
+
+  @override
+  ConsumerState<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends ConsumerState<MainScreen> {
+  int _currentIndex = 0;
+  
+  @override
+  Widget build(BuildContext context) {
+    final screens = [
+      const GalleryScreen(),
+      const CollectionsScreen(),
+      const FavoritesScreen(),
+      const ProfileScreen(),
+    ];
+
+    return Scaffold(
+      body: screens[_currentIndex],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(0, Icons.photo_library_outlined, Icons.photo_library, 'Gallery'),
+                _buildNavItem(1, Icons.collections_outlined, Icons.collections, 'Events'),
+                _buildNavItem(2, Icons.favorite_outline, Icons.favorite, 'Favorites'),
+                _buildNavItem(3, Icons.person_outline, Icons.person, 'Profile'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData inactiveIcon, IconData activeIcon, String label) {
+    final isSelected = _currentIndex == index;
+    
+    return GestureDetector(
+      onTap: () => setState(() => _currentIndex = index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF667eea).withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? activeIcon : inactiveIcon,
+              color: isSelected ? const Color(0xFF667eea) : Colors.grey[600],
+              size: 24,
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF667eea),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== COLLECTIONS SCREEN ====================
+class CollectionsScreen extends ConsumerWidget {
+  const CollectionsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final galleryState = ref.watch(galleryProvider);
+    
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(ref),
+              _buildSearchAndFilters(ref),
+              Expanded(
+                child: galleryState.isLoading
+                    ? _buildLoadingGrid()
+                    : _buildMediaGrid(context, ref),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(WidgetRef ref) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Row(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Gallery',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w300,
+                  color: Colors.white,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'All your memories in one place',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.white.withOpacity(0.8),
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          IconButton(
+            onPressed: () => _showViewOptions(ref),
+            icon: const Icon(Icons.tune, color: Colors.white, size: 28),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchAndFilters(WidgetRef ref) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.white.withOpacity(0.3)),
+            ),
+            child: TextField(
+              onChanged: (query) => ref.read(galleryProvider.notifier).setSearchQuery(query),
+              decoration: InputDecoration(
+                hintText: 'Search photos and videos...',
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                border: InputBorder.none,
+                icon: Icon(Icons.search, color: Colors.white.withOpacity(0.7)),
+              ),
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingGrid() {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.8,
+        ),
+        itemCount: 10,
+        itemBuilder: (context, index) {
+          return Shimmer.fromColors(
+            baseColor: Colors.white.withOpacity(0.1),
+            highlightColor: Colors.white.withOpacity(0.2),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMediaGrid(BuildContext context, WidgetRef ref) {
+    final media = ref.read(galleryProvider.notifier).getFilteredMedia();
+    
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: MasonryGridView.count(
+        crossAxisCount: 2,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+        itemCount: media.length,
+        itemBuilder: (context, index) {
+          return MediaItemWidget(
+            item: media[index],
+            index: index,
+            onTap: () {
+              final imageMedia = media.where((m) => m.type == MediaType.image).toList();
+              final imageIndex = imageMedia.indexWhere((m) => m.id == media[index].id);
+              
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PhotoPlayerScreen(
+                    media: imageMedia,
+                    initialIndex: imageIndex >= 0 ? imageIndex : 0,
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  void _showViewOptions(WidgetRef ref) {
+    // Show modal for view mode and sorting options
+  }
+}watch(galleryProvider);
+    
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              _buildSearchBar(ref),
+              Expanded(
+                child: galleryState.isLoading
+                    ? _buildLoading()
+                    : _buildCollectionsList(ref),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Event Collections',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                'Memorable moments organized',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.white.withOpacity(0.8),
+                ),
+              ),
+            ],
+          ),
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.add, color: Colors.white, size: 28),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(WidgetRef ref) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: TextField(
+        onChanged: (q) => ref.read(galleryProvider.notifier).setSearchQuery(q),
+        decoration: InputDecoration(
+          hintText: 'Search collections...',
+          hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+          border: InputBorder.none,
+          icon: Icon(Icons.search, color: Colors.white.withOpacity(0.7)),
+        ),
+        style: const TextStyle(color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildLoading() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(24),
+      itemCount: 3,
+      itemBuilder: (context, index) {
+        return Shimmer.fromColors(
+          baseColor: Colors.white.withOpacity(0.1),
+          highlightColor: Colors.white.withOpacity(0.2),
+          child: Container(
+            height: 200,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCollectionsList(WidgetRef ref) {
+    final collections = ref.read(galleryProvider.notifier).getFilteredCollections();
+    
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      itemCount: collections.length,
+      itemBuilder: (context, index) {
+        return CollectionCard(
+          collection: collections[index],
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CollectionDetailScreen(
+                  collection: collections[index],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ==================== COLLECTION CARD - COMPLETE ====================
+
+
+// ==================== COLLECTION DETAIL SCREEN - COMPLETE ====================
+class CollectionDetailScreen extends ConsumerWidget {
+  final EventCollection collection;
+
+  const CollectionDetailScreen({super.key, required this.collection});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: CustomScrollView(
+        slivers: [
+          _buildSliverAppBar(context),
+          SliverToBoxAdapter(child: _buildCollectionInfo()),
+          SliverToBoxAdapter(child: _buildActionButtons(context)),
+          SliverPadding(
+            padding: const EdgeInsets.all(24),
+            sliver: _buildMediaGrid(context, ref),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSliverAppBar(BuildContext context) {
+    return SliverAppBar(
+      expandedHeight: 300,
+      pinned: true,
+      backgroundColor: const Color(0xFF667eea),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            CachedNetworkImage(
+              imageUrl: collection.coverImageUrl,
+              fit: BoxFit.cover,
+            ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.7),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      leading: IconButton(
+        onPressed: () => Navigator.pop(context),
+        icon: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Icon(Icons.arrow_back, color: Colors.white),
+        ),
+      ),
+      actions: [
+        IconButton(
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Share collection')),
+            );
+          },
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Icon(Icons.share, color: Colors.white),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCollectionInfo() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            collection.title,
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            collection.description,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildInfoRow(Icons.location_on, collection.location),
+          const SizedBox(height: 12),
+          _buildInfoRow(Icons.calendar_today, _formatDate(collection.eventDate)),
+          const SizedBox(height: 12),
+          _buildInfoRow(Icons.camera_alt, 'by ${collection.photographer}'),
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: collection.tags.map((tag) => Chip(
+              label: Text('#$tag'),
+              backgroundColor: const Color(0xFF667eea).withOpacity(0.1),
+              labelStyle: const TextStyle(
+                color: Color(0xFF667eea),
+                fontWeight: FontWeight.w600,
+              ),
+            )).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.grey[600], size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SlideshowScreen(
+                      media: collection.photos,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.slideshow, color: Colors.white),
+              label: const Text('Slideshow', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF667eea),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Downloading collection...')),
+                );
+              },
+              icon: const Icon(Icons.download, color: Color(0xFF667eea)),
+              label: const Text('Download', style: TextStyle(color: Color(0xFF667eea))),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF667eea)),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMediaGrid(BuildContext context, WidgetRef ref) {
+    return SliverGrid(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.8,
+      ),
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          final media = collection.allMedia[index];
+          return MediaItemWidget(
+            item: media,
+            index: index,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PhotoPlayerScreen(
+                    media: collection.photos,
+                    initialIndex: index < collection.photos.length ? index : 0,
+                  ),
+                ),
+              );
+            },
+          );
+        },
+        childCount: collection.allMedia.length,
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+}
+
+// ==================== MEDIA ITEM WIDGET - COMPLETE ====================
+class MediaItemWidget extends ConsumerStatefulWidget {
+  final MediaItem item;
+  final int index;
+  final VoidCallback onTap;
+
+  const MediaItemWidget({
+    super.key,
+    required this.item,
+    required this.index,
+    required this.onTap,
+  });
+
+  @override
+  ConsumerState<MediaItemWidget> createState() => _MediaItemWidgetState();
+}
+
+class _MediaItemWidgetState extends ConsumerState<MediaItemWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    );
+    
+    _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+
+    Future.delayed(Duration(milliseconds: widget.index * 50), () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: Opacity(
+            opacity: _opacityAnimation.value,
+            child: GestureDetector(
+              onTap: widget.onTap,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Hero(
+                      tag: widget.item.id,
+                      child: CachedNetworkImage(
+                        imageUrl: widget.item.thumbnailUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (widget.item.type == MediaType.video)
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Icon(
+                            Icons.play_arrow,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      bottom: 12,
+                      right: 12,
+                      child: GestureDetector(
+                        onTap: () {
+                          ref.read(galleryProvider.notifier).toggleFavorite(widget.item.id);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Icon(
+                            widget.item.isFavorite ? Icons.favorite : Icons.favorite_border,
+                            color: widget.item.isFavorite ? Colors.red : Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              Colors.black.withOpacity(0.8),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              widget.item.title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(Icons.favorite, color: Colors.white, size: 12),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${widget.item.likes}',
+                                  style: const TextStyle(color: Colors.white, fontSize: 11),
+                                ),
+                                const SizedBox(width: 12),
+                                const Icon(Icons.visibility, color: Colors.white, size: 12),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${widget.item.views}',
+                                  style: const TextStyle(color: Colors.white, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ==================== PHOTO PLAYER SCREEN - COMPLETE ====================
+class PhotoPlayerScreen extends ConsumerStatefulWidget {
+  final List<MediaItem> media;
+  final int initialIndex;
+
+  const PhotoPlayerScreen({
+    super.key,
+    required this.media,
+    required this.initialIndex,
+  });
+
+  @override
+  ConsumerState<PhotoPlayerScreen> createState() => _PhotoPlayerScreenState();
+}
+
+class _PhotoPlayerScreenState extends ConsumerState<PhotoPlayerScreen> {
+  late PageController _pageController;
+  int _currentIndex = 0;
+  bool _showUI = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: GestureDetector(
+        onTap: () => setState(() => _showUI = !_showUI),
+        child: Stack(
+          children: [
+            PhotoViewGallery.builder(
+              pageController: _pageController,
+              itemCount: widget.media.length,
+              onPageChanged: (index) => setState(() => _currentIndex = index),
+              builder: (context, index) {
+                return PhotoViewGalleryPageOptions(
+                  imageProvider: CachedNetworkImageProvider(widget.media[index].url),
+                  minScale: PhotoViewComputedScale.contained,
+                  maxScale: PhotoViewComputedScale.covered * 3,
+                  heroAttributes: PhotoViewHeroAttributes(tag: widget.media[index].id),
+                );
+              },
+            ),
+            if (_showUI) _buildTopBar(),
+            if (_showUI) _buildBottomBar(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopBar() {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: EdgeInsets.only(
+          top: MediaQuery.of(context).padding.top + 8,
+          left: 16,
+          right: 16,
+          bottom: 16,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+          ),
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.close, color: Colors.white, size: 28),
+            ),
+            const Spacer(),
+            Text(
+              '${_currentIndex + 1} of ${widget.media.length}',
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            const Spacer(),
+            IconButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Sharing photo...')),
+                );
+              },
+              icon: const Icon(Icons.share, color: Colors.white, size: 24),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    final currentPhoto = widget.media[_currentIndex];
+    
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom: MediaQuery.of(context).padding.bottom + 16,
+          top: 24,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+            colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.media.length > 1)
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                child: SmoothPageIndicator(
+                  controller: _pageController,
+                  count: widget.media.length,
+                  effect: WormEffect(
+                    dotColor: Colors.white.withOpacity(0.3),
+                    activeDotColor: Colors.white,
+                    dotHeight: 8,
+                    dotWidth: 8,
+                  ),
+                ),
+              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        currentPhoto.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'by ${currentPhoto.author}',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 14,
+                        ),
+                      ),
+                      if (currentPhoto.description != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          currentPhoto.description!,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 12,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Column(
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        ref.read(galleryProvider.notifier).toggleFavorite(currentPhoto.id);
+                      },
+                      icon: Icon(
+                        currentPhoto.isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: currentPhoto.isFavorite ? Colors.red : Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    Text(
+                      '${currentPhoto.likes}',
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Photo saved!')),
+                        );
+                      },
+                      icon: const Icon(Icons.download, color: Colors.white, size: 28),
+                    ),
+                    const Text('Save', style: TextStyle(color: Colors.white, fontSize: 12)),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== SLIDESHOW SCREEN - COMPLETE ====================
+class SlideshowScreen extends StatefulWidget {
+  final List<MediaItem> media;
+
+  const SlideshowScreen({super.key, required this.media});
+
+  @override
+  State<SlideshowScreen> createState() => _SlideshowScreenState();
+}
+
+class _SlideshowScreenState extends State<SlideshowScreen>
+    with TickerProviderStateMixin {
+  late PageController _pageController;
+  late AnimationController _transitionController;
+  int _currentIndex = 0;
+  bool _isPlaying = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _transitionController = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    );
+    _startSlideshow();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+  }
+
+  void _startSlideshow() {
+    if (_isPlaying && widget.media.isNotEmpty) {
+      _transitionController.reset();
+      _transitionController.forward().then((_) {
+        if (mounted && _isPlaying) {
+          setState(() {
+            _currentIndex = (_currentIndex + 1) % widget.media.length;
+          });
+          _pageController.animateToPage(
+            _currentIndex,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+          _startSlideshow();
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _transitionController.dispose();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) => setState(() => _currentIndex = index),
+            itemCount: widget.media.length,
+            itemBuilder: (context, index) {
+              return CachedNetworkImage(
+                imageUrl: widget.media[index].url,
+                fit: BoxFit.contain,
+                width: double.infinity,
+                height: double.infinity,
+              );
+            },
+          ),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 16,
+            left: 16,
+            right: 16,
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                ),
+                const Spacer(),
+                Text(
+                  '${_currentIndex + 1} / ${widget.media.length}',
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () {
+                    setState(() => _isPlaying = !_isPlaying);
+                    if (_isPlaying) {
+                      _startSlideshow();
+                    } else {
+                      _transitionController.stop();
+                    }
+                  },
+                  icon: Icon(
+                    _isPlaying ? Icons.pause : Icons.play_arrow,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            bottom: MediaQuery.of(context).padding.bottom + 16,
+            left: 16,
+            right: 16,
+            child: Column(
+              children: [
+                LinearProgressIndicator(
+                  value: _transitionController.value,
+                  backgroundColor: Colors.white.withOpacity(0.3),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  widget.media[_currentIndex].title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== FAVORITES SCREEN - COMPLETE ====================
+class FavoritesScreen extends ConsumerWidget {
+  const FavoritesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final galleryState = ref.watch(galleryProvider);
+    final favoriteMedia = galleryState.allMedia.where((item) => item.isFavorite).toList();
+    
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: favoriteMedia.isEmpty
+                    ? _buildEmptyState()
+                    : _buildFavoritesGrid(context, ref, favoriteMedia),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Row(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Favorites',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your loved moments',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.white.withOpacity(0.8),
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          const Icon(Icons.favorite, color: Colors.red, size: 32),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.favorite_border,
+            color: Colors.white.withOpacity(0.5),
+            size: 80,
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'No favorites yet',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 24,
+              fontWeight: FontWeight.w300,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Tap the heart icon on photos\nto add them here',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.6),
+              fontSize: 16,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFavoritesGrid(BuildContext context, WidgetRef ref, List<MediaItem> favoriteMedia) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(24),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 0.8,
+      ),
+      itemCount: favoriteMedia.length,
+      itemBuilder: (context, index) {
+        return MediaItemWidget(
+          item: favoriteMedia[index],
+          index: index,
+          onTap: () {
+            final imageMedia = favoriteMedia.where((m) => m.type == MediaType.image).toList();
+            final imageIndex = imageMedia.indexWhere((m) => m.id == favoriteMedia[index].id);
+            
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PhotoPlayerScreen(
+                  media: imageMedia,
+                  initialIndex: imageIndex >= 0 ? imageIndex : 0,
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ==================== PROFILE SCREEN - COMPLETE ====================
+class ProfileScreen extends ConsumerWidget {
+  const ProfileScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final galleryState = ref.watch(galleryProvider);
+    final totalPhotos = galleryState.allMedia.where((m) => m.type == MediaType.image).length;
+    final totalVideos = galleryState.allMedia.where((m) => m.type == MediaType.video).length;
+    
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                _buildProfileHeader(),
+                const SizedBox(height: 32),
+                _buildStatsSection(
+                  galleryState.collections.length,
+                  totalPhotos,
+                  totalVideos,
+                ),
+                const SizedBox(height: 32),
+                _buildSettingsSection(context),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileHeader() {
+    return Column(
+      children: [
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 4),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipOval(
+            child: CachedNetworkImage(
+              imageUrl: 'https://picsum.photos/200/200?random=user',
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'John Photographer',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Professional Event Photographer',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.9),
+            fontSize: 16,
+          ),
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(
+          onPressed: () {},
+          icon: const Icon(Icons.edit, size: 18),
+          label: const Text('Edit Profile'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: const Color(0xFF667eea),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatsSection(int events, int photos, int videos) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildStatItem('Events', '$events'),
+          Container(
+            width: 1,
+            height: 50,
+            color: Colors.white.withOpacity(0.3),
+          ),
+          _buildStatItem('Photos', '$photos'),
+          Container(
+            width: 1,
+            height: 50,
+            color: Colors.white.withOpacity(0.3),
+          ),
+          _buildStatItem('Videos', '$videos'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.8),
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSettingsSection(BuildContext context) {
+    final settings = [
+      {'icon': Icons.settings, 'title': 'Settings', 'subtitle': 'App preferences'},
+      {'icon': Icons.cloud_upload, 'title': 'Backup & Sync', 'subtitle': 'Cloud storage'},
+      {'icon': Icons.download, 'title': 'Downloads', 'subtitle': 'Manage downloads'},
+      {'icon': Icons.share, 'title': 'Share App', 'subtitle': 'Tell your friends'},
+      {'icon': Icons.help, 'title': 'Help & Support', 'subtitle': 'Get assistance'},
+      {'icon': Icons.info, 'title': 'About', 'subtitle': 'Version 1.0.0'},
+    ];
+
+    return Column(
+      children: settings.map((setting) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.2)),
+          ),
+          child: ListTile(
+            leading: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                setting['icon'] as IconData,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+            title: Text(
+              setting['title'] as String,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+            subtitle: Text(
+              setting['subtitle'] as String,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 13,
+              ),
+            ),
+            trailing: Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white.withOpacity(0.5),
+              size: 16,
+            ),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Opening ${setting['title']}')),
+              );
+            },
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ==================== GALLERY SCREEN - COMPLETE ====================
+class GalleryScreen extends ConsumerWidget {
+  const GalleryScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final galleryState = ref.

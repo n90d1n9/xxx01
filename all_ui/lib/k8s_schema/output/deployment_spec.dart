@@ -1,0 +1,53 @@
+import 'label_selector.dart';
+import 'pod_template_spec.dart';
+import 'deployment_strategy.dart';
+
+class DeploymentSpec {
+  final int? replicas;
+  final LabelSelector selector;
+  final PodTemplateSpec template;
+  final DeploymentStrategy? strategy;
+  final int? minReadySeconds;
+  final int? revisionHistoryLimit;
+  final bool? paused;
+  final int? progressDeadlineSeconds;
+  DeploymentSpec({
+    this.replicas,
+    required this.selector,
+    required this.template,
+    this.strategy,
+    this.minReadySeconds,
+    this.revisionHistoryLimit,
+    this.paused,
+    this.progressDeadlineSeconds,
+  });
+  factory DeploymentSpec.fromJson(Map<String, dynamic> json) {
+    return DeploymentSpec(
+      replicas: json['replicas'],
+      selector: LabelSelector.fromJson(json['selector']),
+      template: PodTemplateSpec.fromJson(json['template']),
+      strategy:
+          json['strategy'] != null
+              ? DeploymentStrategy.fromJson(json['strategy'])
+              : null,
+      minReadySeconds: json['minReadySeconds'],
+      revisionHistoryLimit: json['revisionHistoryLimit'],
+      paused: json['paused'],
+      progressDeadlineSeconds: json['progressDeadlineSeconds'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (replicas != null) 'replicas': replicas,
+      'selector': selector.toJson(),
+      'template': template.toJson(),
+      if (strategy != null) 'strategy': strategy!.toJson(),
+      if (minReadySeconds != null) 'minReadySeconds': minReadySeconds,
+      if (revisionHistoryLimit != null)
+        'revisionHistoryLimit': revisionHistoryLimit,
+      if (paused != null) 'paused': paused,
+      if (progressDeadlineSeconds != null)
+        'progressDeadlineSeconds': progressDeadlineSeconds,
+    };
+  }
+}

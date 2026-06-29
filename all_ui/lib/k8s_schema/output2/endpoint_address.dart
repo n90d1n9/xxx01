@@ -1,0 +1,33 @@
+import 'object_reference.dart';
+
+class EndpointAddress {
+  final String ip;
+  final String? hostname;
+  final String? nodeName;
+  final ObjectReference? targetRef;
+  EndpointAddress({
+    required this.ip,
+    this.hostname,
+    this.nodeName,
+    this.targetRef,
+  });
+  factory EndpointAddress.fromJson(Map<String, dynamic> json) {
+    return EndpointAddress(
+      ip: json['ip'],
+      hostname: json['hostname'],
+      nodeName: json['nodeName'],
+      targetRef:
+          json['targetRef'] != null
+              ? ObjectReference.fromJson(json['targetRef'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'ip': ip,
+      if (hostname != null) 'hostname': hostname,
+      if (nodeName != null) 'nodeName': nodeName,
+      if (targetRef != null) 'targetRef': targetRef!.toJson(),
+    };
+  }
+}

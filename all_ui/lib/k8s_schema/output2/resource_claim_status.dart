@@ -1,0 +1,41 @@
+import 'allocation_result.dart';
+import 'resource_claim_consumer_reference.dart';
+
+class ResourceClaimStatus {
+  final String? driverName;
+  final AllocationResult? allocation;
+  final List<ResourceClaimConsumerReference>? reservedFor;
+  final bool? deallocationRequested;
+  ResourceClaimStatus({
+    this.driverName,
+    this.allocation,
+    this.reservedFor,
+    this.deallocationRequested,
+  });
+  factory ResourceClaimStatus.fromJson(Map<String, dynamic> json) {
+    return ResourceClaimStatus(
+      driverName: json['driverName'],
+      allocation:
+          json['allocation'] != null
+              ? AllocationResult.fromJson(json['allocation'])
+              : null,
+      reservedFor:
+          json['reservedFor'] != null
+              ? (json['reservedFor'] as List)
+                  .map((e) => ResourceClaimConsumerReference.fromJson(e))
+                  .toList()
+              : null,
+      deallocationRequested: json['deallocationRequested'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (driverName != null) 'driverName': driverName,
+      if (allocation != null) 'allocation': allocation!.toJson(),
+      if (reservedFor != null)
+        'reservedFor': reservedFor!.map((e) => e.toJson()).toList(),
+      if (deallocationRequested != null)
+        'deallocationRequested': deallocationRequested,
+    };
+  }
+}

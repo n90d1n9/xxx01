@@ -1,0 +1,1728 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:math' as math;
+
+// ========== WORKFLOW MODELS ==========
+class WorkflowNode {
+  final String id;
+  final String name;
+  final String type;
+  final Offset position;
+  final Map<String, dynamic> config;
+  final List<String> inputs;
+  final List<String> outputs;
+  final NodeStatus status;
+  final String? error;
+
+  WorkflowNode({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.position,
+    this.config = const {},
+    this.inputs = const [],
+    this.outputs = const [],
+    this.status = NodeStatus.idle,
+    this.error,
+  });
+
+  WorkflowNode copyWith({
+    String? name,
+    Offset? position,
+    Map<String, dynamic>? config,
+    List<String>? inputs,
+    List<String>? outputs,
+    NodeStatus? status,
+    String? error,
+  }) {
+    return WorkflowNode(
+      id: id,
+      name: name ?? this.name,
+      type: type,
+      position: position ?? this.position,
+      config: config ?? this.config,
+      inputs: inputs ?? this.inputs,
+      outputs: outputs ?? this.outputs,
+      status: status ?? this.status,
+      error: error ?? this.error,
+    );
+  }
+}
+
+enum NodeStatus { idle, running, success, error, warning }
+
+class WorkflowConnection {
+  final String id;
+  final String sourceNodeId;
+  final String targetNodeId;
+  final String sourcePort;
+  final String targetPort;
+  final ConnectionStatus status;
+
+  WorkflowConnection({
+    required this.id,
+    required this.sourceNodeId,
+    required this.targetNodeId,
+    this.sourcePort = 'output',
+    this.targetPort = 'input',
+    this.status = ConnectionStatus.idle,
+  });
+
+  WorkflowConnection copyWith({
+    ConnectionStatus? status,
+  }) {
+    return WorkflowConnection(
+      id: id,
+      sourceNodeId: sourceNodeId,
+      targetNodeId: targetNodeId,
+      sourcePort: sourcePort,
+      targetPort: targetPort,
+      status: status ?? this.status,
+    );
+  }
+}
+
+enum ConnectionStatus { idle, active, completed }
+
+class Workflow {
+  final String id;
+  final String name;
+  final Map<String, WorkflowNode> nodes;
+  final Map<String, WorkflowConnection> connections;
+  final WorkflowStatus status;
+  final DateTime? lastRun;
+
+  Workflow({
+    required this.id,
+    required this.name,
+    this.nodes = const {},
+    this.connections = const {},
+    this.status = WorkflowStatus.draft,
+    this.lastRun,
+  });
+
+  Workflow copyWith({
+    String? name,
+    Map<String, WorkflowNode>? nodes,
+    Map<String, WorkflowConnection>? connections,
+    WorkflowStatus? status,
+    DateTime? lastRun,
+  }) {
+    return Workflow(
+      id: id,
+      name: name ?? this.name,
+      nodes: nodes ?? this.nodes,
+      connections: connections ?? this.connections,
+      status: status ?? this.status,
+      lastRun: lastRun ?? this.lastRun,
+    );
+  }
+}
+
+enum WorkflowStatus { draft, testing, running, paused, completed, failed }
+
+// ========== TEST EXECUTION MODELS ==========
+class TestExecution {
+  final String id;
+  final String workflowId;
+  final DateTime startTime;
+  final DateTime? endTime;
+  final TestStatus status;
+  final Map<String, dynamic> input;
+  final Map<String, dynamic>? output;
+  final List<ExecutionStep> steps;
+  final Map<String, dynamic> metrics;
+
+  TestExecution({
+    required this.id,
+    required this.workflowId,
+    required this.startTime,
+    this.endTime,
+    required this.status,
+    required this.input,
+    this.output,
+    this.steps = const [],
+    this.metrics = const {},
+  });
+
+  TestExecution copyWith({
+    DateTime? endTime,
+    TestStatus? status,
+    Map<String, dynamic>? output,
+    List<ExecutionStep>? steps,
+    Map<String, dynamic>? metrics,
+  }) {
+    return TestExecution(
+      id: id,
+      workflowId: workflowId,
+      startTime: startTime,
+      endTime: endTime ?? this.endTime,
+      status: status ?? this.status,
+      input: input,
+      output: output ?? this.output,
+      steps: steps ?? this.steps,
+      metrics: metrics ?? this.metrics,
+    );
+  }
+}
+
+enum TestStatus { running, completed, failed, cancelled }
+
+class ExecutionStep {
+  final String nodeId;
+  final String nodeName;
+  final DateTime startTime;
+  final DateTime? endTime;
+  final StepStatus status;
+  final Map<String, dynamic>? input;
+  final Map<String, dynamic>? output;
+  final String? error;
+  final int tokensUsed;
+  final double cost;
+
+  ExecutionStep({
+    required this.nodeId,
+    required this.nodeName,
+    required this.startTime,
+    this.endTime,
+    required this.status,
+    this.input,
+    this.output,
+    this.error,
+    this.tokensUsed = 0,
+    this.cost = 0.0,
+  });
+}
+
+enum StepStatus { pending, running, completed, failed, skipped }
+
+// ========== STATE MANAGEMENT ==========
+class WorkflowState {
+  final Workflow? currentWorkflow;
+  final String? selectedNodeId;
+  final bool isConnecting;
+  final String? connectingFromNodeId;
+  final Offset canvasOffset;
+  final double canvasScale;
+
+  WorkflowState({
+    this.currentWorkflow,
+    this.selectedNodeId,
+    this.isConnecting = false,
+    this.connectingFromNodeId,
+    this.canvasOffset = Offset.zero,
+    this.canvasScale = 1.0,
+  });
+
+  WorkflowState copyWith({
+    Workflow? currentWorkflow,
+    String? selectedNodeId,
+    bool? isConnecting,
+    String? connectingFromNodeId,
+    Offset? canvasOffset,
+    double? canvasScale,
+  }) {
+    return WorkflowState(
+      currentWorkflow: currentWorkflow ?? this.currentWorkflow,
+      selectedNodeId: selectedNodeId ?? this.selectedNodeId,
+      isConnecting: isConnecting ?? this.isConnecting,
+      connectingFromNodeId: connectingFromNodeId ?? this.connectingFromNodeId,
+      canvasOffset: canvasOffset ?? this.canvasOffset,
+      canvasScale: canvasScale ?? this.canvasScale,
+    );
+  }
+}
+
+class WorkflowNotifier extends StateNotifier<WorkflowState> {
+  WorkflowNotifier() : super(WorkflowState());
+
+  void createWorkflow(String name) {
+    final workflow = Workflow(
+      id: 'wf_${DateTime.now().millisecondsSinceEpoch}',
+      name: name,
+    );
+    state = state.copyWith(currentWorkflow: workflow);
+  }
+
+  void addNode(String type, Offset position) {
+    if (state.currentWorkflow == null) return;
+
+    final nodeId = 'node_${DateTime.now().millisecondsSinceEpoch}';
+    final node = WorkflowNode(
+      id: nodeId,
+      name: '$type Agent',
+      type: type,
+      position: position,
+    );
+
+    final updatedNodes = Map<String, WorkflowNode>.from(state.currentWorkflow!.nodes);
+    updatedNodes[nodeId] = node;
+
+    state = state.copyWith(
+      currentWorkflow: state.currentWorkflow!.copyWith(nodes: updatedNodes),
+    );
+  }
+
+  void updateNodePosition(String nodeId, Offset position) {
+    if (state.currentWorkflow == null) return;
+
+    final node = state.currentWorkflow!.nodes[nodeId];
+    if (node == null) return;
+
+    final updatedNodes = Map<String, WorkflowNode>.from(state.currentWorkflow!.nodes);
+    updatedNodes[nodeId] = node.copyWith(position: position);
+
+    state = state.copyWith(
+      currentWorkflow: state.currentWorkflow!.copyWith(nodes: updatedNodes),
+    );
+  }
+
+  void selectNode(String? nodeId) {
+    state = state.copyWith(selectedNodeId: nodeId);
+  }
+
+  void startConnection(String nodeId) {
+    state = state.copyWith(
+      isConnecting: true,
+      connectingFromNodeId: nodeId,
+    );
+  }
+
+  void completeConnection(String targetNodeId) {
+    if (state.connectingFromNodeId == null || !state.isConnecting) return;
+    if (state.connectingFromNodeId == targetNodeId) {
+      cancelConnection();
+      return;
+    }
+
+    final connectionId = 'conn_${DateTime.now().millisecondsSinceEpoch}';
+    final connection = WorkflowConnection(
+      id: connectionId,
+      sourceNodeId: state.connectingFromNodeId!,
+      targetNodeId: targetNodeId,
+    );
+
+    final updatedConnections = Map<String, WorkflowConnection>.from(
+      state.currentWorkflow!.connections,
+    );
+    updatedConnections[connectionId] = connection;
+
+    state = state.copyWith(
+      currentWorkflow: state.currentWorkflow!.copyWith(connections: updatedConnections),
+      isConnecting: false,
+      connectingFromNodeId: null,
+    );
+  }
+
+  void cancelConnection() {
+    state = state.copyWith(
+      isConnecting: false,
+      connectingFromNodeId: null,
+    );
+  }
+
+  void deleteNode(String nodeId) {
+    if (state.currentWorkflow == null) return;
+
+    final updatedNodes = Map<String, WorkflowNode>.from(state.currentWorkflow!.nodes);
+    updatedNodes.remove(nodeId);
+
+    // Remove connections to/from this node
+    final updatedConnections = Map<String, WorkflowConnection>.from(
+      state.currentWorkflow!.connections,
+    );
+    updatedConnections.removeWhere(
+      (key, conn) => conn.sourceNodeId == nodeId || conn.targetNodeId == nodeId,
+    );
+
+    state = state.copyWith(
+      currentWorkflow: state.currentWorkflow!.copyWith(
+        nodes: updatedNodes,
+        connections: updatedConnections,
+      ),
+      selectedNodeId: state.selectedNodeId == nodeId ? null : state.selectedNodeId,
+    );
+  }
+
+  void deleteConnection(String connectionId) {
+    if (state.currentWorkflow == null) return;
+
+    final updatedConnections = Map<String, WorkflowConnection>.from(
+      state.currentWorkflow!.connections,
+    );
+    updatedConnections.remove(connectionId);
+
+    state = state.copyWith(
+      currentWorkflow: state.currentWorkflow!.copyWith(connections: updatedConnections),
+    );
+  }
+
+  void updateCanvasTransform(Offset offset, double scale) {
+    state = state.copyWith(
+      canvasOffset: offset,
+      canvasScale: scale,
+    );
+  }
+}
+
+final workflowProvider = StateNotifierProvider<WorkflowNotifier, WorkflowState>((ref) {
+  return WorkflowNotifier();
+});
+
+// Test execution state
+class TestExecutionNotifier extends StateNotifier<TestExecution?> {
+  TestExecutionNotifier() : super(null);
+
+  void startTest(String workflowId, Map<String, dynamic> input) {
+    state = TestExecution(
+      id: 'test_${DateTime.now().millisecondsSinceEpoch}',
+      workflowId: workflowId,
+      startTime: DateTime.now(),
+      status: TestStatus.running,
+      input: input,
+    );
+
+    // Simulate test execution
+    _simulateExecution();
+  }
+
+  Future<void> _simulateExecution() async {
+    await Future.delayed(const Duration(seconds: 1));
+    
+    if (state == null) return;
+
+    final steps = [
+      ExecutionStep(
+        nodeId: 'node_1',
+        nodeName: 'Planning Agent',
+        startTime: DateTime.now(),
+        endTime: DateTime.now().add(const Duration(milliseconds: 500)),
+        status: StepStatus.completed,
+        input: state!.input,
+        output: {'plan': 'Step-by-step plan generated'},
+        tokensUsed: 150,
+        cost: 0.003,
+      ),
+      ExecutionStep(
+        nodeId: 'node_2',
+        nodeName: 'Tool Agent',
+        startTime: DateTime.now().add(const Duration(milliseconds: 500)),
+        endTime: DateTime.now().add(const Duration(seconds: 1)),
+        status: StepStatus.completed,
+        input: {'plan': 'Step-by-step plan generated'},
+        output: {'result': 'Task completed successfully'},
+        tokensUsed: 200,
+        cost: 0.004,
+      ),
+    ];
+
+    state = state!.copyWith(
+      endTime: DateTime.now(),
+      status: TestStatus.completed,
+      steps: steps,
+      output: {'result': 'Task completed successfully'},
+      metrics: {
+        'totalTokens': 350,
+        'totalCost': 0.007,
+        'duration': 1.0,
+      },
+    );
+  }
+
+  void stopTest() {
+    if (state == null) return;
+    state = state!.copyWith(
+      endTime: DateTime.now(),
+      status: TestStatus.cancelled,
+    );
+  }
+
+  void clearTest() {
+    state = null;
+  }
+}
+
+final testExecutionProvider = StateNotifierProvider<TestExecutionNotifier, TestExecution?>((ref) {
+  return TestExecutionNotifier();
+});
+
+// ========== WORKFLOW BUILDER SCREEN ==========
+class WorkflowBuilderScreen extends ConsumerWidget {
+  const WorkflowBuilderScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final workflowState = ref.watch(workflowProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(workflowState.currentWorkflow?.name ?? 'Workflow Builder'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.play_arrow),
+            onPressed: () => _showTestPlayground(context, ref),
+            tooltip: 'Test Workflow',
+          ),
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: () => _saveWorkflow(context, ref),
+            tooltip: 'Save Workflow',
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {},
+            tooltip: 'Workflow Settings',
+          ),
+        ],
+      ),
+      body: workflowState.currentWorkflow == null
+          ? _buildEmptyState(context, ref)
+          : Row(
+              children: [
+                _buildNodePalette(context, ref),
+                Expanded(
+                  child: _buildCanvas(context, ref),
+                ),
+                if (workflowState.selectedNodeId != null)
+                  _buildPropertiesPanel(context, ref),
+              ],
+            ),
+      floatingActionButton: workflowState.currentWorkflow != null
+          ? FloatingActionButton(
+              onPressed: () => _showAddNodeDialog(context, ref),
+              child: const Icon(Icons.add),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, WidgetRef ref) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.account_tree, size: 100, color: Colors.grey[300]),
+          const SizedBox(height: 24),
+          Text(
+            'Create Your First Workflow',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () => _createNewWorkflow(context, ref),
+            icon: const Icon(Icons.add),
+            label: const Text('New Workflow'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNodePalette(BuildContext context, WidgetRef ref) {
+    final nodeTypes = [
+      {'type': 'planning', 'name': 'Planning', 'icon': Icons.psychology, 'color': Colors.purple},
+      {'type': 'tool', 'name': 'Tool', 'icon': Icons.build, 'color': Colors.brown},
+      {'type': 'retrieval', 'name': 'Retrieval', 'icon': Icons.search, 'color': Colors.indigo},
+      {'type': 'guardrail', 'name': 'Guardrail', 'icon': Icons.security, 'color': Colors.red},
+      {'type': 'analytics', 'name': 'Analytics', 'icon': Icons.analytics, 'color': Colors.green},
+      {'type': 'summarization', 'name': 'Summary', 'icon': Icons.summarize, 'color': Colors.teal},
+    ];
+
+    return Container(
+      width: 200,
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        border: Border(right: BorderSide(color: Colors.grey[300]!)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Agent Nodes',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: nodeTypes.length,
+              itemBuilder: (context, index) {
+                final nodeType = nodeTypes[index];
+                return Draggable<String>(
+                  data: nodeType['type'] as String,
+                  feedback: Material(
+                    elevation: 4,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: nodeType['color'] as Color,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(nodeType['icon'] as IconData, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Text(
+                            nodeType['name'] as String,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  childWhenDragging: Opacity(
+                    opacity: 0.5,
+                    child: _buildNodePaletteItem(nodeType),
+                  ),
+                  child: _buildNodePaletteItem(nodeType),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNodePaletteItem(Map<String, dynamic> nodeType) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Row(
+        children: [
+          Icon(nodeType['icon'] as IconData, color: nodeType['color'] as Color),
+          const SizedBox(width: 8),
+          Text(nodeType['name'] as String),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCanvas(BuildContext context, WidgetRef ref) {
+    final workflowState = ref.watch(workflowProvider);
+    final workflow = workflowState.currentWorkflow!;
+
+    return DragTarget<String>(
+      onAcceptWithDetails: (details) {
+        final renderBox = context.findRenderObject() as RenderBox;
+        final localPosition = renderBox.globalToLocal(details.offset);
+        ref.read(workflowProvider.notifier).addNode(
+              details.data,
+              localPosition - const Offset(75, 40),
+            );
+      },
+      builder: (context, candidateData, rejectedData) {
+        return GestureDetector(
+          onTap: () {
+            ref.read(workflowProvider.notifier).selectNode(null);
+            if (workflowState.isConnecting) {
+              ref.read(workflowProvider.notifier).cancelConnection();
+            }
+          },
+          child: Container(
+            color: Colors.grey[50],
+            child: Stack(
+              children: [
+                // Grid background
+                CustomPaint(
+                  size: Size.infinite,
+                  painter: GridPainter(),
+                ),
+                // Connections
+                ...workflow.connections.values.map((conn) {
+                  final sourceNode = workflow.nodes[conn.sourceNodeId];
+                  final targetNode = workflow.nodes[conn.targetNodeId];
+                  if (sourceNode == null || targetNode == null) return const SizedBox();
+
+                  return CustomPaint(
+                    size: Size.infinite,
+                    painter: ConnectionPainter(
+                      start: sourceNode.position + const Offset(150, 40),
+                      end: targetNode.position + const Offset(0, 40),
+                      status: conn.status,
+                    ),
+                  );
+                }),
+                // Nodes
+                ...workflow.nodes.values.map((node) {
+                  return Positioned(
+                    left: node.position.dx,
+                    top: node.position.dy,
+                    child: WorkflowNodeWidget(node: node),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPropertiesPanel(BuildContext context, WidgetRef ref) {
+    final workflowState = ref.watch(workflowProvider);
+    final node = workflowState.currentWorkflow!.nodes[workflowState.selectedNodeId];
+
+    if (node == null) return const SizedBox();
+
+    return Container(
+      width: 300,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(left: BorderSide(color: Colors.grey[300]!)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Node Properties',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () {
+                    ref.read(workflowProvider.notifier).deleteNode(node.id);
+                  },
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Node Name',
+                    border: OutlineInputBorder(),
+                  ),
+                  controller: TextEditingController(text: node.name),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  title: const Text('Node Type'),
+                  subtitle: Text(node.type),
+                  leading: const Icon(Icons.category),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const Divider(),
+                ListTile(
+                  title: const Text('Inputs'),
+                  subtitle: Text('${node.inputs.length} connections'),
+                  leading: const Icon(Icons.input),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                ListTile(
+                  title: const Text('Outputs'),
+                  subtitle: Text('${node.outputs.length} connections'),
+                  leading: const Icon(Icons.output),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const Divider(),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // Open detailed configuration
+                  },
+                  icon: const Icon(Icons.settings),
+                  label: const Text('Configure Agent'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _createNewWorkflow(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController(text: 'New Workflow');
+        return AlertDialog(
+          title: const Text('Create Workflow'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              labelText: 'Workflow Name',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                ref.read(workflowProvider.notifier).createWorkflow(controller.text);
+                Navigator.pop(context);
+              },
+              child: const Text('Create'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showAddNodeDialog(BuildContext context, WidgetRef ref) {
+    // Show dialog to add node at center
+  }
+
+  void _saveWorkflow(BuildContext context, WidgetRef ref) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Workflow saved successfully!')),
+    );
+  }
+
+  void _showTestPlayground(BuildContext context, WidgetRef ref) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const TestPlaygroundScreen(),
+      ),
+    );
+  }
+}
+
+// ========== WORKFLOW NODE WIDGET ==========
+class WorkflowNodeWidget extends ConsumerWidget {
+  final WorkflowNode node;
+
+  const WorkflowNodeWidget({Key? key, required this.node}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final workflowState = ref.watch(workflowProvider);
+    final isSelected = workflowState.selectedNodeId == node.id;
+
+    final nodeColors = {
+      'planning': Colors.purple,
+      'tool': Colors.brown,
+      'retrieval': Colors.indigo,
+      'guardrail': Colors.red,
+      'analytics': Colors.green,
+      'summarization': Colors.teal,
+    };
+
+    final color = nodeColors[node.type] ?? Colors.blue;
+
+    return GestureDetector(
+      onTap: () {
+        ref.read(workflowProvider.notifier).selectNode(node.id);
+        if (workflowState.isConnecting) {
+          ref.read(workflowProvider.notifier).completeConnection(node.id);
+        }
+      },
+      onPanUpdate: (details) {
+        ref.read(workflowProvider.notifier).updateNodePosition(
+              node.id,
+              node.position + details.delta,
+            );
+      },
+      child: Container(
+        width: 150,
+        height: 80,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey[300]!,
+            width: isSelected ? 3 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(7)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.smart_toy, color: color, size: 16),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      node.name,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: color,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: _buildStatusIndicator(),
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildPort(context, ref, true),
+                _buildPort(context, ref, false),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusIndicator() {
+    final statusColors = {
+      NodeStatus.idle: Colors.grey,
+      NodeStatus.running: Colors.blue,
+      NodeStatus.success: Colors.green,
+      NodeStatus.error: Colors.red,
+      NodeStatus.warning: Colors.orange,
+    };
+
+    return Container(
+      width: 12,
+      height: 12,
+      decoration: BoxDecoration(
+        color: statusColors[node.status],
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+
+  Widget _buildPort(BuildContext context, WidgetRef ref, bool isInput) {
+    return GestureDetector(
+      onTap: () {
+        if (!isInput) {
+          ref.read(workflowProvider.notifier).startConnection(node.id);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.all(4),
+        width: 12,
+        height: 12,
+        decoration: BoxDecoration(
+          color: isInput ? Colors.blue : Colors.orange,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 2),
+        ),
+      ),
+    );
+  }
+}
+
+// ========== CUSTOM PAINTERS ==========
+class GridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey[300]!
+      ..strokeWidth = 0.5;
+
+    const gridSize = 20.0;
+
+    for (double i = 0; i < size.width; i += gridSize) {
+      canvas.drawLine(Offset(i, 0), Offset(i, size.height), paint);
+    }
+
+    for (double i = 0; i < size.height; i += gridSize) {
+      canvas.drawLine(Offset(0, i), Offset(size.width, i), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class ConnectionPainter extends CustomPainter {
+  final Offset start;
+  final Offset end;
+  final ConnectionStatus status;
+
+  ConnectionPainter({
+    required this.start,
+    required this.end,
+    required this.status,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = status == ConnectionStatus.active
+          ? Colors.blue
+          : status == ConnectionStatus.completed
+              ? Colors.green
+              : Colors.grey[400]!
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+    path.moveTo(start.dx, start.dy);
+
+    final controlPoint1 = Offset(start.dx + 50, start.dy);
+    final controlPoint2 = Offset(end.dx - 50, end.dy);
+
+    path.cubicTo(
+      controlPoint1.dx,
+      controlPoint1.dy,
+      controlPoint2.dx,
+      controlPoint2.dy,
+      end.dx,
+      end.dy,
+    );
+
+    canvas.drawPath(path, paint);
+
+    // Draw arrow head
+    _drawArrowHead(canvas, paint, controlPoint2, end);
+  }
+
+  void _drawArrowHead(Canvas canvas, Paint paint, Offset from, Offset to) {
+    const arrowSize = 10.0;
+    final angle = math.atan2(to.dy - from.dy, to.dx - from.dx);
+
+    final path = Path();
+    path.moveTo(to.dx, to.dy);
+    path.lineTo(
+      to.dx - arrowSize * math.cos(angle - math.pi / 6),
+      to.dy - arrowSize * math.sin(angle - math.pi / 6),
+    );
+    path.moveTo(to.dx, to.dy);
+    path.lineTo(
+      to.dx - arrowSize * math.cos(angle + math.pi / 6),
+      to.dy - arrowSize * math.sin(angle + math.pi / 6),
+    );
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// ========== TEST PLAYGROUND SCREEN ==========
+class TestPlaygroundScreen extends ConsumerStatefulWidget {
+  const TestPlaygroundScreen({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<TestPlaygroundScreen> createState() => _TestPlaygroundScreenState();
+}
+
+class _TestPlaygroundScreenState extends ConsumerState<TestPlaygroundScreen> {
+  final TextEditingController _inputController = TextEditingController(
+    text: '{"query": "Analyze the sales data for Q4"}',
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final testExecution = ref.watch(testExecutionProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Test Playground'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: () => _showExecutionHistory(context),
+            tooltip: 'Execution History',
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () => _showTestSettings(context),
+            tooltip: 'Test Settings',
+          ),
+        ],
+      ),
+      body: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: _buildInputPanel(testExecution),
+          ),
+          const VerticalDivider(width: 1),
+          Expanded(
+            flex: 3,
+            child: _buildExecutionPanel(testExecution),
+          ),
+          const VerticalDivider(width: 1),
+          Expanded(
+            flex: 2,
+            child: _buildMetricsPanel(testExecution),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputPanel(TestExecution? testExecution) {
+    final isRunning = testExecution?.status == TestStatus.running;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.input, color: Colors.blue[700]),
+              const SizedBox(width: 8),
+              Text(
+                'Test Input',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: TextField(
+              controller: _inputController,
+              decoration: InputDecoration(
+                labelText: 'Input (JSON)',
+                hintText: 'Enter test input data as JSON',
+                border: const OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.grey[50],
+              ),
+              maxLines: null,
+              expands: true,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: isRunning ? null : _runTest,
+                  icon: Icon(isRunning ? Icons.hourglass_empty : Icons.play_arrow),
+                  label: Text(isRunning ? 'Running...' : 'Run Test'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.all(16),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (isRunning)
+                ElevatedButton.icon(
+                  onPressed: () {
+                    ref.read(testExecutionProvider.notifier).stopTest();
+                  },
+                  icon: const Icon(Icons.stop),
+                  label: const Text('Stop'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    padding: const EdgeInsets.all(16),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildQuickInputs(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickInputs() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Quick Inputs',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildQuickInputChip('Customer Query', '{"query": "What are my order details?"}'),
+            _buildQuickInputChip('Data Analysis', '{"task": "analyze", "data": "sales_q4.csv"}'),
+            _buildQuickInputChip('Content Generation', '{"topic": "AI trends", "length": 500}'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickInputChip(String label, String json) {
+    return ActionChip(
+      label: Text(label),
+      onPressed: () {
+        setState(() {
+          _inputController.text = json;
+        });
+      },
+      avatar: const Icon(Icons.flash_on, size: 16),
+    );
+  }
+
+  Widget _buildExecutionPanel(TestExecution? testExecution) {
+    if (testExecution == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.play_circle_outline, size: 80, color: Colors.grey[300]),
+            const SizedBox(height: 16),
+            Text(
+              'Ready to Test',
+              style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Click "Run Test" to start execution',
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.timeline, color: Colors.blue[700]),
+              const SizedBox(width: 8),
+              Text(
+                'Execution Timeline',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+              _buildStatusChip(testExecution.status),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: testExecution.steps.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    itemCount: testExecution.steps.length,
+                    itemBuilder: (context, index) {
+                      return _buildExecutionStepCard(testExecution.steps[index], index);
+                    },
+                  ),
+          ),
+          if (testExecution.output != null) ...[
+            const Divider(),
+            const SizedBox(height: 8),
+            Text(
+              'Final Output',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                border: Border.all(color: Colors.green[200]!),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(
+                const JsonEncoder.withIndent('  ').convert(testExecution.output),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExecutionStepCard(ExecutionStep step, int index) {
+    final statusColors = {
+      StepStatus.pending: Colors.grey,
+      StepStatus.running: Colors.blue,
+      StepStatus.completed: Colors.green,
+      StepStatus.failed: Colors.red,
+      StepStatus.skipped: Colors.orange,
+    };
+
+    final statusIcons = {
+      StepStatus.pending: Icons.schedule,
+      StepStatus.running: Icons.hourglass_empty,
+      StepStatus.completed: Icons.check_circle,
+      StepStatus.failed: Icons.error,
+      StepStatus.skipped: Icons.skip_next,
+    };
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ExpansionTile(
+        leading: CircleAvatar(
+          backgroundColor: statusColors[step.status]?.withOpacity(0.2),
+          child: Icon(
+            statusIcons[step.status],
+            color: statusColors[step.status],
+            size: 20,
+          ),
+        ),
+        title: Text(
+          step.nodeName,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Status: ${step.status.name}'),
+            if (step.endTime != null)
+              Text(
+                'Duration: ${step.endTime!.difference(step.startTime).inMilliseconds}ms',
+                style: const TextStyle(fontSize: 12),
+              ),
+          ],
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '${step.tokensUsed} tokens',
+              style: const TextStyle(fontSize: 12),
+            ),
+            Text(
+              '\${step.cost.toStringAsFixed(4)}',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (step.input != null) ...[
+                  const Text(
+                    'Input:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: SelectableText(
+                      const JsonEncoder.withIndent('  ').convert(step.input),
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (step.output != null) ...[
+                  const Text(
+                    'Output:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: SelectableText(
+                      const JsonEncoder.withIndent('  ').convert(step.output),
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                    ),
+                  ),
+                ],
+                if (step.error != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            step.error!,
+                            style: const TextStyle(color: Colors.red, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricsPanel(TestExecution? testExecution) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.analytics, color: Colors.blue[700]),
+              const SizedBox(width: 8),
+              Text(
+                'Performance Metrics',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (testExecution != null) ...[
+            _buildMetricCard(
+              'Total Duration',
+              testExecution.metrics['duration']?.toStringAsFixed(2) ?? '0.00',
+              's',
+              Icons.timer,
+              Colors.blue,
+            ),
+            const SizedBox(height: 12),
+            _buildMetricCard(
+              'Total Tokens',
+              testExecution.metrics['totalTokens']?.toString() ?? '0',
+              'tokens',
+              Icons.memory,
+              Colors.purple,
+            ),
+            const SizedBox(height: 12),
+            _buildMetricCard(
+              'Total Cost',
+              testExecution.metrics['totalCost']?.toStringAsFixed(4) ?? '0.0000',
+              'USD',
+              Icons.attach_money,
+              Colors.green,
+            ),
+            const SizedBox(height: 12),
+            _buildMetricCard(
+              'Steps Completed',
+              testExecution.steps.where((s) => s.status == StepStatus.completed).length.toString(),
+              '/ ${testExecution.steps.length}',
+              Icons.done_all,
+              Colors.orange,
+            ),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 16),
+            Text(
+              'Token Breakdown',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: ListView.builder(
+                itemCount: testExecution.steps.length,
+                itemBuilder: (context, index) {
+                  final step = testExecution.steps[index];
+                  final totalTokens = testExecution.metrics['totalTokens'] as int? ?? 1;
+                  final percentage = (step.tokensUsed / totalTokens * 100).toStringAsFixed(1);
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              step.nodeName,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            Text(
+                              '${step.tokensUsed} ($percentage%)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(
+                          value: step.tokensUsed / totalTokens,
+                          backgroundColor: Colors.grey[200],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ] else ...[
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.analytics_outlined, size: 64, color: Colors.grey[300]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No metrics available',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricCard(
+    String label,
+    String value,
+    String unit,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  baseline: TextBaseline.alphabetic,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  children: [
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      unit,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(TestStatus status) {
+    final statusColors = {
+      TestStatus.running: Colors.blue,
+      TestStatus.completed: Colors.green,
+      TestStatus.failed: Colors.red,
+      TestStatus.cancelled: Colors.orange,
+    };
+
+    final statusIcons = {
+      TestStatus.running: Icons.play_circle,
+      TestStatus.completed: Icons.check_circle,
+      TestStatus.failed: Icons.error,
+      TestStatus.cancelled: Icons.cancel,
+    };
+
+    return Chip(
+      avatar: Icon(
+        statusIcons[status],
+        color: Colors.white,
+        size: 16,
+      ),
+      label: Text(
+        status.name.toUpperCase(),
+        style: const TextStyle(color: Colors.white, fontSize: 12),
+      ),
+      backgroundColor: statusColors[status],
+      padding: EdgeInsets.zero,
+    );
+  }
+
+  void _runTest() {
+    try {
+      final input = jsonDecode(_inputController.text) as Map<String, dynamic>;
+      ref.read(testExecutionProvider.notifier).startTest('workflow_1', input);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Invalid JSON input: $e')),
+      );
+    }
+  }
+
+  void _showExecutionHistory(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Execution History'),
+        content: const SizedBox(
+          width: 500,
+          height: 400,
+          child: Center(child: Text('Coming soon: View past test executions')),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTestSettings(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Test Settings'),
+        content: const SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SwitchListTile(
+                title: Text('Enable Debug Mode'),
+                value: true,
+                onChanged: null,
+              ),
+              SwitchListTile(
+                title: Text('Collect Detailed Metrics'),
+                value: true,
+                onChanged: null,
+              ),
+              SwitchListTile(
+                title: Text('Save Test Results'),
+                value: false,
+                onChanged: null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    super.dispose();
+  }
+}
+
+// ========== MAIN APP ==========
+void main() {
+  runApp(const ProviderScope(child: MyApp()));
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Workflow Builder & Test Playground',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+      ),
+      debugShowCheckedModeBanner: false,
+      home: const WorkflowBuilderScreen(),
+    );
+  }
+}

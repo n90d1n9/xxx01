@@ -1,0 +1,52 @@
+import 'object_reference.dart';
+import 'object_meta.dart';
+import 'local_object_reference.dart';
+
+class ServiceAccount {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final List<ObjectReference>? secrets;
+  final List<LocalObjectReference>? imagePullSecrets;
+  final bool? automountServiceAccountToken;
+  ServiceAccount({
+    this.apiVersion = 'v1',
+    this.kind = 'ServiceAccount',
+    required this.metadata,
+    this.secrets,
+    this.imagePullSecrets,
+    this.automountServiceAccountToken,
+  });
+  factory ServiceAccount.fromJson(Map<String, dynamic> json) {
+    return ServiceAccount(
+      apiVersion: json['apiVersion'] ?? 'v1',
+      kind: json['kind'] ?? 'ServiceAccount',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      secrets:
+          json['secrets'] != null
+              ? (json['secrets'] as List)
+                  .map((e) => ObjectReference.fromJson(e))
+                  .toList()
+              : null,
+      imagePullSecrets:
+          json['imagePullSecrets'] != null
+              ? (json['imagePullSecrets'] as List)
+                  .map((e) => LocalObjectReference.fromJson(e))
+                  .toList()
+              : null,
+      automountServiceAccountToken: json['automountServiceAccountToken'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      if (secrets != null) 'secrets': secrets!.map((e) => e.toJson()).toList(),
+      if (imagePullSecrets != null)
+        'imagePullSecrets': imagePullSecrets!.map((e) => e.toJson()).toList(),
+      if (automountServiceAccountToken != null)
+        'automountServiceAccountToken': automountServiceAccountToken,
+    };
+  }
+}

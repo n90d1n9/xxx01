@@ -1,0 +1,271 @@
+// Replace the OrgChartScreen widget with this fixed version
+
+class OrgChartScreen extends StatefulWidget {
+  @override
+  _OrgChartScreenState createState() => _OrgChartScreenState();
+}
+
+class _OrgChartScreenState extends State<OrgChartScreen> with SingleTickerProviderStateMixin {
+  bool _showSidebar = true;
+  late TabController _tabController;
+  
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      setState(() {
+        // Update selected tab index when tab changes
+      });
+    });
+  }
+  
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<OrgChartProvider>(context);
+    final isSmallScreen = MediaQuery.of(context).size.width < 600;
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Organization Chart Builder', 
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: false,
+        actions: [
+          IconButton(
+            icon: Icon(provider.isEditMode ? Icons.visibility : Icons.edit),
+            tooltip: provider.isEditMode ? 'View Mode' : 'Edit Mode',
+            onPressed: provider.toggleEditMode,
+          ),
+          IconButton(
+            icon: Icon(Icons.search),
+            tooltip: 'Search',
+            onPressed: () {
+              // Show search dialog
+              showSearch(
+                context: context,
+                delegate: OrgChartSearch(provider),
+              );
+            },
+          ),
+          if (isSmallScreen)
+            IconButton(
+              icon: Icon(_showSidebar ? Icons.menu_open : Icons.menu),
+              onPressed: () {
+                setState(() {
+                  _showSidebar = !_showSidebar;
+                });
+              },
+            ),
+        ],
+      ),
+      body: Row(
+        children: [
+          // Sidebar
+          if (_showSidebar && !isSmallScreen)
+            Container(
+              width: 300,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'Organization Elements',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  TabBar(
+                    controller: _tabController, // Add the controller here
+                    labelColor: Theme.of(context).colorScheme.primary,
+                    unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                    tabs: [
+                      Tab(text: 'Departments'),
+                      Tab(text: 'Employees'),
+                      Tab(text: 'Positions'),
+                    ],
+                    onTap: (index) {
+                      setState(() {
+                        // No need to update a separate index variable anymore
+                      });
+                    },
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController, // Add the controller here too
+                      children: [
+                        // Departments list
+                        ListView.builder(
+                          itemCount: provider.departments.length,
+                          itemBuilder: (context, index) {
+                            final department = provider.departments[index];
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: department.color,
+                                child: Text(
+                                  department.name.substring(0, 1),
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
+                              title: Text(department.name),
+                              subtitle: department.parentDepartmentId != null
+                                ? Text('Parent: ${provider.getDepartmentById(department.parentDepartmentId!)?.name ?? "None"}')
+                                : Text('Top Level'),
+                              selected: provider.selectedItemId == department.id,
+                              onTap: () => provider.selectItem(department.id),
+                              trailing: provider.isEditMode
+                                ? PopupMenuButton(
+                                    itemBuilder: (context) => [
+                                      PopupMenuItem(
+                                        child: Text('Edit'),
+                                        value: 'edit',
+                                      ),
+                                      PopupMenuItem(
+                                        child: Text('Delete'),
+                                        value: 'delete',
+                                      ),
+                                    ],
+                                    onSelected: (value) {
+                                      if (value == 'edit') {
+                                        // Show edit dialog
+                                      } else if (value == 'delete') {
+                                        provider.deleteDepartment(department.id);
+                                      }
+                                    },
+                                  )
+                                : null,
+                            );
+                          },
+                        ),
+                        
+                        // Employees list
+                        ListView.builder(
+                          itemCount: provider.employees.length,
+                          itemBuilder: (context, index) {
+                            final employee = provider.employees[index];
+                            final position = provider.getPositionById(employee.positionId);
+                            final department = provider.getDepartmentById(employee.departmentId);
+                            
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundImage: AssetImage(employee.imageUrl),
+                              ),
+                              title: Text(employee.name),
+                              subtitle: Text('${position?.title ?? "Unknown"} - ${department?.name ?? "Unknown"}'),
+                              selected: provider.selectedItemId == employee.id,
+                              onTap: () => provider.selectItem(employee.id),
+                              trailing: provider.isEditMode
+                                ? PopupMenuButton(
+                                    itemBuilder: (context) => [
+                                      PopupMenuItem(
+                                        child: Text('Edit'),
+                                        value: 'edit',
+                                      ),
+                                      PopupMenuItem(
+                                        child: Text('Delete'),
+                                        value: 'delete',
+                                      ),
+                                    ],
+                                    onSelected: (value) {
+                                      if (value == 'edit') {
+                                        // Show edit dialog
+                                      } else if (value == 'delete') {
+                                        provider.deleteEmployee(employee.id);
+                                      }
+                                    },
+                                  )
+                                : null,
+                            );
+                          },
+                        ),
+                        
+                        // Positions list
+                        ListView.builder(
+                          itemCount: provider.positions.length,
+                          itemBuilder: (context, index) {
+                            final position = provider.positions[index];
+                            
+                            return ListTile(
+                              leading: Icon(Icons.work),
+                              title: Text(position.title),
+                              subtitle: Text('\$${position.salary.toStringAsFixed(0)}'),
+                              selected: provider.selectedItemId == position.id,
+                              onTap: () => provider.selectItem(position.id),
+                              trailing: provider.isEditMode
+                                ? PopupMenuButton(
+                                    itemBuilder: (context) => [
+                                      PopupMenuItem(
+                                        child: Text('Edit'),
+                                        value: 'edit',
+                                      ),
+                                      PopupMenuItem(
+                                        child: Text('Delete'),
+                                        value: 'delete',
+                                      ),
+                                    ],
+                                    onSelected: (value) {
+                                      if (value == 'edit') {
+                                        // Show edit dialog
+                                      } else if (value == 'delete') {
+                                        provider.deletePosition(position.id);
+                                      }
+                                    },
+                                  )
+                                : null,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Add buttons
+                  if (provider.isEditMode)
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: ElevatedButton.icon(
+                        icon: Icon(Icons.add),
+                        label: Text(_tabController.index == 0
+                          ? 'Add Department'
+                          : _tabController.index == 1
+                            ? 'Add Employee'
+                            : 'Add Position'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                          minimumSize: Size(double.infinity, 48),
+                        ),
+                        onPressed: () {
+                          // Show add dialog based on selected tab
+                          if (_tabController.index == 0) {
+                            _showDepartmentDialog(context);
+                          } else if (_tabController.index == 1) {
+                            _showEmployeeDialog(context);
+                          } else {
+                            _showPositionDialog(context);
+                          }
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            
+          // Rest of the build method remains the same...

@@ -1,0 +1,25 @@
+import 'namespace_condition.dart';
+
+class NamespaceStatus {
+  final String? phase;
+  final List<NamespaceCondition>? conditions;
+  NamespaceStatus({this.phase, this.conditions});
+  factory NamespaceStatus.fromJson(Map<String, dynamic> json) {
+    return NamespaceStatus(
+      phase: json['phase'],
+      conditions:
+          json['conditions'] != null
+              ? (json['conditions'] as List)
+                  .map((e) => NamespaceCondition.fromJson(e))
+                  .toList()
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (phase != null) 'phase': phase,
+      if (conditions != null)
+        'conditions': conditions!.map((e) => e.toJson()).toList(),
+    };
+  }
+}

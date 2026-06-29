@@ -1,0 +1,197 @@
+// faraid_rules_fixed.drl
+package com.estate.faraid
+
+global Map shares;            // Map<String, Double>
+global Map reasons;           // Map<String, String>
+global List executionLog;     // List<String>
+global Map flags;             // Map<String, Boolean>, e.g. {'fixedApplied':true}
+global Double remainingShare; // numeric
+global Double totalEstate;
+global String calculationMethod;
+
+// ---------------------------
+// FIXED SHARE RULES (salience controls order)
+// ---------------------------
+
+// Wife with children -> 1/8
+rule "Wife With Children"
+    salience 1000
+    agenda-group "fixed-shares"
+    no-loop true
+when
+    $d: FamilyMember(relationName == "deceased", genderName == "male")
+    $w: FamilyMember(relationName == "spouse", genderName == "female", isDeceased == false)
+    exists FamilyMember(relationName in ("son","daughter"), isDeceased == false)
+then
+    // ensure numeric assignment
+    shares.put($w.id.toString(), 0.125);
+    reasons.put($w.id.toString(), "Istri mendapat 1/8 (ada anak) - QS 4:12");
+    executionLog.add("Wife gets 1/8: " + $w.id.toString());
+end
+
+// Wife without children -> 1/4
+rule "Wife Without Children"
+    salience 995
+    agenda-group "fixed-shares"
+    no-loop true
+when
+    $d: FamilyMember(relationName == "deceased", genderName == "male")
+    $w: FamilyMember(relationName == "spouse", genderName == "female", isDeceased == false)
+    not exists FamilyMember(relationName in ("son","daughter"), isDeceased == false)
+then
+    shares.put($w.id.toString(), 0.25);
+    reasons.put($w.id.toString(), "Istri mendapat 1/4 (tanpa anak) - QS 4:12");
+    executionLog.add("Wife gets 1/4: " + $w.id.toString());
+end
+
+// Husband with children -> 1/4
+rule "Husband With Children"
+    salience 1000
+    agenda-group "fixed-shares"
+    no-loop true
+when
+    $d: FamilyMember(relationName == "deceased", genderName == "female")
+    $h: FamilyMember(relationName == "spouse", genderName == "male", isDeceased == false)
+    exists FamilyMember(relationName in ("son","daughter"), isDeceased == false)
+then
+    shares.put($h.id.toString(), 0.25);
+    reasons.put($h.id.toString(), "Suami mendapat 1/4 (ada anak) - QS 4:12");
+    executionLog.add("Husband gets 1/4: " + $h.id.toString());
+end
+
+// Husband without children -> 1/2
+rule "Husband Without Children"
+    salience 995
+    agenda-group "fixed-shares"
+    no-loop true
+when
+    $d: FamilyMember(relationName == "deceased", genderName == "female")
+    $h: FamilyMember(relationName == "spouse", genderName == "male", isDeceased == false)
+    not exists FamilyMember(relationName in ("son","daughter"), isDeceased == false)
+then
+    shares.put($h.id.toString(), 0.5);
+    reasons.put($h.id.toString(), "Suami mendapat 1/2 (tanpa anak) - QS 4:12");
+    executionLog.add("Husband gets 1/2: " + $h.id.toString());
+end
+
+// Mother: with child or siblings -> 1/6
+rule "Mother With ChildrenOrSiblings"
+    salience 900
+    agenda-group "fixed-shares"
+    no-loop true
+when
+    $m: FamilyMember(relationName == "mother", isDeceased == false)
+    (
+      exists FamilyMember(relationName in ("son","daughter"), isDeceased == false)
+      or exists (FamilyMember(relationName in ("brother","sister"), isDeceased == false))
+    )
+then
+    shares.put($m.id.toString(), 1.0/6.0);
+    reasons.put($m.id.toString(), "Ibu mendapat 1/6 - QS 4:11");
+    executionLog.add("Mother gets 1/6: " + $m.id.toString());
+end
+
+// Mother without child or siblings -> 1/3
+rule "Mother NoChildrenNoSiblings"
+    salience 895
+    agenda-group "fixed-shares"
+    no-loop true
+when
+    $m: FamilyMember(relationName == "mother", isDeceased == false)
+    not exists FamilyMember(relationName in ("son","daughter"), isDeceased == false)
+    not exists FamilyMember(relationName in ("brother","sister"), isDeceased == false)
+then
+    shares.put($m.id.toString(), 1.0/3.0);
+    reasons.put($m.id.toString(), "Ibu mendapat 1/3 - QS 4:11");
+    executionLog.add("Mother gets 1/3: " + $m.id.toString());
+end
+
+// Father with children -> 1/6
+rule "Father With Children"
+    salience 890
+    agenda-group "fixed-shares"
+    no-loop true
+when
+    $f: FamilyMember(relationName == "father", isDeceased == false)
+    exists FamilyMember(relationName in ("son","daughter"), isDeceased == false)
+then
+    shares.put($f.id.toString(), 1.0/6.0);
+    reasons.put($f.id.toString(), "Ayah mendapat 1/6 - QS 4:11");
+    executionLog.add("Father gets 1/6: " + $f.id.toString());
+end
+
+// Single daughter only -> 1/2
+rule "Single Daughter Only"
+    salience 880
+    agenda-group "fixed-shares"
+    no-loop true
+when
+    $d1: FamilyMember(relationName == "daughter", isDeceased == false)
+    not exists FamilyMember(relationName == "son", isDeceased == false)
+    not exists (FamilyMember(relationName == "daughter", isDeceased == false) and eval($d1 == null ? false : false)) // trick to ensure single: replaced by collect in Dart engine
+then
+    // This rule will be matched by programmatic check; keep placeholder
+    executionLog.add("Single Daughter rule placeholder fired for: " + $d1.id.toString());
+end
+
+// ---------------------------
+// VALIDATION & FLAGS (compute remainingShare)
+// ---------------------------
+rule "Compute RemainingShare"
+    salience 700
+    agenda-group "residual-calculation"
+    no-loop true
+when
+    $x: FamilyMember(relationName == "deceased")
+then
+    // ensure numeric total
+    double total = 0.0;
+    for (Object v : shares.values()) {
+        Object val = v;
+        if (val instanceof String) {
+            try {
+                val = Double.parseDouble((String) val);
+            } catch (Exception e) { val = 0.0; }
+        }
+        if (val instanceof Number) total += ((Number) val).doubleValue();
+    }
+    remainingShare = 1.0 - total;
+    if (remainingShare < 0) remainingShare = 0.0;
+    flags.put("fixedApplied", true);
+    executionLog.add("Computed remainingShare = " + remainingShare);
+end
+
+// ---------------------------
+// FALLBACK (very last resort) -> executed only if no shares assigned
+// ---------------------------
+rule "Fallback Assign If NoShares"
+    salience 10
+    agenda-group "validation"
+    no-loop true
+when
+    $d: FamilyMember(relationName == "deceased")
+    eval(flags.get("fixedApplied") == true)
+    eval(shares.size() == 0)
+then
+    // pick first son (if exists), else first heir as fallback
+    for (Object f : (List) org.drools.core.util.IlrUtilities.getFactsByType(this, "FamilyMember")) {
+        Map fact = (Map) f;
+        if (fact.get("relationName") != null && fact.get("relationName").equals("son")) {
+            shares.put(fact.get("id").toString(), 1.0);
+            reasons.put(fact.get("id").toString(), "Fallback: only heir");
+            executionLog.add("Fallback assigned son " + fact.get("id").toString() + " = 1.0");
+            break;
+        }
+    }
+end
+
+// Completion
+rule "Finish"
+    salience 1
+    agenda-group "completion"
+    no-loop true
+when
+    $d: FamilyMember(relationName == "deceased")
+then
+    executionLog.add("Faraid rules done.");
+end

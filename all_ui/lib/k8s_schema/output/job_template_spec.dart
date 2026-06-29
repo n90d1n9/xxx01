@@ -1,0 +1,23 @@
+import 'job_spec.dart';
+import 'object_meta.dart';
+
+class JobTemplateSpec {
+  final ObjectMeta? metadata;
+  final JobSpec spec;
+  JobTemplateSpec({this.metadata, required this.spec});
+  factory JobTemplateSpec.fromJson(Map<String, dynamic> json) {
+    return JobTemplateSpec(
+      metadata:
+          json['metadata'] != null
+              ? ObjectMeta.fromJson(json['metadata'])
+              : null,
+      spec: JobSpec.fromJson(json['spec']),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (metadata != null) 'metadata': metadata!.toJson(),
+      'spec': spec.toJson(),
+    };
+  }
+}

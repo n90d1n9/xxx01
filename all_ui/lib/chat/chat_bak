@@ -1,0 +1,3972 @@
+// Enhanced pubspec.yaml dependencies:
+// flutter_riverpod: ^2.4.9
+// riverpod_annotation: ^2.3.3
+// image_picker: ^1.0.4
+// file_picker: ^6.1.1
+// cached_network_image: ^3.3.0
+// flutter_animate: ^4.3.0
+// emoji_picker_flutter: ^1.6.1
+// record: ^4.4.4
+// audioplayers: ^5.2.1
+// flutter_contacts: ^1.1.7
+// permission_handler: ^11.0.1
+// share_plus: ^7.2.1
+// url_launcher: ^6.2.1
+// flutter_local_notifications: ^16.1.0
+// geolocator: ^10.1.0
+// qr_flutter: ^4.1.0
+// qr_code_scanner: ^1.0.1
+// speech_to_text: ^6.6.0
+// flutter_tts: ^3.8.5
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:math' as math;
+
+void main(List<String> args) {
+  runApp(ProviderScope(child: MaterialApp(home: ChatListScreen())));
+}
+
+// Enhanced Models
+class ChatRoom {
+  final String id;
+  final String name;
+  final String? avatar;
+  final String lastMessage;
+  final DateTime lastActivity;
+  final int unreadCount;
+  final bool isGroup;
+  final bool isMuted;
+  final bool isPinned;
+  final bool isArchived;
+  final bool isOnline;
+  final DateTime? lastSeen;
+  final List<String> participants;
+  final String? description;
+  final List<String> admins;
+  final RoomType type;
+  final ChatTheme theme;
+
+  ChatRoom({
+    required this.id,
+    required this.name,
+    this.avatar,
+    required this.lastMessage,
+    required this.lastActivity,
+    this.unreadCount = 0,
+    this.isGroup = false,
+    this.isMuted = false,
+    this.isPinned = false,
+    this.isArchived = false,
+    this.isOnline = false,
+    this.lastSeen,
+    this.participants = const [],
+    this.description,
+    this.admins = const [],
+    this.type = RoomType.personal,
+    this.theme = ChatTheme.default_,
+  });
+
+  ChatRoom copyWith({
+    String? id,
+    String? name,
+    String? avatar,
+    String? lastMessage,
+    DateTime? lastActivity,
+    int? unreadCount,
+    bool? isGroup,
+    bool? isMuted,
+    bool? isPinned,
+    bool? isArchived,
+    bool? isOnline,
+    DateTime? lastSeen,
+    List<String>? participants,
+    String? description,
+    List<String>? admins,
+    RoomType? type,
+    ChatTheme? theme,
+  }) {
+    return ChatRoom(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      avatar: avatar ?? this.avatar,
+      lastMessage: lastMessage ?? this.lastMessage,
+      lastActivity: lastActivity ?? this.lastActivity,
+      unreadCount: unreadCount ?? this.unreadCount,
+      isGroup: isGroup ?? this.isGroup,
+      isMuted: isMuted ?? this.isMuted,
+      isPinned: isPinned ?? this.isPinned,
+      isArchived: isArchived ?? this.isArchived,
+      isOnline: isOnline ?? this.isOnline,
+      lastSeen: lastSeen ?? this.lastSeen,
+      participants: participants ?? this.participants,
+      description: description ?? this.description,
+      admins: admins ?? this.admins,
+      type: type ?? this.type,
+      theme: theme ?? this.theme,
+    );
+  }
+}
+
+class Message {
+  final String id;
+  final String senderId;
+  final String senderName;
+  final String content;
+  final DateTime timestamp;
+  final MessageType type;
+  final List<Attachment> attachments;
+  final bool isMe;
+  final MessageStatus status;
+  final String? replyToId;
+  final bool isForwarded;
+  final bool isEdited;
+  final DateTime? editedAt;
+  final List<MessageReaction> reactions;
+  final Location? location;
+  final Contact? contact;
+  final Poll? poll;
+  final VoiceNote? voiceNote;
+  final bool isStarred;
+  final Map<String, dynamic>? metadata;
+
+  Message({
+    required this.id,
+    required this.senderId,
+    required this.senderName,
+    required this.content,
+    required this.timestamp,
+    this.type = MessageType.text,
+    this.attachments = const [],
+    this.isMe = false,
+    this.status = MessageStatus.sent,
+    this.replyToId,
+    this.isForwarded = false,
+    this.isEdited = false,
+    this.editedAt,
+    this.reactions = const [],
+    this.location,
+    this.contact,
+    this.poll,
+    this.voiceNote,
+    this.isStarred = false,
+    this.metadata,
+  });
+
+  Message copyWith({
+    String? id,
+    String? senderId,
+    String? senderName,
+    String? content,
+    DateTime? timestamp,
+    MessageType? type,
+    List<Attachment>? attachments,
+    bool? isMe,
+    MessageStatus? status,
+    String? replyToId,
+    bool? isForwarded,
+    bool? isEdited,
+    DateTime? editedAt,
+    List<MessageReaction>? reactions,
+    Location? location,
+    Contact? contact,
+    Poll? poll,
+    VoiceNote? voiceNote,
+    bool? isStarred,
+    Map<String, dynamic>? metadata,
+  }) {
+    return Message(
+      id: id ?? this.id,
+      senderId: senderId ?? this.senderId,
+      senderName: senderName ?? this.senderName,
+      content: content ?? this.content,
+      timestamp: timestamp ?? this.timestamp,
+      type: type ?? this.type,
+      attachments: attachments ?? this.attachments,
+      isMe: isMe ?? this.isMe,
+      status: status ?? this.status,
+      replyToId: replyToId ?? this.replyToId,
+      isForwarded: isForwarded ?? this.isForwarded,
+      isEdited: isEdited ?? this.isEdited,
+      editedAt: editedAt ?? this.editedAt,
+      reactions: reactions ?? this.reactions,
+      location: location ?? this.location,
+      contact: contact ?? this.contact,
+      poll: poll ?? this.poll,
+      voiceNote: voiceNote ?? this.voiceNote,
+      isStarred: isStarred ?? this.isStarred,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+}
+
+class Attachment {
+  final String id;
+  final String name;
+  final String url;
+  final AttachmentType type;
+  final int? size;
+  final String? thumbnail;
+  final Duration? duration;
+  final Map<String, dynamic>? metadata;
+
+  Attachment({
+    required this.id,
+    required this.name,
+    required this.url,
+    required this.type,
+    this.size,
+    this.thumbnail,
+    this.duration,
+    this.metadata,
+  });
+}
+
+class MessageReaction {
+  final String emoji;
+  final String userId;
+  final String userName;
+  final DateTime timestamp;
+
+  MessageReaction({
+    required this.emoji,
+    required this.userId,
+    required this.userName,
+    required this.timestamp,
+  });
+}
+
+class Location {
+  final double latitude;
+  final double longitude;
+  final String? address;
+  final String? name;
+
+  Location({
+    required this.latitude,
+    required this.longitude,
+    this.address,
+    this.name,
+  });
+}
+
+class Contact {
+  final String name;
+  final String phone;
+  final String? email;
+  final String? avatar;
+
+  Contact({required this.name, required this.phone, this.email, this.avatar});
+}
+
+class Poll {
+  final String question;
+  final List<PollOption> options;
+  final bool allowMultiple;
+  final DateTime? expiresAt;
+  final bool isAnonymous;
+
+  Poll({
+    required this.question,
+    required this.options,
+    this.allowMultiple = false,
+    this.expiresAt,
+    this.isAnonymous = false,
+  });
+}
+
+class PollOption {
+  final String id;
+  final String text;
+  final int votes;
+  final List<String> voters;
+
+  PollOption({
+    required this.id,
+    required this.text,
+    this.votes = 0,
+    this.voters = const [],
+  });
+}
+
+class VoiceNote {
+  final String url;
+  final Duration duration;
+  final List<double> waveform;
+  final bool isPlaying;
+
+  VoiceNote({
+    required this.url,
+    required this.duration,
+    this.waveform = const [],
+    this.isPlaying = false,
+  });
+}
+
+class Story {
+  final String id;
+  final String userId;
+  final String userName;
+  final String? userAvatar;
+  final String mediaUrl;
+  final StoryType type;
+  final DateTime timestamp;
+  final bool isViewed;
+  final List<String> viewers;
+
+  Story({
+    required this.id,
+    required this.userId,
+    required this.userName,
+    this.userAvatar,
+    required this.mediaUrl,
+    required this.type,
+    required this.timestamp,
+    this.isViewed = false,
+    this.viewers = const [],
+  });
+}
+
+class ChatTheme {
+  final String name;
+  final Color primaryColor;
+  final Color secondaryColor;
+  final String? wallpaper;
+  final bool isDark;
+
+  const ChatTheme({
+    required this.name,
+    required this.primaryColor,
+    required this.secondaryColor,
+    this.wallpaper,
+    this.isDark = true,
+  });
+
+  static const ChatTheme default_ = ChatTheme(
+    name: 'Default',
+    primaryColor: Colors.blue,
+    secondaryColor: Colors.purple,
+  );
+
+  static const ChatTheme ocean = ChatTheme(
+    name: 'Ocean',
+    primaryColor: Colors.cyan,
+    secondaryColor: Colors.teal,
+  );
+
+  static const ChatTheme sunset = ChatTheme(
+    name: 'Sunset',
+    primaryColor: Colors.orange,
+    secondaryColor: Colors.red,
+  );
+
+  static const ChatTheme forest = ChatTheme(
+    name: 'Forest',
+    primaryColor: Colors.green,
+    secondaryColor: Colors.lightGreen,
+  );
+}
+
+enum MessageType {
+  text,
+  image,
+  file,
+  voice,
+  video,
+  location,
+  contact,
+  poll,
+  sticker,
+  gif,
+}
+
+enum AttachmentType { image, document, video, audio, voice, gif, sticker }
+
+enum MessageStatus { sending, sent, delivered, read, failed }
+
+enum RoomType { personal, group, channel, bot }
+
+enum StoryType { image, video, text }
+
+// Enhanced Providers
+final chatRoomsProvider =
+    StateNotifierProvider<ChatRoomsNotifier, List<ChatRoom>>((ref) {
+      return ChatRoomsNotifier();
+    });
+
+final messagesProvider =
+    StateNotifierProvider.family<MessagesNotifier, List<Message>, String>((
+      ref,
+      roomId,
+    ) {
+      return MessagesNotifier(roomId);
+    });
+
+final selectedRoomProvider = StateProvider<ChatRoom?>((ref) => null);
+
+final storiesProvider = StateNotifierProvider<StoriesNotifier, List<Story>>((
+  ref,
+) {
+  return StoriesNotifier();
+});
+
+final typingUsersProvider =
+    StateNotifierProvider.family<TypingNotifier, List<String>, String>((
+      ref,
+      roomId,
+    ) {
+      return TypingNotifier(roomId);
+    });
+
+final voiceRecordingProvider =
+    StateNotifierProvider<VoiceRecordingNotifier, VoiceRecordingState>((ref) {
+      return VoiceRecordingNotifier();
+    });
+
+final chatThemeProvider = StateProvider<ChatTheme>((ref) => ChatTheme.default_);
+
+final searchQueryProvider = StateProvider<String>((ref) => '');
+
+// Enhanced State Classes
+class VoiceRecordingState {
+  final bool isRecording;
+  final Duration duration;
+  final List<double> waveform;
+  final String? filePath;
+
+  VoiceRecordingState({
+    this.isRecording = false,
+    this.duration = Duration.zero,
+    this.waveform = const [],
+    this.filePath,
+  });
+
+  VoiceRecordingState copyWith({
+    bool? isRecording,
+    Duration? duration,
+    List<double>? waveform,
+    String? filePath,
+  }) {
+    return VoiceRecordingState(
+      isRecording: isRecording ?? this.isRecording,
+      duration: duration ?? this.duration,
+      waveform: waveform ?? this.waveform,
+      filePath: filePath ?? this.filePath,
+    );
+  }
+}
+
+// Enhanced State Notifiers
+class ChatRoomsNotifier extends StateNotifier<List<ChatRoom>> {
+  ChatRoomsNotifier() : super(_mockRooms);
+
+  static final List<ChatRoom> _mockRooms = [
+    ChatRoom(
+      id: '1',
+      name: 'Design Team',
+      avatar: 'https://via.placeholder.com/50',
+      lastMessage: 'Let\'s review the new mockups 🎨',
+      lastActivity: DateTime.now().subtract(Duration(minutes: 5)),
+      unreadCount: 3,
+      isGroup: true,
+      isOnline: true,
+      isPinned: true,
+      participants: ['user1', 'user2', 'user3'],
+      type: RoomType.group,
+      theme: ChatTheme.ocean,
+      description: 'Design team collaboration space',
+      admins: ['user1'],
+    ),
+    ChatRoom(
+      id: '2',
+      name: 'Sarah Johnson',
+      avatar: 'https://via.placeholder.com/50',
+      lastMessage: 'Thanks for the update! 😊',
+      lastActivity: DateTime.now().subtract(Duration(hours: 2)),
+      unreadCount: 0,
+      isGroup: false,
+      isOnline: true,
+      lastSeen: DateTime.now().subtract(Duration(minutes: 30)),
+      participants: ['user1'],
+      type: RoomType.personal,
+      theme: ChatTheme.sunset,
+    ),
+    ChatRoom(
+      id: '3',
+      name: 'Project Alpha',
+      avatar: 'https://via.placeholder.com/50',
+      lastMessage: 'Meeting at 3 PM today 📅',
+      lastActivity: DateTime.now().subtract(Duration(hours: 4)),
+      unreadCount: 1,
+      isGroup: true,
+      isOnline: false,
+      participants: ['user1', 'user2', 'user3', 'user4'],
+      type: RoomType.group,
+      theme: ChatTheme.forest,
+      description: 'Project Alpha development team',
+      admins: ['user1', 'user2'],
+    ),
+    ChatRoom(
+      id: '4',
+      name: 'Tech News Bot',
+      avatar: 'https://via.placeholder.com/50',
+      lastMessage: 'Latest tech updates available 🤖',
+      lastActivity: DateTime.now().subtract(Duration(hours: 6)),
+      unreadCount: 5,
+      isGroup: false,
+      isOnline: true,
+      participants: ['bot1'],
+      type: RoomType.bot,
+      theme: ChatTheme.default_,
+    ),
+  ];
+
+  void addRoom(ChatRoom room) {
+    state = [room, ...state];
+  }
+
+  void updateRoom(ChatRoom updatedRoom) {
+    state =
+        state.map((room) {
+          return room.id == updatedRoom.id ? updatedRoom : room;
+        }).toList();
+  }
+
+  void togglePin(String roomId) {
+    state =
+        state.map((room) {
+          if (room.id == roomId) {
+            return room.copyWith(isPinned: !room.isPinned);
+          }
+          return room;
+        }).toList();
+  }
+
+  void toggleMute(String roomId) {
+    state =
+        state.map((room) {
+          if (room.id == roomId) {
+            return room.copyWith(isMuted: !room.isMuted);
+          }
+          return room;
+        }).toList();
+  }
+
+  void archiveRoom(String roomId) {
+    state =
+        state.map((room) {
+          if (room.id == roomId) {
+            return room.copyWith(isArchived: true);
+          }
+          return room;
+        }).toList();
+  }
+
+  void updateLastMessage(String roomId, String message) {
+    state =
+        state.map((room) {
+          if (room.id == roomId) {
+            return room.copyWith(
+              lastMessage: message,
+              lastActivity: DateTime.now(),
+            );
+          }
+          return room;
+        }).toList();
+  }
+
+  List<ChatRoom> get pinnedRooms =>
+      state.where((room) => room.isPinned && !room.isArchived).toList();
+  List<ChatRoom> get unpinnedRooms =>
+      state.where((room) => !room.isPinned && !room.isArchived).toList();
+  List<ChatRoom> get archivedRooms =>
+      state.where((room) => room.isArchived).toList();
+}
+
+class MessagesNotifier extends StateNotifier<List<Message>> {
+  final String roomId;
+
+  MessagesNotifier(this.roomId) : super(_mockMessages);
+
+  static final List<Message> _mockMessages = [
+    Message(
+      id: '1',
+      senderId: 'user1',
+      senderName: 'John Doe',
+      content: 'Hey everyone! How\'s the project going? 🚀',
+      timestamp: DateTime.now().subtract(Duration(hours: 2)),
+      isMe: false,
+      status: MessageStatus.read,
+      reactions: [
+        MessageReaction(
+          emoji: '👍',
+          userId: 'me',
+          userName: 'Me',
+          timestamp: DateTime.now().subtract(Duration(hours: 1, minutes: 50)),
+        ),
+      ],
+    ),
+    Message(
+      id: '2',
+      senderId: 'me',
+      senderName: 'Me',
+      content: 'Going great! Just finished the UI mockups. Check them out! ✨',
+      timestamp: DateTime.now().subtract(Duration(hours: 1, minutes: 30)),
+      isMe: true,
+      status: MessageStatus.read,
+      attachments: [
+        Attachment(
+          id: 'att1',
+          name: 'mockup.png',
+          url: 'https://via.placeholder.com/300x200',
+          type: AttachmentType.image,
+        ),
+      ],
+    ),
+    Message(
+      id: '3',
+      senderId: 'user2',
+      senderName: 'Sarah',
+      content: 'Looks amazing! 🎉 Love the color scheme',
+      timestamp: DateTime.now().subtract(Duration(minutes: 45)),
+      isMe: false,
+      status: MessageStatus.delivered,
+      replyToId: '2',
+      reactions: [
+        MessageReaction(
+          emoji: '❤️',
+          userId: 'me',
+          userName: 'Me',
+          timestamp: DateTime.now().subtract(Duration(minutes: 40)),
+        ),
+        MessageReaction(
+          emoji: '🔥',
+          userId: 'user1',
+          userName: 'John Doe',
+          timestamp: DateTime.now().subtract(Duration(minutes: 35)),
+        ),
+      ],
+    ),
+    Message(
+      id: '4',
+      senderId: 'user1',
+      senderName: 'John Doe',
+      content: '',
+      timestamp: DateTime.now().subtract(Duration(minutes: 20)),
+      isMe: false,
+      type: MessageType.voice,
+      voiceNote: VoiceNote(
+        url: 'voice_note.mp3',
+        duration: Duration(seconds: 15),
+        waveform: [0.2, 0.5, 0.8, 0.3, 0.9, 0.1, 0.6, 0.4, 0.7, 0.2],
+      ),
+    ),
+    Message(
+      id: '5',
+      senderId: 'me',
+      senderName: 'Me',
+      content: 'Let me share the meeting location 📍',
+      timestamp: DateTime.now().subtract(Duration(minutes: 10)),
+      isMe: true,
+      type: MessageType.location,
+      location: Location(
+        latitude: 37.7749,
+        longitude: -122.4194,
+        address: '123 Main St, San Francisco, CA',
+        name: 'Conference Room A',
+      ),
+    ),
+  ];
+
+  void sendMessage(Message message) {
+    state = [...state, message];
+  }
+
+  void deleteMessage(String messageId) {
+    state = state.where((message) => message.id != messageId).toList();
+  }
+
+  void editMessage(String messageId, String newContent) {
+    state =
+        state.map((message) {
+          if (message.id == messageId) {
+            return message.copyWith(
+              content: newContent,
+              isEdited: true,
+              editedAt: DateTime.now(),
+            );
+          }
+          return message;
+        }).toList();
+  }
+
+  void addReaction(String messageId, MessageReaction reaction) {
+    state =
+        state.map((message) {
+          if (message.id == messageId) {
+            final reactions = List<MessageReaction>.from(message.reactions);
+            // Remove existing reaction from same user
+            reactions.removeWhere(
+              (r) => r.userId == reaction.userId && r.emoji == reaction.emoji,
+            );
+            reactions.add(reaction);
+            return message.copyWith(reactions: reactions);
+          }
+          return message;
+        }).toList();
+  }
+
+  void removeReaction(String messageId, String userId, String emoji) {
+    state =
+        state.map((message) {
+          if (message.id == messageId) {
+            final reactions =
+                message.reactions
+                    .where((r) => !(r.userId == userId && r.emoji == emoji))
+                    .toList();
+            return message.copyWith(reactions: reactions);
+          }
+          return message;
+        }).toList();
+  }
+
+  void toggleStar(String messageId) {
+    state =
+        state.map((message) {
+          if (message.id == messageId) {
+            return message.copyWith(isStarred: !message.isStarred);
+          }
+          return message;
+        }).toList();
+  }
+
+  void forwardMessage(String messageId, String targetRoomId) {
+    final message = state.firstWhere((m) => m.id == messageId);
+    final forwardedMessage = message.copyWith(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      isForwarded: true,
+      timestamp: DateTime.now(),
+    );
+    // In a real app, this would forward to another room
+    state = [...state, forwardedMessage];
+  }
+}
+
+class StoriesNotifier extends StateNotifier<List<Story>> {
+  StoriesNotifier() : super(_mockStories);
+
+  static final List<Story> _mockStories = [
+    Story(
+      id: '1',
+      userId: 'user1',
+      userName: 'John Doe',
+      userAvatar: 'https://via.placeholder.com/60',
+      mediaUrl: 'https://via.placeholder.com/300x400',
+      type: StoryType.image,
+      timestamp: DateTime.now().subtract(Duration(hours: 2)),
+      isViewed: false,
+      viewers: ['user2', 'user3'],
+    ),
+    Story(
+      id: '2',
+      userId: 'user2',
+      userName: 'Sarah Johnson',
+      userAvatar: 'https://via.placeholder.com/60',
+      mediaUrl: 'https://via.placeholder.com/300x400',
+      type: StoryType.video,
+      timestamp: DateTime.now().subtract(Duration(hours: 4)),
+      isViewed: true,
+      viewers: ['user1', 'user3'],
+    ),
+    Story(
+      id: '3',
+      userId: 'user3',
+      userName: 'Mike Wilson',
+      userAvatar: 'https://via.placeholder.com/60',
+      mediaUrl: 'https://via.placeholder.com/300x400',
+      type: StoryType.image,
+      timestamp: DateTime.now().subtract(Duration(hours: 6)),
+      isViewed: false,
+      viewers: ['user1'],
+    ),
+  ];
+
+  void addStory(Story story) {
+    state = [story, ...state];
+  }
+
+  void markAsViewed(String storyId) {
+    state =
+        state.map((story) {
+          if (story.id == storyId) {
+            return Story(
+              id: story.id,
+              userId: story.userId,
+              userName: story.userName,
+              userAvatar: story.userAvatar,
+              mediaUrl: story.mediaUrl,
+              type: story.type,
+              timestamp: story.timestamp,
+              isViewed: true,
+              viewers: story.viewers,
+            );
+          }
+          return story;
+        }).toList();
+  }
+}
+
+class TypingNotifier extends StateNotifier<List<String>> {
+  final String roomId;
+
+  TypingNotifier(this.roomId) : super([]);
+
+  void startTyping(String userId) {
+    if (!state.contains(userId)) {
+      state = [...state, userId];
+    }
+  }
+
+  void stopTyping(String userId) {
+    state = state.where((id) => id != userId).toList();
+  }
+}
+
+class VoiceRecordingNotifier extends StateNotifier<VoiceRecordingState> {
+  VoiceRecordingNotifier() : super(VoiceRecordingState());
+
+  void startRecording() {
+    state = state.copyWith(isRecording: true);
+  }
+
+  void stopRecording() {
+    state = state.copyWith(isRecording: false);
+  }
+
+  void updateDuration(Duration duration) {
+    state = state.copyWith(duration: duration);
+  }
+
+  void updateWaveform(List<double> waveform) {
+    state = state.copyWith(waveform: waveform);
+  }
+}
+
+// Enhanced Main Chat List Screen
+class ChatListScreen extends ConsumerStatefulWidget {
+  const ChatListScreen({super.key});
+
+  @override
+  ConsumerState<ChatListScreen> createState() => _ChatListScreenState();
+}
+
+class _ChatListScreenState extends ConsumerState<ChatListScreen>
+    with TickerProviderStateMixin {
+  late TabController _tabController;
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chatRooms = ref.watch(chatRoomsProvider);
+    final stories = ref.watch(storiesProvider);
+    final searchQuery = ref.watch(searchQueryProvider);
+
+    final filteredRooms =
+        searchQuery.isEmpty
+            ? chatRooms
+            : chatRooms
+                .where(
+                  (room) =>
+                      room.name.toLowerCase().contains(
+                        searchQuery.toLowerCase(),
+                      ) ||
+                      room.lastMessage.toLowerCase().contains(
+                        searchQuery.toLowerCase(),
+                      ),
+                )
+                .toList();
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        title:
+            _isSearching
+                ? TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  style: TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Search messages...',
+                    hintStyle: TextStyle(color: Colors.grey[500]),
+                    border: InputBorder.none,
+                  ),
+                  onChanged: (value) {
+                    ref.read(searchQueryProvider.notifier).state = value;
+                  },
+                )
+                : Text(
+                  'Messages',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              _isSearching ? Icons.close : Icons.search,
+              color: Colors.white,
+            ),
+            onPressed: () {
+              setState(() {
+                _isSearching = !_isSearching;
+                if (!_isSearching) {
+                  _searchController.clear();
+                  ref.read(searchQueryProvider.notifier).state = '';
+                }
+              });
+            },
+          ),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: Colors.white),
+            color: Colors.grey[900],
+            onSelected: (value) {
+              switch (value) {
+                case 'new_group':
+                  _showCreateGroupDialog();
+                  break;
+                case 'new_channel':
+                  _showCreateChannelDialog();
+                  break;
+                case 'settings':
+                  _showSettingsDialog();
+                  break;
+                case 'archived':
+                  _showArchivedChats();
+                  break;
+              }
+            },
+            itemBuilder:
+                (context) => [
+                  PopupMenuItem(
+                    value: 'new_group',
+                    child: Row(
+                      children: [
+                        Icon(Icons.group_add, color: Colors.white),
+                        SizedBox(width: 12),
+                        Text(
+                          'New Group',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'new_channel',
+                    child: Row(
+                      children: [
+                        Icon(Icons.campaign, color: Colors.white),
+                        SizedBox(width: 12),
+                        Text(
+                          'New Channel',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'archived',
+                    child: Row(
+                      children: [
+                        Icon(Icons.archive, color: Colors.white),
+                        SizedBox(width: 12),
+                        Text('Archived', style: TextStyle(color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'settings',
+                    child: Row(
+                      children: [
+                        Icon(Icons.settings, color: Colors.white),
+                        SizedBox(width: 12),
+                        Text('Settings', style: TextStyle(color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                ],
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.blue,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.grey[500],
+          tabs: [
+            Tab(text: 'All'),
+            // Continuing from the TabBar in ChatListScreen
+            Tab(text: 'Unread'),
+            Tab(text: 'Groups'),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          // Stories Section
+          if (stories.isNotEmpty)
+            Container(
+              height: 90,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: stories.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return _buildAddStoryButton();
+                  }
+                  final story = stories[index - 1];
+                  return _buildStoryItem(story);
+                },
+              ),
+            ),
+
+          // Chat List
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildChatList(filteredRooms),
+                _buildChatList(
+                  filteredRooms.where((room) => room.unreadCount > 0).toList(),
+                ),
+                _buildChatList(
+                  filteredRooms.where((room) => room.isGroup).toList(),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showNewChatDialog,
+        backgroundColor: Colors.blue,
+        child: Icon(Icons.chat, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildAddStoryButton() {
+    return Padding(
+      padding: EdgeInsets.only(right: 12),
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.grey[700]!, width: 2),
+            ),
+            child: Icon(Icons.add, color: Colors.white, size: 30),
+          ),
+          SizedBox(height: 4),
+          Text(
+            'Your Story',
+            style: TextStyle(color: Colors.white, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStoryItem(Story story) {
+    return Padding(
+      padding: EdgeInsets.only(right: 12),
+      child: GestureDetector(
+        onTap: () => _viewStory(story),
+        child: Column(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: story.isViewed ? Colors.grey[600]! : Colors.blue,
+                  width: 2,
+                ),
+              ),
+              child: ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl:
+                      story.userAvatar ?? 'https://via.placeholder.com/60',
+                  fit: BoxFit.cover,
+                  placeholder:
+                      (context, url) => Container(
+                        color: Colors.grey[800],
+                        child: Icon(Icons.person, color: Colors.white),
+                      ),
+                  errorWidget:
+                      (context, url, error) => Container(
+                        color: Colors.grey[800],
+                        child: Icon(Icons.person, color: Colors.white),
+                      ),
+                ),
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              story.userName,
+              style: TextStyle(color: Colors.white, fontSize: 12),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChatList(List<ChatRoom> rooms) {
+    if (rooms.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey[600]),
+            SizedBox(height: 16),
+            Text(
+              'No chats yet',
+              style: TextStyle(color: Colors.grey[600], fontSize: 18),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final pinnedRooms = rooms.where((room) => room.isPinned).toList();
+    final unpinnedRooms = rooms.where((room) => !room.isPinned).toList();
+
+    return ListView.builder(
+      itemCount:
+          pinnedRooms.length +
+          unpinnedRooms.length +
+          (pinnedRooms.isNotEmpty ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (pinnedRooms.isNotEmpty && index == 0) {
+          return Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              'Pinned',
+              style: TextStyle(
+                color: Colors.grey[500],
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          );
+        }
+
+        final adjustedIndex = pinnedRooms.isNotEmpty ? index - 1 : index;
+        final room =
+            adjustedIndex < pinnedRooms.length
+                ? pinnedRooms[adjustedIndex]
+                : unpinnedRooms[adjustedIndex - pinnedRooms.length];
+
+        return _buildChatItem(room);
+      },
+    );
+  }
+
+  Widget _buildChatItem(ChatRoom room) {
+    return Dismissible(
+      key: Key(room.id),
+      background: Container(
+        color: Colors.green,
+        alignment: Alignment.centerLeft,
+        padding: EdgeInsets.only(left: 20),
+        child: Icon(Icons.archive, color: Colors.white, size: 28),
+      ),
+      secondaryBackground: Container(
+        color: Colors.red,
+        alignment: Alignment.centerRight,
+        padding: EdgeInsets.only(right: 20),
+        child: Icon(Icons.delete, color: Colors.white, size: 28),
+      ),
+      onDismissed: (direction) {
+        if (direction == DismissDirection.startToEnd) {
+          ref.read(chatRoomsProvider.notifier).archiveRoom(room.id);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Chat archived'),
+              action: SnackBarAction(
+                label: 'Undo',
+                onPressed: () {
+                  // Implement undo functionality
+                },
+              ),
+            ),
+          );
+        }
+      },
+      child: ListTile(
+        leading: Stack(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [room.theme.primaryColor, room.theme.secondaryColor],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: ClipOval(
+                child:
+                    room.avatar != null
+                        ? CachedNetworkImage(
+                          imageUrl: room.avatar!,
+                          fit: BoxFit.cover,
+                          placeholder:
+                              (context, url) => Container(
+                                color: Colors.grey[800],
+                                child: Icon(
+                                  room.isGroup ? Icons.group : Icons.person,
+                                  color: Colors.white,
+                                ),
+                              ),
+                          errorWidget:
+                              (context, url, error) => Container(
+                                color: Colors.grey[800],
+                                child: Icon(
+                                  room.isGroup ? Icons.group : Icons.person,
+                                  color: Colors.white,
+                                ),
+                              ),
+                        )
+                        : Icon(
+                          room.isGroup ? Icons.group : Icons.person,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+              ),
+            ),
+            if (room.isOnline && !room.isGroup)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.black, width: 2),
+                  ),
+                ),
+              ),
+            if (room.isPinned)
+              Positioned(
+                left: 0,
+                top: 0,
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.black, width: 2),
+                  ),
+                  child: Icon(Icons.push_pin, color: Colors.white, size: 10),
+                ),
+              ),
+          ],
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                room.name,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight:
+                      room.unreadCount > 0
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                  fontSize: 16,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (room.isMuted)
+              Icon(Icons.volume_off, color: Colors.grey[500], size: 16),
+          ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              room.lastMessage,
+              style: TextStyle(color: Colors.grey[400], fontSize: 14),
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (!room.isGroup && room.lastSeen != null)
+              Text(
+                'Last seen ${_formatTime(room.lastSeen!)}',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+          ],
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              _formatTime(room.lastActivity),
+              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+            ),
+            SizedBox(height: 4),
+            if (room.unreadCount > 0)
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: room.isMuted ? Colors.grey[600] : Colors.blue,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  room.unreadCount > 99 ? '99+' : room.unreadCount.toString(),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        onTap: () => _openChat(room),
+        onLongPress: () => _showChatOptions(room),
+      ).animate().fadeIn(duration: 300.ms).slideX(begin: 0.2, end: 0),
+    );
+  }
+
+  String _formatTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 1) {
+      return 'now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d';
+    } else {
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+    }
+  }
+
+  void _openChat(ChatRoom room) {
+    ref.read(selectedRoomProvider.notifier).state = room;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => ChatScreen(room: room)),
+    );
+  }
+
+  void _viewStory(Story story) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => StoryViewScreen(story: story)),
+    );
+  }
+
+  void _showChatOptions(ChatRoom room) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder:
+          (context) => Container(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Icon(Icons.push_pin, color: Colors.white),
+                  title: Text(
+                    room.isPinned ? 'Unpin' : 'Pin',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  onTap: () {
+                    ref.read(chatRoomsProvider.notifier).togglePin(room.id);
+                    Navigator.pop(context);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(
+                    room.isMuted ? Icons.volume_up : Icons.volume_off,
+                    color: Colors.white,
+                  ),
+                  title: Text(
+                    room.isMuted ? 'Unmute' : 'Mute',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  onTap: () {
+                    ref.read(chatRoomsProvider.notifier).toggleMute(room.id);
+                    Navigator.pop(context);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.archive, color: Colors.white),
+                  title: Text('Archive', style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    ref.read(chatRoomsProvider.notifier).archiveRoom(room.id);
+                    Navigator.pop(context);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.delete, color: Colors.red),
+                  title: Text('Delete', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showDeleteConfirmation(room);
+                  },
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  void _showDeleteConfirmation(ChatRoom room) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: Text('Delete Chat', style: TextStyle(color: Colors.white)),
+            content: Text(
+              'Are you sure you want to delete this chat?',
+              style: TextStyle(color: Colors.white),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () {
+                  // Implement delete functionality
+                  Navigator.pop(context);
+                },
+                child: Text('Delete', style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _showNewChatDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder:
+          (context) => Container(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Icon(Icons.person_add, color: Colors.white),
+                  title: Text(
+                    'New Contact',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showAddContactDialog();
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.group_add, color: Colors.white),
+                  title: Text(
+                    'New Group',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showCreateGroupDialog();
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.qr_code_scanner, color: Colors.white),
+                  title: Text(
+                    'Scan QR Code',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showQRScanner();
+                  },
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  void _showAddContactDialog() {
+    final TextEditingController nameController = TextEditingController();
+    final TextEditingController phoneController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: Text('Add Contact', style: TextStyle(color: Colors.white)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  style: TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Name',
+                    hintStyle: TextStyle(color: Colors.grey),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.blue),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 16),
+                TextField(
+                  controller: phoneController,
+                  style: TextStyle(color: Colors.white),
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    hintText: 'Phone Number',
+                    hintStyle: TextStyle(color: Colors.grey),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.blue),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () {
+                  // Implement add contact functionality
+                  Navigator.pop(context);
+                },
+                child: Text('Add', style: TextStyle(color: Colors.blue)),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _showCreateGroupDialog() {
+    final TextEditingController groupNameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: Text('Create Group', style: TextStyle(color: Colors.white)),
+            content: TextField(
+              controller: groupNameController,
+              style: TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Group Name',
+                hintStyle: TextStyle(color: Colors.grey),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.grey),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.blue),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () {
+                  // Implement create group functionality
+                  Navigator.pop(context);
+                },
+                child: Text('Create', style: TextStyle(color: Colors.blue)),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _showCreateChannelDialog() {
+    final TextEditingController channelNameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: Text(
+              'Create Channel',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: TextField(
+              controller: channelNameController,
+              style: TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Channel Name',
+                hintStyle: TextStyle(color: Colors.grey),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.grey),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.blue),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () {
+                  // Implement create channel functionality
+                  Navigator.pop(context);
+                },
+                child: Text('Create', style: TextStyle(color: Colors.blue)),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _showSettingsDialog() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => SettingsScreen()),
+    );
+  }
+
+  void _showArchivedChats() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => ArchivedChatsScreen()),
+    );
+  }
+
+  void _showQRScanner() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => QRScannerScreen()),
+    );
+  }
+}
+
+// Chat Screen Implementation
+class ChatScreen extends ConsumerStatefulWidget {
+  final ChatRoom room;
+
+  ChatScreen({required this.room});
+
+  @override
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends ConsumerState<ChatScreen>
+    with TickerProviderStateMixin {
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final FocusNode _focusNode = FocusNode();
+  late AnimationController _reactionAnimationController;
+  late AnimationController _typingAnimationController;
+
+  bool _isEmojiPickerVisible = false;
+  bool _isRecording = false;
+  String? _replyingToMessageId;
+
+  @override
+  void initState() {
+    super.initState();
+    _reactionAnimationController = AnimationController(
+      duration: Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _typingAnimationController = AnimationController(
+      duration: Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    _focusNode.dispose();
+    _reactionAnimationController.dispose();
+    _typingAnimationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final messages = ref.watch(messagesProvider(widget.room.id));
+    final typingUsers = ref.watch(typingUsersProvider(widget.room.id));
+    final voiceRecording = ref.watch(voiceRecordingProvider);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: _buildAppBar(),
+      body: Column(
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                // Chat messages
+                ListView.builder(
+                  controller: _scrollController,
+                  reverse: true,
+                  padding: EdgeInsets.all(16),
+                  itemCount: messages.length + (typingUsers.isNotEmpty ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == 0 && typingUsers.isNotEmpty) {
+                      return _buildTypingIndicator(typingUsers);
+                    }
+                    final messageIndex =
+                        typingUsers.isNotEmpty ? index - 1 : index;
+                    final message =
+                        messages[messages.length - 1 - messageIndex];
+                    return _buildMessageItem(message);
+                  },
+                ),
+                // Reply preview
+                if (_replyingToMessageId != null)
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: _buildReplyPreview(),
+                  ),
+              ],
+            ),
+          ),
+          _buildMessageInput(),
+        ],
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.grey[900],
+      elevation: 0,
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back, color: Colors.white),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: GestureDetector(
+        onTap: () => _showChatInfo(),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    widget.room.theme.primaryColor,
+                    widget.room.theme.secondaryColor,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: ClipOval(
+                child:
+                    widget.room.avatar != null
+                        ? CachedNetworkImage(
+                          imageUrl: widget.room.avatar!,
+                          fit: BoxFit.cover,
+                          placeholder:
+                              (context, url) => Icon(
+                                widget.room.isGroup
+                                    ? Icons.group
+                                    : Icons.person,
+                                color: Colors.white,
+                              ),
+                          errorWidget:
+                              (context, url, error) => Icon(
+                                widget.room.isGroup
+                                    ? Icons.group
+                                    : Icons.person,
+                                color: Colors.white,
+                              ),
+                        )
+                        : Icon(
+                          widget.room.isGroup ? Icons.group : Icons.person,
+                          color: Colors.white,
+                        ),
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.room.name,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (widget.room.isGroup)
+                    Text(
+                      '${widget.room.participants.length} members',
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    )
+                  else
+                    Text(
+                      widget.room.isOnline ? 'Online' : 'Last seen recently',
+                      style: TextStyle(
+                        color:
+                            widget.room.isOnline
+                                ? Colors.green
+                                : Colors.grey[400],
+                        fontSize: 12,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: Icon(Icons.videocam, color: Colors.white),
+          onPressed: () => _startVideoCall(),
+        ),
+        IconButton(
+          icon: Icon(Icons.call, color: Colors.white),
+          onPressed: () => _startVoiceCall(),
+        ),
+        PopupMenuButton<String>(
+          icon: Icon(Icons.more_vert, color: Colors.white),
+          color: Colors.grey[900],
+          onSelected: (value) {
+            switch (value) {
+              case 'view_contact':
+                _showChatInfo();
+                break;
+              case 'media':
+                _showMediaGallery();
+                break;
+              case 'search':
+                _showSearchInChat();
+                break;
+              case 'mute':
+                _toggleMute();
+                break;
+              case 'wallpaper':
+                _changeWallpaper();
+                break;
+              case 'clear_chat':
+                _clearChat();
+                break;
+            }
+          },
+          itemBuilder:
+              (context) => [
+                PopupMenuItem(
+                  value: 'view_contact',
+                  child: Row(
+                    children: [
+                      Icon(Icons.info, color: Colors.white),
+                      SizedBox(width: 12),
+                      Text(
+                        'View Contact',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'media',
+                  child: Row(
+                    children: [
+                      Icon(Icons.photo, color: Colors.white),
+                      SizedBox(width: 12),
+                      Text(
+                        'Media, Links, Docs',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'search',
+                  child: Row(
+                    children: [
+                      Icon(Icons.search, color: Colors.white),
+                      SizedBox(width: 12),
+                      Text('Search', style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'mute',
+                  child: Row(
+                    children: [
+                      Icon(Icons.volume_off, color: Colors.white),
+                      SizedBox(width: 12),
+                      Text(
+                        'Mute Notifications',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'wallpaper',
+                  child: Row(
+                    children: [
+                      Icon(Icons.wallpaper, color: Colors.white),
+                      SizedBox(width: 12),
+                      Text('Wallpaper', style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'clear_chat',
+                  child: Row(
+                    children: [
+                      Icon(Icons.clear_all, color: Colors.red),
+                      SizedBox(width: 12),
+                      Text('Clear Chat', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMessageItem(Message message) {
+    final isMe = message.senderId == ref.read(userProvider)?.id;
+    final showAvatar = !isMe && widget.room.isGroup;
+
+    return Container(
+      margin: EdgeInsets.only(
+        bottom: 8,
+        left: isMe ? 50 : 0,
+        right: isMe ? 0 : 50,
+      ),
+      child: Row(
+        mainAxisAlignment:
+            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (showAvatar)
+            Container(
+              width: 32,
+              height: 32,
+              margin: EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.grey[700],
+              ),
+              child: ClipOval(
+                child: Icon(Icons.person, color: Colors.white, size: 16),
+              ),
+            ),
+          Flexible(
+            child: GestureDetector(
+              onLongPress: () => _showMessageOptions(message),
+              onDoubleTap: () => _quickReaction(message),
+              child: Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color:
+                      isMe ? widget.room.theme.primaryColor : Colors.grey[800],
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (showAvatar && message.senderName != null)
+                      Text(
+                        message.senderName!,
+                        style: TextStyle(
+                          color: widget.room.theme.primaryColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    if (message.replyToId != null)
+                      _buildReplyContent(
+                        ref
+                            .read(messagesProvider(widget.room.id))
+                            .firstWhere(
+                              (m) => m.id == message.replyToId,
+                              orElse:
+                                  () => Message(
+                                    id: '',
+                                    senderId: '',
+                                    senderName: '',
+                                    content: '',
+                                    timestamp: DateTime.now(),
+                                  ),
+                            ),
+                      ),
+                    _buildMessageContent(message),
+                    SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _formatTime(message.timestamp),
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 10,
+                          ),
+                        ),
+                        if (isMe) ...[
+                          SizedBox(width: 4),
+                          Icon(
+                            message.status == MessageStatus.read
+                                ? Icons.done_all
+                                : message.status == MessageStatus.delivered
+                                ? Icons.done
+                                : Icons.access_time,
+                            color:
+                                message.status == MessageStatus.read
+                                    ? Colors.blue
+                                    : Colors.grey[400],
+                            size: 12,
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (message.reactions.isNotEmpty) _buildReactions(message),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageContent(Message message) {
+    switch (message.type) {
+      case MessageType.text:
+        return Text(
+          message.content,
+          style: TextStyle(color: Colors.white, fontSize: 16),
+        );
+      case MessageType.image:
+        return _buildImageMessage(message);
+      case MessageType.video:
+        return _buildVideoMessage(message);
+      case MessageType.voice:
+        return _buildVoiceMessage(message);
+      case MessageType.file:
+        return _buildFileMessage(message);
+      case MessageType.location:
+        return _buildLocationMessage(message);
+      default:
+        return Text(
+          'Unsupported message type',
+          style: TextStyle(
+            color: Colors.grey[400],
+            fontSize: 14,
+            fontStyle: FontStyle.italic,
+          ),
+        );
+    }
+  }
+
+  Widget _buildImageMessage(Message message) {
+    return Container(
+      constraints: BoxConstraints(maxWidth: 250, maxHeight: 300),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: CachedNetworkImage(
+          imageUrl: message.content,
+          fit: BoxFit.cover,
+          placeholder:
+              (context, url) => Container(
+                height: 200,
+                color: Colors.grey[700],
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: widget.room.theme.primaryColor,
+                  ),
+                ),
+              ),
+          errorWidget:
+              (context, url, error) => Container(
+                height: 200,
+                color: Colors.grey[700],
+                child: Icon(Icons.error, color: Colors.white),
+              ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVideoMessage(Message message) {
+    final attachment =
+        message.attachments.isNotEmpty ? message.attachments[0] : null;
+    return Container(
+      constraints: BoxConstraints(maxWidth: 250, maxHeight: 300),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: CachedNetworkImage(
+              imageUrl: attachment?.thumbnail ?? '',
+              fit: BoxFit.cover,
+              placeholder:
+                  (context, url) => Container(
+                    height: 200,
+                    color: Colors.grey[700],
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: widget.room.theme.primaryColor,
+                      ),
+                    ),
+                  ),
+              errorWidget:
+                  (context, url, error) => Container(
+                    height: 200,
+                    color: Colors.grey[700],
+                    child: Icon(Icons.video_library, color: Colors.white),
+                  ),
+            ),
+          ),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.play_circle_fill,
+                  color: Colors.white,
+                  size: 50,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVoiceMessage(Message message) {
+    final duration = message.voiceNote?.duration;
+    return Container(
+      width: 200,
+      padding: EdgeInsets.all(8),
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(Icons.play_arrow, color: Colors.white),
+            onPressed: () => _playVoice(message.content),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Container(
+                  height: 30,
+                  child: Row(
+                    children: List.generate(20, (index) {
+                      return Container(
+                        width: 3,
+                        height: (index % 3 + 1) * 10.0,
+                        margin: EdgeInsets.symmetric(horizontal: 1),
+                        decoration: BoxDecoration(
+                          color:
+                              index < 8
+                                  ? widget.room.theme.primaryColor
+                                  : Colors.grey[600],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  duration != null ? _formatVoiceDuration(duration) : '0:00',
+                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatVoiceDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return '$minutes:$seconds';
+  }
+
+  Widget _buildReplyContent(Message replyMessage) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(
+          left: BorderSide(color: widget.room.theme.primaryColor, width: 3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            replyMessage.senderName ?? 'Unknown',
+            style: TextStyle(
+              color: widget.room.theme.primaryColor,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 2),
+          Text(
+            replyMessage.content,
+            style: TextStyle(color: Colors.grey[300], fontSize: 12),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReactions(Message message) {
+    // Group reactions by emoji and count occurrences
+    final Map<String, int> emojiCounts = {};
+    for (final reaction in message.reactions) {
+      emojiCounts[reaction.emoji] = (emojiCounts[reaction.emoji] ?? 0) + 1;
+    }
+    return Container(
+      margin: EdgeInsets.only(top: 4),
+      child: Wrap(
+        spacing: 4,
+        children:
+            emojiCounts.entries.map((entry) {
+              return Container(
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.grey[700],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(entry.key, style: TextStyle(fontSize: 12)),
+                    SizedBox(width: 2),
+                    Text(
+                      entry.value.toString(),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 10),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildTypingIndicator(List<String> typingUsers) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            margin: EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.grey[700],
+            ),
+            child: Icon(Icons.person, color: Colors.white, size: 16),
+          ),
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey[800],
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  typingUsers.length == 1
+                      ? '${typingUsers.first} is typing'
+                      : '${typingUsers.length} people are typing',
+                  style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                ),
+                SizedBox(width: 8),
+                AnimatedBuilder(
+                  animation: _typingAnimationController,
+                  builder: (context, child) {
+                    return Row(
+                      children: List.generate(3, (index) {
+                        final delay = index * 0.2;
+                        final value =
+                            (_typingAnimationController.value + delay) % 1.0;
+                        return Container(
+                          width: 6,
+                          height: 6,
+                          margin: EdgeInsets.symmetric(horizontal: 1),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.grey[400]?.withOpacity(
+                              0.3 +
+                                  0.7 *
+                                      (1 - (value - 0.5).abs() * 2).clamp(
+                                        0.0,
+                                        1.0,
+                                      ),
+                            ),
+                          ),
+                        );
+                      }),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReplyPreview() {
+    final replyMessage = ref
+        .read(messagesProvider(widget.room.id))
+        .firstWhere((m) => m.id == _replyingToMessageId);
+
+    return Container(
+      color: Colors.grey[900],
+      padding: EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 40,
+            color: widget.room.theme.primaryColor,
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Replying to ${replyMessage.senderName ?? 'Unknown'}',
+                  style: TextStyle(
+                    color: widget.room.theme.primaryColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  replyMessage.content,
+                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.close, color: Colors.grey[400]),
+            onPressed: () {
+              setState(() {
+                _replyingToMessageId = null;
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageInput() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        border: Border(top: BorderSide(color: Colors.grey[800]!, width: 1)),
+      ),
+      child: Column(
+        children: [
+          if (_isEmojiPickerVisible) _buildEmojiPicker(),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[800],
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          _isEmojiPickerVisible
+                              ? Icons.keyboard
+                              : Icons.emoji_emotions,
+                          color: Colors.grey[400],
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isEmojiPickerVisible = !_isEmojiPickerVisible;
+                          });
+                          if (_isEmojiPickerVisible) {
+                            _focusNode.unfocus();
+                          } else {
+                            _focusNode.requestFocus();
+                          }
+                        },
+                      ),
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          focusNode: _focusNode,
+                          style: TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Type a message...',
+                            hintStyle: TextStyle(color: Colors.grey[400]),
+                            border: InputBorder.none,
+                          ),
+                          onChanged: (text) {
+                            if (text.isNotEmpty) {
+                              ref
+                                  .read(chatProvider.notifier)
+                                  .startTyping(widget.room.id);
+                            } else {
+                              ref
+                                  .read(chatProvider.notifier)
+                                  .stopTyping(widget.room.id);
+                            }
+                          },
+                          onSubmitted: (text) => _sendMessage(),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.attach_file, color: Colors.grey[400]),
+                        onPressed: () => _showAttachmentOptions(),
+                      ),
+                      if (_messageController.text.isEmpty)
+                        IconButton(
+                          icon: Icon(Icons.camera_alt, color: Colors.grey[400]),
+                          onPressed: () => _takePicture(),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(width: 8),
+              GestureDetector(
+                onTap: _messageController.text.isNotEmpty ? _sendMessage : null,
+                onLongPressStart: (_) => _startVoiceRecording(),
+                onLongPressEnd: (_) => _stopVoiceRecording(),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: widget.room.theme.primaryColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _messageController.text.isNotEmpty ? Icons.send : Icons.mic,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmojiPicker() {
+    return Container(
+      height: 250,
+      child: GridView.count(
+        crossAxisCount: 8,
+        children:
+            [
+                  '😀',
+                  '😃',
+                  '😄',
+                  '😁',
+                  '😆',
+                  '😅',
+                  '😂',
+                  '🤣',
+                  '😊',
+                  '😇',
+                  '🙂',
+                  '🙃',
+                  '😉',
+                  '😌',
+                  '😍',
+                  '🥰',
+                  '😘',
+                  '😗',
+                  '😙',
+                  '😚',
+                  '😋',
+                  '😛',
+                  '😝',
+                  '😜',
+                  '🤪',
+                  '🤨',
+                  '🧐',
+                  '🤓',
+                  '😎',
+                  '🤩',
+                  '🥳',
+                  '😏',
+                  '😒',
+                  '😞',
+                  '😔',
+                  '😟',
+                  '😕',
+                  '🙁',
+                  '☹️',
+                  '😣',
+                  '😖',
+                  '😫',
+                  '😩',
+                  '🥺',
+                  '😢',
+                  '😭',
+                  '😤',
+                  '😠',
+                  '😡',
+                  '🤬',
+                  '🤯',
+                  '😳',
+                  '🥵',
+                  '🥶',
+                  '😱',
+                  '😨',
+                  '😰',
+                  '😥',
+                  '😓',
+                  '🤗',
+                  '🤔',
+                  '🤭',
+                  '🤫',
+                  '🤥',
+                  '😶',
+                  '😐',
+                  '😑',
+                  '😬',
+                  '🙄',
+                  '😯',
+                  '😦',
+                  '😧',
+                  '😮',
+                  '😲',
+                  '🥱',
+                  '😴',
+                  '🤤',
+                  '😪',
+                  '😵',
+                  '🤐',
+                  '🥴',
+                  '🤢',
+                  '🤮',
+                  '🤧',
+                  '😷',
+                  '🤒',
+                  '🤕',
+                  '🤑',
+                  '🤠',
+                  '😈',
+                  '👿',
+                  '👹',
+                  '👺',
+                  '🤡',
+                  '💩',
+                  '👻',
+                  '💀',
+                  '☠️',
+                  '👽',
+                  '👾',
+                  '🤖',
+                  '🎃',
+                  '😺',
+                  '😸',
+                  '😹',
+                  '😻',
+                  '😼',
+                  '😽',
+                  '🙀',
+                  '😿',
+                  '😾',
+                  '❤️',
+                  '🧡',
+                  '💛',
+                  '💚',
+                  '💙',
+                  '💜',
+                  '🖤',
+                  '🤍',
+                  '🤎',
+                  '💔',
+                  '❣️',
+                  '💕',
+                  '💞',
+                  '💓',
+                  '💗',
+                  '💖',
+                  '💘',
+                  '💝',
+                  '💟',
+                  '👍',
+                  '👎',
+                  '👌',
+                  '✌️',
+                  '🤞',
+                  '🤟',
+                  '🤘',
+                  '🤙',
+                  '👈',
+                  '👉',
+                  '👆',
+                  '👇',
+                  '☝️',
+                  '✋',
+                  '🤚',
+                  '🖐',
+                  '🖖',
+                  '👋',
+                  '🤏',
+                  '💪',
+                  '🦾',
+                  '🖕',
+                  '✍️',
+                  '🙏',
+                  '🦶',
+                  '🦵',
+                  '🦿',
+                  '💄',
+                  '💋',
+                  '👄',
+                  '🦷',
+                  '👅',
+                  '👂',
+                  '🦻',
+                  '👃',
+                  '👣',
+                  '👁',
+                  '👀',
+                  '🧠',
+                  '🗣',
+                  '👤',
+                  '👥',
+                  '👶',
+                  '👧',
+                  '🧒',
+                  '👦',
+                  '👩',
+                  '🧑',
+                  '👨',
+                  '👵',
+                  '🧓',
+                  '👴',
+                  '👲',
+                  '👳',
+                  '🧕',
+                  '👮',
+                  '👷',
+                  '💂',
+                  '🕵',
+                  '👩‍⚕️',
+                  '👨‍⚕️',
+                  '👩‍🌾',
+                ]
+                .map(
+                  (emoji) => GestureDetector(
+                    onTap: () {
+                      _messageController.text += emoji;
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Text(emoji, style: TextStyle(fontSize: 24)),
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+      ),
+    );
+  }
+
+  // Helper Methods
+  String _formatTime(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inDays > 0) {
+      return '${timestamp.day}/${timestamp.month}';
+    } else if (difference.inHours > 0) {
+      return '${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
+    } else {
+      return '${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
+    }
+  }
+
+  // Action Methods
+  void _sendMessage() {
+    if (_messageController.text.trim().isEmpty) return;
+
+    final user = ref.read(userProvider);
+    final message = Message(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      content: _messageController.text.trim(),
+      senderId: user?.id ?? '',
+      senderName: user?.name ?? '',
+      timestamp: DateTime.now(),
+      type: MessageType.text,
+      replyToId: _replyingToMessageId,
+    );
+
+    ref.read(chatProvider.notifier).sendMessage(widget.room.id, message);
+    ref.read(chatProvider.notifier).stopTyping(widget.room.id);
+
+    _messageController.clear();
+    setState(() {
+      _replyingToMessageId = null;
+      _isEmojiPickerVisible = false;
+    });
+
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  void _showMessageOptions(Message message) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      builder:
+          (context) => Container(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Icon(Icons.reply, color: Colors.white),
+                  title: Text('Reply', style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() {
+                      _replyingToMessageId = message.id;
+                    });
+                    _focusNode.requestFocus();
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.copy, color: Colors.white),
+                  title: Text('Copy', style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Clipboard.setData(ClipboardData(text: message.content));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Message copied to clipboard')),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.forward, color: Colors.white),
+                  title: Text('Forward', style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _forwardMessage(message);
+                  },
+                ),
+                if (message.senderId == ref.read(userProvider)?.id)
+                  ListTile(
+                    leading: Icon(Icons.delete, color: Colors.red),
+                    title: Text('Delete', style: TextStyle(color: Colors.red)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _deleteMessage(message);
+                    },
+                  ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  void _quickReaction(Message message) {
+    setState(() {
+      _reactionAnimationController.forward();
+    });
+
+    ref
+        .read(chatProvider.notifier)
+        .addReaction(
+          widget.room.id,
+          message.id,
+          '❤️',
+          ref.read(userProvider)?.id ?? '',
+        );
+
+    Future.delayed(Duration(milliseconds: 300), () {
+      _reactionAnimationController.reverse();
+    });
+  }
+
+  void _showAttachmentOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      builder:
+          (context) => Container(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildAttachmentOption(
+                      Icons.photo_library,
+                      'Gallery',
+                      Colors.purple,
+                      () => _pickFromGallery(),
+                    ),
+                    _buildAttachmentOption(
+                      Icons.camera_alt,
+                      'Camera',
+                      Colors.red,
+                      () => _takePicture(),
+                    ),
+                    _buildAttachmentOption(
+                      Icons.videocam,
+                      'Video',
+                      Colors.green,
+                      () => _recordVideo(),
+                    ),
+                    _buildAttachmentOption(
+                      Icons.insert_drive_file,
+                      'Document',
+                      Colors.blue,
+                      () => _pickDocument(),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildAttachmentOption(
+                      Icons.location_on,
+                      'Location',
+                      Colors.orange,
+                      () => _shareLocation(),
+                    ),
+                    _buildAttachmentOption(
+                      Icons.person,
+                      'Contact',
+                      Colors.teal,
+                      () => _shareContact(),
+                    ),
+                    _buildAttachmentOption(
+                      Icons.music_note,
+                      'Audio',
+                      Colors.indigo,
+                      () => _pickAudio(),
+                    ),
+                    _buildAttachmentOption(
+                      Icons.poll,
+                      'Poll',
+                      Colors.amber,
+                      () => _createPoll(),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Widget _buildAttachmentOption(
+    IconData icon,
+    String label,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pop(context);
+        onTap();
+      },
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            child: Icon(icon, color: Colors.white, size: 28),
+          ),
+          SizedBox(height: 8),
+          Text(label, style: TextStyle(color: Colors.white, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  // Voice Recording Methods
+  void _startVoiceRecording() {
+    if (!_isRecording) {
+      setState(() {
+        _isRecording = true;
+      });
+      ref.read(voiceRecordingProvider.notifier).startRecording();
+
+      // Haptic feedback
+      HapticFeedback.lightImpact();
+    }
+  }
+
+  void _stopVoiceRecording() {
+    if (_isRecording) {
+      setState(() {
+        _isRecording = false;
+      });
+      ref.read(voiceRecordingProvider.notifier).stopRecording();
+    }
+  }
+
+  void _sendVoiceMessage(String audioPath) {
+    final user = ref.read(userProvider);
+    final voiceState = ref.read(voiceRecordingProvider);
+    final message = Message(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      content: audioPath,
+      senderId: user?.id ?? '',
+      senderName: user?.name ?? '',
+      timestamp: DateTime.now(),
+      type: MessageType.voice,
+      voiceNote:
+          voiceState.filePath == audioPath && voiceState.duration != null
+              ? VoiceNote(url: audioPath, duration: voiceState.duration!)
+              : null,
+    );
+
+    ref.read(chatProvider.notifier).sendMessage(widget.room.id, message);
+    _scrollToBottom();
+  }
+
+  // Media Methods
+  void _pickFromGallery() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      _sendImageMessage(pickedFile.path);
+    }
+  }
+
+  void _takePicture() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.camera);
+
+    if (pickedFile != null) {
+      _sendImageMessage(pickedFile.path);
+    }
+  }
+
+  void _recordVideo() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickVideo(source: ImageSource.camera);
+
+    if (pickedFile != null) {
+      _sendVideoMessage(pickedFile.path);
+    }
+  }
+
+  void _pickDocument() async {
+    final result = await FilePicker.platform.pickFiles();
+
+    if (result != null) {
+      final file = result.files.first;
+      _sendFileMessage(file.path!, file.name, file.size);
+    }
+  }
+
+  void _pickAudio() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.audio);
+
+    if (result != null) {
+      final file = result.files.first;
+      _sendAudioMessage(file.path!, file.name);
+    }
+  }
+
+  void _sendImageMessage(String imagePath) {
+    final user = ref.read(userProvider);
+    final message = Message(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      content: imagePath,
+      senderId: user?.id ?? '',
+      senderName: user?.name ?? '',
+      timestamp: DateTime.now(),
+      type: MessageType.image,
+    );
+
+    ref.read(chatProvider.notifier).sendMessage(widget.room.id, message);
+    _scrollToBottom();
+  }
+
+  void _sendVideoMessage(String videoPath) {
+    final user = ref.read(userProvider);
+    final message = Message(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      content: videoPath,
+      senderId: user?.id ?? '',
+      senderName: user?.name ?? '',
+      timestamp: DateTime.now(),
+      type: MessageType.video,
+    );
+
+    ref.read(chatProvider.notifier).sendMessage(widget.room.id, message);
+    _scrollToBottom();
+  }
+
+  void _sendFileMessage(String filePath, String fileName, int fileSize) {
+    final user = ref.read(userProvider);
+    final message = Message(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      content: filePath,
+      senderId: user?.id ?? '',
+      senderName: user?.name ?? '',
+      timestamp: DateTime.now(),
+      type: MessageType.file,
+      attachments: [
+        Attachment(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: fileName,
+          url: filePath,
+          type: AttachmentType.document,
+          size: fileSize,
+        ),
+      ],
+    );
+
+    ref.read(chatProvider.notifier).sendMessage(widget.room.id, message);
+    _scrollToBottom();
+  }
+
+  void _sendAudioMessage(String audioPath, String fileName) {
+    final user = ref.read(userProvider);
+    final message = Message(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      content: audioPath,
+      senderId: user?.id ?? '',
+      senderName: user?.name ?? '',
+      timestamp: DateTime.now(),
+      type: MessageType.voice,
+      attachments: [
+        Attachment(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: fileName,
+          url: audioPath,
+          type: AttachmentType.audio,
+        ),
+      ],
+    );
+
+    ref.read(chatProvider.notifier).sendMessage(widget.room.id, message);
+    _scrollToBottom();
+  }
+
+  void _shareLocation() {
+    // Implementation for sharing location
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: Text(
+              'Share Location',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: Text(
+              'This will share your current location with the chat.',
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _sendLocationMessage();
+                },
+                child: Text('Share'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _sendLocationMessage() {
+    final user = ref.read(userProvider);
+    final message = Message(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      content: 'Current Location',
+      senderId: user?.id ?? '',
+      senderName: user?.name ?? '',
+      timestamp: DateTime.now(),
+      type: MessageType.location,
+      location: Location(
+        latitude: 0.0,
+        longitude: 0.0,
+        name: 'Current Location',
+      ),
+    );
+
+    ref.read(chatProvider.notifier).sendMessage(widget.room.id, message);
+    _scrollToBottom();
+  }
+
+  void _shareContact() {
+    // Implementation for sharing contact
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: Text('Share Contact', style: TextStyle(color: Colors.white)),
+            content: Text(
+              'Select a contact to share',
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _createPoll() {
+    // Implementation for creating poll
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: Text('Create Poll', style: TextStyle(color: Colors.white)),
+            content: Text(
+              'Poll feature coming soon!',
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('OK'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // Audio/Video Methods
+  void _playAudio(String audioPath) {
+    // Implementation for playing audio
+    print('Playing audio: $audioPath');
+  }
+
+  void _playVoice(String voicePath) {
+    // Implementation for playing voice message
+    print('Playing voice: $voicePath');
+  }
+
+  // Message Actions
+  void _forwardMessage(Message message) {
+    // Implementation for forwarding message
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: Text(
+              'Forward Message',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: Text(
+              'Select chats to forward this message to',
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _deleteMessage(Message message) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: Text(
+              'Delete Message',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: Text(
+              'Are you sure you want to delete this message?',
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ref
+                      .read(chatProvider.notifier)
+                      .deleteMessage(widget.room.id, message.id);
+                },
+                child: Text('Delete', style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // AppBar Actions
+  void _showChatInfo() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatInfoScreen(room: widget.room),
+      ),
+    );
+  }
+
+  void _showMediaGallery() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MediaGalleryScreen(roomId: widget.room.id),
+      ),
+    );
+  }
+
+  void _showSearchInChat() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SearchInChatScreen(roomId: widget.room.id),
+      ),
+    );
+  }
+
+  void _startVideoCall() {
+    // Implementation for video call
+    ref.read(callProvider.notifier).startVideoCall(widget.room.id);
+  }
+
+  void _startVoiceCall() {
+    // Implementation for voice call
+    ref.read(callProvider.notifier).startVoiceCall(widget.room.id);
+  }
+
+  void _toggleMute() {
+    ref.read(chatProvider.notifier).toggleMute(widget.room.id);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(widget.room.isMuted ? 'Chat unmuted' : 'Chat muted'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _changeWallpaper() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: Text(
+              'Change Wallpaper',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: Text(
+              'Wallpaper feature coming soon!',
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('OK'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _clearChat() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: Text('Clear Chat', style: TextStyle(color: Colors.white)),
+            content: Text(
+              'Are you sure you want to clear this chat? This action cannot be undone.',
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ref.read(chatProvider.notifier).clearChat(widget.room.id);
+                },
+                child: Text('Clear', style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // Utility Methods
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  Widget _buildFileMessage(Message message) {
+    final attachment =
+        message.attachments.isNotEmpty ? message.attachments[0] : null;
+    return Container(
+      padding: EdgeInsets.all(8),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: widget.room.theme.primaryColor,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(Icons.insert_drive_file, color: Colors.white),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  attachment?.name ?? 'File',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  attachment?.size != null
+                      ? _formatFileSize(attachment!.size!)
+                      : '0 KB',
+                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationMessage(Message message) {
+    final location = message.location;
+    return Container(
+      width: 250,
+      height: 150,
+      decoration: BoxDecoration(
+        color: Colors.grey[800],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[700],
+                borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+              ),
+              child: Center(
+                child: Icon(Icons.location_on, color: Colors.red, size: 40),
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.all(8),
+            child: Text(
+              location?.name ?? 'Location',
+              style: TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Required imports for the implementation
+
+/* 
+enum MessageType {
+  text,
+  image,
+  video,
+  audio,
+  file,
+  location,
+  voice,
+}
+
+class ChatRoom {
+  final String id;
+  final String name;
+  final String? avatar;
+  final bool isGroup;
+  final bool isOnline;
+  final bool isMuted;
+  final List<String> participants;
+  final ChatTheme theme;
+
+  ChatRoom({
+    required this.id,
+    required this.name,
+    this.avatar,
+    required this.isGroup,
+    this.isOnline = false,
+    this.isMuted = false,
+    required this.participants,
+    required this.theme,
+  });
+}
+
+class ChatTheme {
+  final Color primaryColor;
+  final Color secondaryColor;
+
+  ChatTheme({
+    required this.primaryColor,
+    required this.secondaryColor,
+  });
+}
+ */
+class User {
+  final String id;
+  final String name;
+  final String? avatar;
+
+  User({required this.id, required this.name, this.avatar});
+}
+
+class VoiceRecording {
+  final String? filePath;
+  final String? duration;
+  final bool isRecording;
+
+  VoiceRecording({this.filePath, this.duration, this.isRecording = false});
+}
+
+// Placeholder screens that would be implemented elsewhere
+class ChatInfoScreen extends StatelessWidget {
+  final ChatRoom room;
+
+  ChatInfoScreen({required this.room});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Chat Info')),
+      body: Center(child: Text('Chat Info Screen')),
+    );
+  }
+}
+
+class MediaGalleryScreen extends StatelessWidget {
+  final String roomId;
+
+  MediaGalleryScreen({required this.roomId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Media Gallery')),
+      body: Center(child: Text('Media Gallery Screen')),
+    );
+  }
+}
+
+class SearchInChatScreen extends StatelessWidget {
+  final String roomId;
+
+  SearchInChatScreen({required this.roomId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Search in Chat')),
+      body: Center(child: Text('Search in Chat Screen')),
+    );
+  }
+}
+
+// Provider placeholders (these would be implemented with your state management)
+/* final messagesProvider = StateNotifierProvider.family<MessagesNotifier, List<Message>, String>((ref, roomId) {
+  return MessagesNotifier(roomId);
+});
+
+final typingUsersProvider = StateNotifierProvider.family<TypingUsersNotifier, List<String>, String>((ref, roomId) {
+  return TypingUsersNotifier(roomId);
+});
+
+final voiceRecordingProvider = StateNotifierProvider<VoiceRecordingNotifier, VoiceRecording?>((ref) {
+  return VoiceRecordingNotifier();
+});
+ */
+final userProvider = StateNotifierProvider<UserNotifier, User?>((ref) {
+  return UserNotifier();
+});
+
+final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
+  return ChatNotifier();
+});
+
+final callProvider = StateNotifierProvider<CallNotifier, CallState>((ref) {
+  return CallNotifier();
+});
+
+// Placeholder notifiers (these would be implemented with your business logic)
+/* class MessagesNotifier extends StateNotifier<List<Message>> {
+  final String roomId;
+  
+  MessagesNotifier(this.roomId) : super([]);
+} */
+
+class TypingUsersNotifier extends StateNotifier<List<String>> {
+  final String roomId;
+
+  TypingUsersNotifier(this.roomId) : super([]);
+}
+
+class UserNotifier extends StateNotifier<User?> {
+  UserNotifier() : super(null);
+}
+
+class ChatNotifier extends StateNotifier<ChatState> {
+  ChatNotifier() : super(ChatState());
+
+  void sendMessage(String roomId, Message message) {
+    // Implementation for sending message
+  }
+
+  void startTyping(String roomId) {
+    // Implementation for starting typing indicator
+  }
+
+  void stopTyping(String roomId) {
+    // Implementation for stopping typing indicator
+  }
+
+  void addReaction(
+    String roomId,
+    String messageId,
+    String emoji,
+    String userId,
+  ) {
+    // Implementation for adding reaction
+  }
+
+  void deleteMessage(String roomId, String messageId) {
+    // Implementation for deleting message
+  }
+
+  void toggleMute(String roomId) {
+    // Implementation for toggling mute
+  }
+
+  void clearChat(String roomId) {
+    // Implementation for clearing chat
+  }
+}
+
+class CallNotifier extends StateNotifier<CallState> {
+  CallNotifier() : super(CallState());
+
+  void startVideoCall(String roomId) {
+    // Implementation for starting video call
+  }
+
+  void startVoiceCall(String roomId) {
+    // Implementation for starting voice call
+  }
+}
+
+class ChatState {
+  // Chat state properties
+}
+
+class CallState {
+  // Call state properties
+}
+
+// Add stubs for missing screens if not present
+class StoryViewScreen extends StatelessWidget {
+  final Story story;
+  StoryViewScreen({required this.story});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Story')),
+      body: Center(child: Text('Story View Screen')),
+    );
+  }
+}
+
+class SettingsScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Settings')),
+      body: Center(child: Text('Settings Screen')),
+    );
+  }
+}
+
+class ArchivedChatsScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Archived Chats')),
+      body: Center(child: Text('Archived Chats Screen')),
+    );
+  }
+}
+
+class QRScannerScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('QR Scanner')),
+      body: Center(child: Text('QR Scanner Screen')),
+    );
+  }
+}
+/* 
+class ChatInfoScreen extends StatelessWidget {
+  final ChatRoom room;
+
+  ChatInfoScreen({required this.room});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Chat Info')),
+      body: Center(child: Text('Chat Info Screen')),
+    );
+  }
+}
+
+class MediaGalleryScreen extends StatelessWidget {
+  final String roomId;
+
+  MediaGalleryScreen({required this.roomId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Media Gallery')),
+      body: Center(child: Text('Media Gallery Screen')),
+    );
+  }
+}
+
+class SearchInChatScreen extends StatelessWidget {
+  final String roomId;
+
+  SearchInChatScreen({required this.roomId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Search in Chat')),
+      body: Center(child: Text('Search in Chat Screen')),
+    );
+  }
+}
+ */
+// Provider placeholders (these would be implemented with your state management)
+/* final messagesProvider = StateNotifierProvider.family<MessagesNotifier, List<Message>, String>((ref, roomId) {
+  return MessagesNotifier(roomId);
+});
+
+final typingUsersProvider = StateNotifierProvider.family<TypingUsersNotifier, List<String>, String>((ref, roomId) {
+  return TypingUsersNotifier(roomId);
+});
+
+final voiceRecordingProvider = StateNotifierProvider<VoiceRecordingNotifier, VoiceRecording?>((ref) {
+  return VoiceRecordingNotifier();
+});
+ */
+/* final userProvider = StateNotifierProvider<UserNotifier, User?>((ref) {
+  return UserNotifier();
+});
+
+final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
+  return ChatNotifier();
+});
+
+final callProvider = StateNotifierProvider<CallNotifier, CallState>((ref) {
+  return CallNotifier();
+});
+ */
+// Placeholder notifiers (these would be implemented with your business logic)
+/* class MessagesNotifier extends StateNotifier<List<Message>> {
+  final String roomId;
+  
+  MessagesNotifier(this.roomId) : super([]);
+} */
+
+/* class TypingUsersNotifier extends StateNotifier<List<String>> {
+  final String roomId;
+
+  TypingUsersNotifier(this.roomId) : super([]);
+} */
+/* 
+class VoiceRecordingNotifier extends StateNotifier<VoiceRecording?> {
+  VoiceRecordingNotifier() : super(null);
+  
+  void startRecording() {
+    state = VoiceRecording(isRecording: true);
+  }
+  
+  Future<String?> stopRecording() async {
+    // Implementation for stopping recording
+    state = null;
+    return null;
+  }
+} */
+/* 
+class UserNotifier extends StateNotifier<User?> {
+  UserNotifier() : super(null);
+}
+
+class ChatNotifier extends StateNotifier<ChatState> {
+  ChatNotifier() : super(ChatState());
+
+  void sendMessage(String roomId, Message message) {
+    // Implementation for sending message
+  }
+
+  void startTyping(String roomId) {
+    // Implementation for starting typing indicator
+  }
+
+  void stopTyping(String roomId) {
+    // Implementation for stopping typing indicator
+  }
+
+  void addReaction(
+    String roomId,
+    String messageId,
+    String emoji,
+    String userId,
+  ) {
+    // Implementation for adding reaction
+  }
+
+  void deleteMessage(String roomId, String messageId) {
+    // Implementation for deleting message
+  }
+
+  void toggleMute(String roomId) {
+    // Implementation for toggling mute
+  }
+
+  void clearChat(String roomId) {
+    // Implementation for clearing chat
+  }
+} */
+/* 
+class CallNotifier extends StateNotifier<CallState> {
+  CallNotifier() : super(CallState());
+
+  void startVideoCall(String roomId) {
+    // Implementation for starting video call
+  }
+
+  void startVoiceCall(String roomId) {
+    // Implementation for starting voice call
+  }
+}
+
+class ChatState {
+  // Chat state properties
+}
+
+class CallState {
+  // Call state properties
+}
+
+// Add stubs for missing screens if not present
+class StoryViewScreen extends StatelessWidget {
+  final Story story;
+  StoryViewScreen({required this.story});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Story')),
+      body: Center(child: Text('Story View Screen')),
+    );
+  }
+}
+
+class SettingsScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Settings')),
+      body: Center(child: Text('Settings Screen')),
+    );
+  }
+}
+
+class ArchivedChatsScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Archived Chats')),
+      body: Center(child: Text('Archived Chats Screen')),
+    );
+  }
+}
+
+class QRScannerScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('QR Scanner')),
+      body: Center(child: Text('QR Scanner Screen')),
+    );
+  }
+}
+ */

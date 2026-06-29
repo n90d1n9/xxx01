@@ -1,0 +1,2 @@
+
+class ResourceRequirements {final Map<String, String>? limits; final Map<String, String>? requests; ResourceRequirements({this.limits, this.requests}); factory ResourceRequirements.fromJson(Map<String, dynamic> json) {return ResourceRequirements(limits: json['limits'] != null ? Map<String, String>.from(json['limits']) : null, requests: json['requests'] != null ? Map<String, String>.from(json['requests']) : null);} Map<String, dynamic> toJson() {return {if (limits != null) 'limits' : limits, if (requests != null) 'requests' : requests};}}

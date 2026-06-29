@@ -1,0 +1,26 @@
+import 'idrange.dart';
+
+class SupplementalGroupsStrategyOptions {
+  final String? rule;
+  final List<IDRange>? ranges;
+  SupplementalGroupsStrategyOptions({this.rule, this.ranges});
+  factory SupplementalGroupsStrategyOptions.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return SupplementalGroupsStrategyOptions(
+      rule: json['rule'],
+      ranges:
+          json['ranges'] != null
+              ? (json['ranges'] as List)
+                  .map((e) => IDRange.fromJson(e))
+                  .toList()
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (rule != null) 'rule': rule,
+      if (ranges != null) 'ranges': ranges!.map((e) => e.toJson()).toList(),
+    };
+  }
+}

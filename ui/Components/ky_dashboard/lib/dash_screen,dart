@@ -1,0 +1,62 @@
+class DashboardScreen extends ConsumerWidget {
+  const DashboardScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final salesData = ref.watch(salesProvider);
+    final inventoryData = ref.watch(inventoryProvider);
+    final customerData = ref.watch(customerProvider);
+    final revenueData = ref.watch(revenueProvider);
+    final operationalData = ref.watch(operationalProvider);
+    final marketingData = ref.watch(marketingProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Grocery Analytics Dashboard')),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionWidget(title: 'Sales Overview', data: salesData),
+            SectionWidget(title: 'Inventory Insights', data: inventoryData),
+            SectionWidget(title: 'Customer Behavior', data: customerData),
+            SectionWidget(title: 'Revenue Insights', data: revenueData),
+            SectionWidget(title: 'Operational Metrics', data: operationalData),
+            SectionWidget(title: 'Marketing Performance', data: marketingData),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Section Widget for Data Display
+class SectionWidget extends StatelessWidget {
+  final String title;
+  final List<ChartData> data;
+
+  const SectionWidget({required this.title, required this.data, Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.headline6),
+          SizedBox(
+            height: 200,
+            child: charts.BarChart(
+              [charts.Series<ChartData, String>(
+                id: title,
+                data: data,
+                domainFn: (ChartData data, _) => data.label,
+                measureFn: (ChartData data, _) => data.value,
+              )],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

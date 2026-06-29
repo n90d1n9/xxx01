@@ -1,0 +1,48 @@
+import 'secret_projection.dart';
+import 'config_map_projection.dart';
+import 'downward_apiprojection.dart';
+import 'service_account_token_projection.dart';
+
+class VolumeProjection {
+  final SecretProjection? secret;
+  final ConfigMapProjection? configMap;
+  final DownwardAPIProjection? downwardAPI;
+  final ServiceAccountTokenProjection? serviceAccountToken;
+  VolumeProjection({
+    this.secret,
+    this.configMap,
+    this.downwardAPI,
+    this.serviceAccountToken,
+  });
+  factory VolumeProjection.fromJson(Map<String, dynamic> json) {
+    return VolumeProjection(
+      secret:
+          json['secret'] != null
+              ? SecretProjection.fromJson(json['secret'])
+              : null,
+      configMap:
+          json['configMap'] != null
+              ? ConfigMapProjection.fromJson(json['configMap'])
+              : null,
+      downwardAPI:
+          json['downwardAPI'] != null
+              ? DownwardAPIProjection.fromJson(json['downwardAPI'])
+              : null,
+      serviceAccountToken:
+          json['serviceAccountToken'] != null
+              ? ServiceAccountTokenProjection.fromJson(
+                json['serviceAccountToken'],
+              )
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (secret != null) 'secret': secret!.toJson(),
+      if (configMap != null) 'configMap': configMap!.toJson(),
+      if (downwardAPI != null) 'downwardAPI': downwardAPI!.toJson(),
+      if (serviceAccountToken != null)
+        'serviceAccountToken': serviceAccountToken!.toJson(),
+    };
+  }
+}

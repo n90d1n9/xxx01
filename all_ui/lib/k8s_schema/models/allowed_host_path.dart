@@ -1,0 +1,2 @@
+
+class AllowedHostPath {final String? pathPrefix; final bool? readOnly; AllowedHostPath({this.pathPrefix, this.readOnly}); factory AllowedHostPath.fromJson(Map<String, dynamic> json) {return AllowedHostPath(pathPrefix: json['pathPrefix'], readOnly: json['readOnly']);} Map<String, dynamic> toJson() {return {if (pathPrefix != null) 'pathPrefix' : pathPrefix, if (readOnly != null) 'readOnly' : readOnly};}}

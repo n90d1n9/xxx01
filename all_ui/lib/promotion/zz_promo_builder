@@ -1,0 +1,2143 @@
+// lib/state/promotion_state.dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/promotion.dart';
+import '../models/discount.dart';
+import '../models/coupons.dart';
+import '../models/bogo.dart';
+import '../models/bundling.dart';
+import '../models/cashback.dart';
+import '../models/loyalty.dart';
+import '../models/customize.dart';
+import '../models/buy_any_with_any.dart';
+import '../models/enums.dart';
+
+// State classes
+class PromotionState {
+  final List<Promotion> promotions;
+  final bool isLoading;
+  final String? errorMessage;
+
+  PromotionState({
+    this.promotions = const [],
+    this.isLoading = false,
+    this.errorMessage,
+  });
+
+  PromotionState copyWith({
+    List<Promotion>? promotions,
+    bool? isLoading,
+    String? errorMessage,
+  }) {
+    return PromotionState(
+      promotions: promotions ?? this.promotions,
+      isLoading: isLoading ?? this.isLoading,
+      errorMessage: errorMessage,
+    );
+  }
+}
+
+class PromotionFormState {
+  final Promotion? basePromotion;
+  final PromotionType selectedType;
+  final bool isEditing;
+  
+  // Type-specific properties
+  final Discount? discount;
+  final Coupons? coupon;
+  final Bogo? bogo;
+  final Bundling? bundling;
+  final Cashback? cashback;
+  final Loyalty? loyalty;
+  final Customize? customize;
+  final BuyAnyWithAny? buyAnyWithAny;
+  
+  PromotionFormState({
+    this.basePromotion,
+    this.selectedType = PromotionType.Discount,
+    this.isEditing = false,
+    this.discount,
+    this.coupon,
+    this.bogo,
+    this.bundling,
+    this.cashback,
+    this.loyalty,
+    this.customize,
+    this.buyAnyWithAny,
+  });
+  
+  PromotionFormState copyWith({
+    Promotion? basePromotion,
+    PromotionType? selectedType,
+    bool? isEditing,
+    Discount? discount,
+    Coupons? coupon,
+    Bogo? bogo,
+    Bundling? bundling,
+    Cashback? cashback,
+    Loyalty? loyalty,
+    Customize? customize,
+    BuyAnyWithAny? buyAnyWithAny,
+  }) {
+    return PromotionFormState(
+      basePromotion: basePromotion ?? this.basePromotion,
+      selectedType: selectedType ?? this.selectedType,
+      isEditing: isEditing ?? this.isEditing,
+      discount: discount ?? this.discount,
+      coupon: coupon ?? this.coupon,
+      bogo: bogo ?? this.bogo,
+      bundling: bundling ?? this.bundling,
+      cashback: cashback ?? this.cashback,
+      loyalty: loyalty ?? this.loyalty,
+      customize: customize ?? this.customize,
+      buyAnyWithAny: buyAnyWithAny ?? this.buyAnyWithAny,
+    );
+  }
+  
+  // Reset promotion-specific data when type changes
+  PromotionFormState resetTypeSpecificData(PromotionType newType) {
+    return PromotionFormState(
+      basePromotion: basePromotion,
+      selectedType: newType,
+      isEditing: isEditing,
+    );
+  }
+}
+
+// Providers
+final promotionStateProvider = StateNotifierProvider<PromotionNotifier, PromotionState>((ref) {
+  return PromotionNotifier();
+});
+
+final promotionFormProvider = StateNotifierProvider<PromotionFormNotifier, PromotionFormState>((ref) {
+  return PromotionFormNotifier();
+});
+
+// Notifiers
+class PromotionNotifier extends StateNotifier<PromotionState> {
+  PromotionNotifier() : super(PromotionState());
+  
+  Future<void> fetchPromotions() async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      // Simulate API call
+      await Future.delayed(Duration(seconds: 1));
+      // TODO: Replace with actual API call
+      final List<Promotion> promotions = []; // Get from repository
+      state = state.copyWith(promotions: promotions, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+    }
+  }
+  
+  Future<void> savePromotion(Promotion promotion) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      // Simulate API call
+      await Future.delayed(Duration(seconds: 1));
+      // TODO: Replace with actual API call
+      
+      // Update local state
+      final newPromotions = [...state.promotions];
+      final index = newPromotions.indexWhere((p) => p.id == promotion.id);
+      
+      if (index >= 0) {
+        newPromotions[index] = promotion;
+      } else {
+        newPromotions.add(promotion);
+      }
+      
+      state = state.copyWith(promotions: newPromotions, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+    }
+  }
+  
+  Future<void> deletePromotion(int id) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      // Simulate API call
+      await Future.delayed(Duration(seconds: 1));
+      // TODO: Replace with actual API call
+      
+      final newPromotions = state.promotions.where((p) => p.id != id).toList();
+      state = state.copyWith(promotions: newPromotions, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+    }
+  }
+  
+  void togglePromotionStatus(int id) {
+    final newPromotions = [...state.promotions];
+    final index = newPromotions.indexWhere((p) => p.id == id);
+    
+    if (index >= 0) {
+      final promotion = newPromotions[index];
+      newPromotions[index] = Promotion(
+        id: promotion.id,
+        type: promotion.type,
+        originPrice: promotion.originPrice,
+        promoPrice: promotion.promoPrice,
+        isActive: !promotion.isActive,
+        isRequirement: promotion.isRequirement,
+        isRedeem: promotion.isRedeem,
+        uri: promotion.uri,
+      );
+      
+      state = state.copyWith(promotions: newPromotions);
+    }
+  }
+}
+
+class PromotionFormNotifier extends StateNotifier<PromotionFormState> {
+  PromotionFormNotifier() : super(PromotionFormState());
+  
+  void setPromotionType(PromotionType type) {
+    state = state.resetTypeSpecificData(type);
+  }
+  
+  void initNewPromotion() {
+    state = PromotionFormState(
+      isEditing: false,
+      selectedType: PromotionType.Discount,
+      basePromotion: Promotion(
+        id: 0, // Will be assigned by backend
+        type: PromotionType.Discount,
+        originPrice: 0.0,
+        promoPrice: 0.0,
+        isActive: false,
+        isRequirement: false,
+        isRedeem: false,
+      ),
+    );
+  }
+  
+  void initEditPromotion(Promotion promotion) {
+    state = PromotionFormState(
+      isEditing: true,
+      selectedType: promotion.type,
+      basePromotion: promotion,
+    );
+    
+    // Load type-specific data
+    // This would be done after fetching the full promotion data
+  }
+  
+  void updateBasePromotion({
+    double? originPrice,
+    double? promoPrice,
+    bool? isActive,
+    bool? isRequirement,
+    bool? isRedeem,
+    String? uri,
+  }) {
+    if (state.basePromotion == null) return;
+    
+    final updatedPromotion = Promotion(
+      id: state.basePromotion!.id,
+      type: state.selectedType,
+      originPrice: originPrice ?? state.basePromotion!.originPrice,
+      promoPrice: promoPrice ?? state.basePromotion!.promoPrice,
+      isActive: isActive ?? state.basePromotion!.isActive,
+      isRequirement: isRequirement ?? state.basePromotion!.isRequirement,
+      isRedeem: isRedeem ?? state.basePromotion!.isRedeem,
+      uri: uri ?? state.basePromotion!.uri,
+    );
+    
+    state = state.copyWith(basePromotion: updatedPromotion);
+  }
+  
+  // Type-specific update methods
+  void updateDiscount({
+    String? name,
+    DiscountType? type,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? description,
+    double? value,
+  }) {
+    final currentDiscount = state.discount ?? Discount(
+      id: 0,
+      name: '',
+      type: DiscountType.Value,
+      startDate: DateTime.now(),
+      endDate: DateTime.now().add(Duration(days: 30)),
+      value: 0,
+    );
+    
+    final updatedDiscount = Discount(
+      id: currentDiscount.id,
+      name: name ?? currentDiscount.name,
+      type: type ?? currentDiscount.type,
+      startDate: startDate ?? currentDiscount.startDate,
+      endDate: endDate ?? currentDiscount.endDate,
+      description: description ?? currentDiscount.description,
+      value: value ?? currentDiscount.value,
+    );
+    
+    state = state.copyWith(discount: updatedDiscount);
+  }
+  
+  void updateCoupon({
+    String? code,
+    DateTime? startDate,
+    DateTime? endDate,
+    double? value,
+    DiscountType? type,
+    String? description,
+  }) {
+    final currentCoupon = state.coupon ?? Coupons(
+      code: '',
+      startDate: DateTime.now(),
+      endDate: DateTime.now().add(Duration(days: 30)),
+      value: 0,
+      type: DiscountType.Value,
+    );
+    
+    final updatedCoupon = Coupons(
+      code: code ?? currentCoupon.code,
+      startDate: startDate ?? currentCoupon.startDate,
+      endDate: endDate ?? currentCoupon.endDate,
+      value: value ?? currentCoupon.value,
+      type: type ?? currentCoupon.type,
+      description: description ?? currentCoupon.description,
+    );
+    
+    state = state.copyWith(coupon: updatedCoupon);
+  }
+  
+  // Similar update methods for other promotion types...
+  
+  Promotion? buildCompletePromotion() {
+    if (state.basePromotion == null) return null;
+    
+    // The base promotion already has the common fields
+    return state.basePromotion;
+    
+    // In a real implementation, you would need to combine the 
+    // basePromotion with the type-specific data and return
+    // a complete promotion object that can be saved
+  }
+}
+
+// lib/screens/promotion_list_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../state/promotion_state.dart';
+import '../models/enums.dart';
+import '../models/promotion.dart';
+import 'promotion_form_screen.dart';
+
+class PromotionListScreen extends ConsumerStatefulWidget {
+  const PromotionListScreen({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<PromotionListScreen> createState() => _PromotionListScreenState();
+}
+
+class _PromotionListScreenState extends ConsumerState<PromotionListScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.read(promotionStateProvider.notifier).fetchPromotions());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(promotionStateProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Promotions'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.read(promotionStateProvider.notifier).fetchPromotions(),
+          ),
+        ],
+      ),
+      body: state.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : state.errorMessage != null
+              ? Center(child: Text('Error: ${state.errorMessage}'))
+              : state.promotions.isEmpty
+                  ? const Center(child: Text('No promotions found. Add one!'))
+                  : ListView.builder(
+                      itemCount: state.promotions.length,
+                      itemBuilder: (context, index) {
+                        final promotion = state.promotions[index];
+                        return PromotionListItem(
+                          promotion: promotion,
+                          onEdit: () => _navigateToEditScreen(promotion),
+                          onToggleStatus: () => ref
+                              .read(promotionStateProvider.notifier)
+                              .togglePromotionStatus(promotion.id),
+                          onDelete: () => _showDeleteConfirmation(promotion),
+                        );
+                      },
+                    ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _navigateToCreateScreen,
+        child: const Icon(Icons.add),
+        tooltip: 'Add Promotion',
+      ),
+    );
+  }
+
+  void _navigateToCreateScreen() {
+    ref.read(promotionFormProvider.notifier).initNewPromotion();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const PromotionFormScreen(),
+      ),
+    );
+  }
+
+  void _navigateToEditScreen(Promotion promotion) {
+    ref.read(promotionFormProvider.notifier).initEditPromotion(promotion);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const PromotionFormScreen(),
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(Promotion promotion) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Promotion'),
+        content: const Text('Are you sure you want to delete this promotion?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              ref.read(promotionStateProvider.notifier).deletePromotion(promotion.id);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PromotionListItem extends StatelessWidget {
+  final Promotion promotion;
+  final VoidCallback onEdit;
+  final VoidCallback onToggleStatus;
+  final VoidCallback onDelete;
+
+  const PromotionListItem({
+    Key? key,
+    required this.promotion,
+    required this.onEdit,
+    required this.onToggleStatus,
+    required this.onDelete,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ListTile(
+        title: Text(getPromotionTitle(promotion)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Original: ${promotion.originPrice}, Promo: ${promotion.promoPrice}'),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Chip(
+                  label: Text(
+                    promotion.isActive ? 'Active' : 'Inactive',
+                    style: TextStyle(
+                      color: promotion.isActive ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  backgroundColor: promotion.isActive ? Colors.green : Colors.grey[300],
+                ),
+                if (promotion.isRequirement)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Chip(
+                      label: const Text('Has Requirements'),
+                      backgroundColor: Colors.blue[100],
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(
+                promotion.isActive ? Icons.toggle_on : Icons.toggle_off,
+                color: promotion.isActive ? Colors.green : Colors.grey,
+              ),
+              onPressed: onToggleStatus,
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: onEdit,
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: onDelete,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String getPromotionTitle(Promotion promotion) {
+    switch (promotion.type) {
+      case PromotionType.Discount:
+        return 'Discount Promotion';
+      case PromotionType.Coupons:
+        return 'Coupon Promotion';
+      case PromotionType.Bogo:
+        return 'Buy One Get One';
+      case PromotionType.Bundling:
+        return 'Product Bundle';
+      case PromotionType.Loyalty:
+        return 'Loyalty Discount';
+      case PromotionType.Cashback:
+        return 'Cashback Offer';
+      case PromotionType.Customize:
+        return 'Custom Promotion';
+      default:
+        return 'Promotion #${promotion.id}';
+    }
+  }
+}
+
+// lib/screens/promotion_form_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../state/promotion_state.dart';
+import '../models/enums.dart';
+import '../widgets/discount_form.dart';
+import '../widgets/coupon_form.dart';
+import '../widgets/bogo_form.dart';
+import '../widgets/bundling_form.dart';
+import '../widgets/loyalty_form.dart';
+import '../widgets/cashback_form.dart';
+import '../widgets/customize_form.dart';
+
+class PromotionFormScreen extends ConsumerWidget {
+  const PromotionFormScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final formState = ref.watch(promotionFormProvider);
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(formState.isEditing ? 'Edit Promotion' : 'Create Promotion'),
+        actions: [
+          TextButton(
+            onPressed: () => _savePromotion(context, ref),
+            child: const Text(
+              'Save',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildBasicInfoSection(context, ref, formState),
+            const SizedBox(height: 24),
+            _buildPromotionTypeSelector(context, ref, formState),
+            const SizedBox(height: 24),
+            _buildTypeSpecificForm(formState),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBasicInfoSection(
+    BuildContext context,
+    WidgetRef ref,
+    PromotionFormState formState,
+  ) {
+    final basePromotion = formState.basePromotion;
+    if (basePromotion == null) return const SizedBox.shrink();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Basic Information',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              initialValue: basePromotion.originPrice.toString(),
+              decoration: const InputDecoration(
+                labelText: 'Original Price',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (value) {
+                if (value.isNotEmpty) {
+                  ref.read(promotionFormProvider.notifier).updateBasePromotion(
+                        originPrice: double.tryParse(value) ?? 0.0,
+                      );
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              initialValue: basePromotion.promoPrice.toString(),
+              decoration: const InputDecoration(
+                labelText: 'Promotional Price',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (value) {
+                if (value.isNotEmpty) {
+                  ref.read(promotionFormProvider.notifier).updateBasePromotion(
+                        promoPrice: double.tryParse(value) ?? 0.0,
+                      );
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              initialValue: basePromotion.uri ?? '',
+              decoration: const InputDecoration(
+                labelText: 'Promotion URL/URI (optional)',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (value) {
+                ref.read(promotionFormProvider.notifier).updateBasePromotion(
+                      uri: value.isEmpty ? null : value,
+                    );
+              },
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: SwitchListTile(
+                    title: const Text('Active'),
+                    value: basePromotion.isActive,
+                    onChanged: (value) {
+                      ref.read(promotionFormProvider.notifier).updateBasePromotion(
+                            isActive: value,
+                          );
+                    },
+                  ),
+                ),
+                Expanded(
+                  child: SwitchListTile(
+                    title: const Text('Has Requirements'),
+                    value: basePromotion.isRequirement,
+                    onChanged: (value) {
+                      ref.read(promotionFormProvider.notifier).updateBasePromotion(
+                            isRequirement: value,
+                          );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            SwitchListTile(
+              title: const Text('Redeemable'),
+              value: basePromotion.isRedeem ?? false,
+              onChanged: (value) {
+                ref.read(promotionFormProvider.notifier).updateBasePromotion(
+                      isRedeem: value,
+                    );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPromotionTypeSelector(
+    BuildContext context,
+    WidgetRef ref,
+    PromotionFormState formState,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Promotion Type',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<PromotionType>(
+              value: formState.selectedType,
+              decoration: const InputDecoration(
+                labelText: 'Select Promotion Type',
+                border: OutlineInputBorder(),
+              ),
+              items: PromotionType.values.map((type) {
+                return DropdownMenuItem<PromotionType>(
+                  value: type,
+                  child: Text(_getPromotionTypeLabel(type)),
+                );
+              }).toList(),
+              onChanged: (newType) {
+                if (newType != null) {
+                  ref.read(promotionFormProvider.notifier).setPromotionType(newType);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeSpecificForm(PromotionFormState formState) {
+    switch (formState.selectedType) {
+      case PromotionType.Discount:
+        return DiscountForm(discount: formState.discount);
+      case PromotionType.Coupons:
+        return CouponForm(coupon: formState.coupon);
+      case PromotionType.Bogo:
+        return BogoForm(bogo: formState.bogo);
+      case PromotionType.Bundling:
+        return BundlingForm(bundling: formState.bundling);
+      case PromotionType.Loyalty:
+        return LoyaltyForm(loyalty: formState.loyalty);
+      case PromotionType.Cashback:
+        return CashbackForm(cashback: formState.cashback);
+      case PromotionType.Customize:
+        return CustomizeForm(customize: formState.customize);
+      default:
+        return const Card(
+          child: Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text('Form for this promotion type not implemented yet.'),
+          ),
+        );
+    }
+  }
+
+  String _getPromotionTypeLabel(PromotionType type) {
+    switch (type) {
+      case PromotionType.Discount:
+        return 'Discount';
+      case PromotionType.Coupons:
+        return 'Coupons';
+      case PromotionType.Bogo:
+        return 'Buy One Get One (BOGO)';
+      case PromotionType.Bundling:
+        return 'Bundling';
+      case PromotionType.Loyalty:
+        return 'Loyalty Program';
+      case PromotionType.Cashback:
+        return 'Cashback';
+      case PromotionType.Customize:
+        return 'Custom Promotion';
+      case PromotionType.Point:
+        return 'Point Achievement';
+      case PromotionType.Flash_Sale:
+        return 'Flash Sale';
+      case PromotionType.Free_Shipping:
+        return 'Free Shipping';
+      default:
+        return type.toString().split('.').last;
+    }
+  }
+
+  void _savePromotion(BuildContext context, WidgetRef ref) {
+    final formState = ref.read(promotionFormProvider);
+    final promotion = formState.basePromotion;
+    
+    if (promotion == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: Cannot save promotion')),
+      );
+      return;
+    }
+    
+    ref.read(promotionStateProvider.notifier).savePromotion(promotion);
+    Navigator.of(context).pop();
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          formState.isEditing
+              ? 'Promotion updated successfully'
+              : 'Promotion created successfully',
+        ),
+      ),
+    );
+  }
+}
+
+// lib/widgets/discount_form.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../state/promotion_state.dart';
+import '../models/discount.dart';
+import '../models/enums.dart';
+
+class DiscountForm extends ConsumerWidget {
+  final Discount? discount;
+
+  const DiscountForm({Key? key, this.discount}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentDiscount = discount ?? Discount(
+      id: 0,
+      name: '',
+      type: DiscountType.Value,
+      startDate: DateTime.now(),
+      endDate: DateTime.now().add(Duration(days: 30)),
+      value: 0,
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Discount Details',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              initialValue: currentDiscount.name,
+              decoration: const InputDecoration(
+                labelText: 'Discount Name',
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter a name';
+                } else if (value.length < 3) {
+                  return 'Name must be at least 3 characters';
+                }
+                return null;
+              },
+              onChanged: (value) {
+                ref.read(promotionFormProvider.notifier).updateDiscount(
+                      name: value,
+                    );
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<DiscountType>(
+              value: currentDiscount.type,
+              decoration: const InputDecoration(
+                labelText: 'Discount Type',
+                border: OutlineInputBorder(),
+              ),
+              items: DiscountType.values.map((type) {
+                return DropdownMenuItem<DiscountType>(
+                  value: type,
+                  child: Text(_getDiscountTypeLabel(type)),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  ref.read(promotionFormProvider.notifier).updateDiscount(
+                        type: value,
+                      );
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              initialValue: currentDiscount.value.toString(),
+              decoration: InputDecoration(
+                labelText: 'Discount Value',
+                border: OutlineInputBorder(),
+                suffix: currentDiscount.type == DiscountType.Percent ? Text('%') : null,
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (value) {
+                if (value.isNotEmpty) {
+                  ref.read(promotionFormProvider.notifier).updateDiscount(
+                        value: double.tryParse(value) ?? 0.0,
+                      );
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDateField(
+                    context, 
+                    ref,
+                    label: 'Start Date
+
+                    // Continuing lib/widgets/discount_form.dart
+                    currentDate: currentDiscount.startDate,
+                    onDateSelected: (date) {
+                      ref.read(promotionFormProvider.notifier).updateDiscount(
+                            startDate: date,
+                          );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildDateField(
+                    context, 
+                    ref,
+                    label: 'End Date',
+                    currentDate: currentDiscount.endDate,
+                    onDateSelected: (date) {
+                      ref.read(promotionFormProvider.notifier).updateDiscount(
+                            endDate: date,
+                          );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              initialValue: currentDiscount.description ?? '',
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                border: OutlineInputBorder(),
+              ),
+              minLines: 2,
+              maxLines: 4,
+              onChanged: (value) {
+                ref.read(promotionFormProvider.notifier).updateDiscount(
+                      description: value.isEmpty ? null : value,
+                    );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateField(BuildContext context, WidgetRef ref, {
+    required String label,
+    required DateTime currentDate,
+    required Function(DateTime) onDateSelected,
+  }) {
+    return InkWell(
+      onTap: () async {
+        final pickedDate = await showDatePicker(
+          context: context,
+          initialDate: currentDate,
+          firstDate: DateTime.now().subtract(const Duration(days: 365)),
+          lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+        );
+        if (pickedDate != null) {
+          onDateSelected(pickedDate);
+        }
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        child: Text(
+          '${currentDate.day}/${currentDate.month}/${currentDate.year}',
+        ),
+      ),
+    );
+  }
+
+  String _getDiscountTypeLabel(DiscountType type) {
+    switch (type) {
+      case DiscountType.Value:
+        return 'Fixed Amount';
+      case DiscountType.Percent:
+        return 'Percentage';
+      default:
+        return type.toString().split('.').last;
+    }
+  }
+}
+
+// lib/widgets/coupon_form.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../state/promotion_state.dart';
+import '../models/coupons.dart';
+import '../models/enums.dart';
+
+class CouponForm extends ConsumerWidget {
+  final Coupons? coupon;
+
+  const CouponForm({Key? key, this.coupon}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentCoupon = coupon ?? Coupons(
+      code: '',
+      startDate: DateTime.now(),
+      endDate: DateTime.now().add(Duration(days: 30)),
+      value: 0,
+      type: DiscountType.Value,
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Coupon Details',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              initialValue: currentCoupon.code,
+              decoration: const InputDecoration(
+                labelText: 'Coupon Code',
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter a code';
+                } else if (value.length < 3) {
+                  return 'Code must be at least 3 characters';
+                }
+                return null;
+              },
+              onChanged: (value) {
+                ref.read(promotionFormProvider.notifier).updateCoupon(
+                      code: value,
+                    );
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<DiscountType>(
+              value: currentCoupon.type,
+              decoration: const InputDecoration(
+                labelText: 'Coupon Type',
+                border: OutlineInputBorder(),
+              ),
+              items: DiscountType.values.map((type) {
+                return DropdownMenuItem<DiscountType>(
+                  value: type,
+                  child: Text(type == DiscountType.Value ? 'Fixed Amount' : 'Percentage'),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  ref.read(promotionFormProvider.notifier).updateCoupon(
+                        type: value,
+                      );
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              initialValue: currentCoupon.value.toString(),
+              decoration: InputDecoration(
+                labelText: 'Coupon Value',
+                border: OutlineInputBorder(),
+                suffix: currentCoupon.type == DiscountType.Percent ? Text('%') : null,
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (value) {
+                if (value.isNotEmpty) {
+                  ref.read(promotionFormProvider.notifier).updateCoupon(
+                        value: double.tryParse(value) ?? 0.0,
+                      );
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDateField(
+                    context, 
+                    ref,
+                    label: 'Start Date',
+                    currentDate: currentCoupon.startDate,
+                    onDateSelected: (date) {
+                      ref.read(promotionFormProvider.notifier).updateCoupon(
+                            startDate: date,
+                          );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildDateField(
+                    context, 
+                    ref,
+                    label: 'End Date',
+                    currentDate: currentCoupon.endDate,
+                    onDateSelected: (date) {
+                      ref.read(promotionFormProvider.notifier).updateCoupon(
+                            endDate: date,
+                          );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              initialValue: currentCoupon.description ?? '',
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                border: OutlineInputBorder(),
+              ),
+              minLines: 2,
+              maxLines: 4,
+              onChanged: (value) {
+                ref.read(promotionFormProvider.notifier).updateCoupon(
+                      description: value.isEmpty ? null : value,
+                    );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateField(BuildContext context, WidgetRef ref, {
+    required String label,
+    required DateTime currentDate,
+    required Function(DateTime) onDateSelected,
+  }) {
+    return InkWell(
+      onTap: () async {
+        final pickedDate = await showDatePicker(
+          context: context,
+          initialDate: currentDate,
+          firstDate: DateTime.now().subtract(const Duration(days: 365)),
+          lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+        );
+        if (pickedDate != null) {
+          onDateSelected(pickedDate);
+        }
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        child: Text(
+          '${currentDate.day}/${currentDate.month}/${currentDate.year}',
+        ),
+      ),
+    );
+  }
+}
+
+// lib/widgets/bogo_form.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../state/promotion_state.dart';
+import '../models/bogo.dart';
+
+class BogoForm extends ConsumerWidget {
+  final Bogo? bogo;
+
+  const BogoForm({Key? key, this.bogo}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Since we don't have the full implementation for updating BOGO, we'll create a simple UI
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Buy One Get One Details',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              initialValue: bogo?.quantity.toString() ?? '1',
+              decoration: const InputDecoration(
+                labelText: 'Minimum Purchase Quantity',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (value) {
+                // We would update the state here if we had implemented the BOGO state update method
+              },
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              title: const Text('Apply to All Variants'),
+              value: bogo?.isAllVariant ?? false,
+              onChanged: (value) {
+                // We would update the state here if we had implemented the BOGO state update method
+              },
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Product Selection',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            // Product selector would go here
+            const ListTile(
+              leading: Icon(Icons.add_circle),
+              title: Text('Select Product'),
+              tileColor: Colors.grey[200],
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Variant Selections',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            // Variant list would go here
+            const ListTile(
+              title: Text('No variants selected'),
+              subtitle: Text('Select a product to see available variants'),
+              tileColor: Colors.grey[200],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// lib/widgets/bundling_form.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../state/promotion_state.dart';
+import '../models/bundling.dart';
+
+class BundlingForm extends ConsumerWidget {
+  final Bundling? bundling;
+
+  const BundlingForm({Key? key, this.bundling}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Bundle Details',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              initialValue: bundling?.bundlingPrice.toString() ?? '',
+              decoration: const InputDecoration(
+                labelText: 'Bundle Price',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (value) {
+                // We would update the state here if we had implemented the bundling state update method
+              },
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Unit',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            // Unit selector would go here
+            const ListTile(
+              leading: Icon(Icons.category),
+              title: Text('Select Unit'),
+              tileColor: Colors.grey[200],
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Bundle Items',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            // Bundle items list would go here
+            const ListTile(
+              leading: Icon(Icons.add_circle),
+              title: Text('Add Product to Bundle'),
+              tileColor: Colors.grey[200],
+            ),
+            const SizedBox(height: 8),
+            // Example of a bundled item (would be in a list in real implementation)
+            const ListTile(
+              title: Text('No items in bundle'),
+              subtitle: Text('Add products to create your bundle'),
+              tileColor: Colors.grey[200],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// lib/widgets/loyalty_form.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../state/promotion_state.dart';
+import '../models/loyalty.dart';
+import '../models/enums.dart';
+
+class LoyaltyForm extends ConsumerWidget {
+  final Loyalty? loyalty;
+
+  const LoyaltyForm({Key? key, this.loyalty}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentLoyalty = loyalty ?? Loyalty(
+      value: 0,
+      startDate: DateTime.now(),
+      endDate: DateTime.now().add(Duration(days: 30)),
+      type: DiscountType.Value,
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Loyalty Program Details',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<DiscountType>(
+              value: currentLoyalty.type,
+              decoration: const InputDecoration(
+                labelText: 'Reward Type',
+                border: OutlineInputBorder(),
+              ),
+              items: DiscountType.values.map((type) {
+                return DropdownMenuItem<DiscountType>(
+                  value: type,
+                  child: Text(type == DiscountType.Value ? 'Fixed Amount' : 'Percentage'),
+                );
+              }).toList(),
+              onChanged: (value) {
+                // We would update the state here if we had implemented the loyalty state update method
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              initialValue: currentLoyalty.value.toString(),
+              decoration: InputDecoration(
+                labelText: 'Reward Value',
+                border: OutlineInputBorder(),
+                suffix: currentLoyalty.type == DiscountType.Percent ? Text('%') : null,
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (value) {
+                // We would update the state here if we had implemented the loyalty state update method
+              },
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDateField(
+                    context, 
+                    label: 'Start Date',
+                    currentDate: currentLoyalty.startDate,
+                    onDateSelected: (date) {
+                      // We would update the state here if we had implemented the loyalty state update method
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildDateField(
+                    context, 
+                    label: 'End Date',
+                    currentDate: currentLoyalty.endDate,
+                    onDateSelected: (date) {
+                      // We would update the state here if we had implemented the loyalty state update method
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Customer Selection',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            // Customer selector would go here
+            const ListTile(
+              leading: Icon(Icons.person),
+              title: Text('Select Customer Group'),
+              tileColor: Colors.grey[200],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateField(BuildContext context, {
+    required String label,
+    required DateTime currentDate,
+    required Function(DateTime) onDateSelected,
+  }) {
+    return InkWell(
+      onTap: () async {
+        final pickedDate = await showDatePicker(
+          context: context,
+          initialDate: currentDate,
+          firstDate: DateTime.now().subtract(const Duration(days: 365)),
+          lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+        );
+        if (pickedDate != null) {
+          onDateSelected(pickedDate);
+        }
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        child: Text(
+          '${currentDate.day}/${currentDate.month}/${currentDate.year}',
+        ),
+      ),
+    );
+  }
+}
+
+// lib/widgets/cashback_form.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../state/promotion_state.dart';
+import '../models/cashback.dart';
+
+class CashbackForm extends ConsumerWidget {
+  final Cashback? cashback;
+
+  const CashbackForm({Key? key, this.cashback}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Cashback Details',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              initialValue: cashback?.amount.toString() ?? '',
+              decoration: const InputDecoration(
+                labelText: 'Cashback Amount',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (value) {
+                // We would update the state here if we had implemented the cashback state update method
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              initialValue: cashback?.minPurchase.toString() ?? '',
+              decoration: const InputDecoration(
+                labelText: 'Minimum Purchase Amount',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (value) {
+                // We would update the state here if we had implemented the cashback state update method
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// lib/widgets/customize_form.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../state/promotion_state.dart';
+import '../models/customize.dart';
+
+class CustomizeForm extends ConsumerWidget {
+  final Customize? customize;
+
+  const CustomizeForm({Key? key, this.customize}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Custom Promotion Details',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              initialValue: customize?.conditionLogic ?? '',
+              decoration: const InputDecoration(
+                labelText: 'Custom Logic',
+                hintText: 'Enter the condition logic for this promotion',
+                border: OutlineInputBorder(),
+              ),
+              minLines: 3,
+              maxLines: 6,
+              onChanged: (value) {
+                // We would update the state here if we had implemented the customize state update method
+              },
+            ),
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 12),
+            const Text(
+              'Customize your promotion with specific business rules. This could include:',
+              style: TextStyle(fontStyle: FontStyle.italic),
+            ),
+            const SizedBox(height: 8),
+            const Text('• Time-based conditions (e.g., happy hours)'),
+            const Text('• User behavior triggers'),
+            const Text('• Seasonal or event-specific rules'),
+            const Text('• Inventory-based conditions'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'screens/promotion_list_screen.dart';
+
+void main() {
+  runApp(
+    const ProviderScope(
+      child: PromotionBuilderApp(),
+    ),
+  );
+}
+
+class PromotionBuilderApp extends StatelessWidget {
+  const PromotionBuilderApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Promotion Builder',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.blue,
+          foregroundColor: Colors.white,
+          elevation: 1,
+        ),
+        inputDecorationTheme: const InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(),
+          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
+        cardTheme: CardThemeData(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.symmetric(vertical: 8),
+        ),
+      ),
+      darkTheme: ThemeData.dark().copyWith(
+        primaryColor: Colors.blue,
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.blue[700],
+          foregroundColor: Colors.white,
+        ),
+        cardTheme: CardThemeData(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.symmetric(vertical: 8),
+        ),
+      ),
+      themeMode: ThemeMode.system,
+      home: const PromotionListScreen(),
+    );
+  }
+}
+
+
+// models/promotion_models.dart
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+@freezed
+class Product {
+  final String id;
+  final String name;
+  final double price;
+  final String? imageUrl;
+  final List<String> variants;
+  
+  const Product({
+    required this.id,
+    required this.name,
+    required this.price,
+    this.imageUrl,
+    this.variants = const [],
+  });
+}
+
+@freezed
+class Promotion {
+  final String id;
+  final PromotionType type;
+  final double originPrice;
+  final double promoPrice;
+  final bool isActive;
+  final bool isRequirement;
+  final bool isRedeem;
+  final String uri;
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final List<Product> products;
+  final String? description;
+  final List<String>? mediaUrls;
+  
+  const Promotion({
+    required this.id,
+    required this.type,
+    required this.originPrice,
+    required this.promoPrice,
+    this.isActive = false,
+    this.isRequirement = false,
+    this.isRedeem = false,
+    this.uri = '',
+    this.startDate,
+    this.endDate,
+    this.products = const [],
+    this.description,
+    this.mediaUrls,
+  });
+}
+
+// providers/promotion_providers.dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+final selectedProductsProvider = StateNotifierProvider<SelectedProductsNotifier, List<Product>>(
+  (ref) => SelectedProductsNotifier(),
+);
+
+class SelectedProductsNotifier extends StateNotifier<List<Product>> {
+  SelectedProductsNotifier() : super([]);
+  
+  void addProduct(Product product) {
+    state = [...state, product];
+  }
+  
+  void removeProduct(String id) {
+    state = state.where((p) => p.id != id).toList();
+  }
+}
+
+final promotionHistoryProvider = StateNotifierProvider<PromotionHistoryNotifier, List<Promotion>>(
+  (ref) => PromotionHistoryNotifier(),
+);
+
+class PromotionHistoryNotifier extends StateNotifier<List<Promotion>> {
+  PromotionHistoryNotifier() : super([]);
+  
+  void addToHistory(Promotion promotion) {
+    state = [...state, promotion];
+  }
+}
+
+// screens/promotion_builder_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+class PromotionBuilderScreen extends ConsumerStatefulWidget {
+  const PromotionBuilderScreen({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<PromotionBuilderScreen> createState() => _PromotionBuilderScreenState();
+}
+
+class _PromotionBuilderScreenState extends ConsumerState<PromotionBuilderScreen> {
+  final _formKey = GlobalKey<FormState>();
+  DateTime? _startDate;
+  DateTime? _endDate;
+  final _descriptionController = TextEditingController();
+  
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Promotion Builder'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: () => context.push('/promotion-history'),
+          ),
+        ],
+      ),
+      body: Row(
+        children: [
+          // Left sidebar with promotion types
+          SizedBox(
+            width: 200,
+            child: _buildPromotionTypeSelector(),
+          ),
+          // Main content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildPromotionForm(),
+                    _buildDateRangeSelector(),
+                    _buildProductSelector(),
+                    _buildMediaUploader(),
+                    _buildSubmitButton(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Right sidebar with preview
+          SizedBox(
+            width: 300,
+            child: _buildPromotionPreview(),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildPromotionTypeSelector() {
+    return ListView.builder(
+      itemCount: PromotionType.values.length,
+      itemBuilder: (context, index) {
+        final type = PromotionType.values[index];
+        return ListTile(
+          selected: _selectedType == type,
+          leading: _getPromotionTypeIcon(type),
+          title: Text(type.toString().split('.').last),
+          onTap: () {
+            setState(() {
+              _selectedType = type;
+            });
+          },
+        );
+      },
+    );
+  }
+  
+  Widget _buildDateRangeSelector() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Promotion Period',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setState(() {
+                          _startDate = date;
+                        });
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Start Date',
+                        border: OutlineInputBorder(),
+                      ),
+                      child: Text(
+                        _startDate != null
+                            ? '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}'
+                            : 'Select Start Date',
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: _startDate ?? DateTime.now(),
+                        firstDate: _startDate ?? DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setState(() {
+                          _endDate = date;
+                        });
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'End Date',
+                        border: OutlineInputBorder(),
+                      ),
+                      child: Text(
+                        _endDate != null
+                            ? '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
+                            : 'Select End Date',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildProductSelector() {
+    final selectedProducts = ref.watch(selectedProductsProvider);
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Selected Products',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Product'),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => const ProductSelectorDialog(),
+                    );
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (selectedProducts.isEmpty)
+              const Center(
+                child: Text('No products selected'),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: selectedProducts.map((product) {
+                  return Chip(
+                    label: Text(product.name),
+                    onDeleted: () {
+                      ref.read(selectedProductsProvider.notifier)
+                          .removeProduct(product.id);
+                    },
+                  );
+                }).toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildMediaUploader() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Promotional Media',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            GridView.builder(
+              shrinkWrap: true,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemCount: _mediaUrls.length + 1,
+              itemBuilder: (context, index) {
+                if (index == _mediaUrls.length) {
+                  return _buildAddMediaButton();
+                }
+                return _buildMediaPreview(_mediaUrls[index]);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildPromotionPreview() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Preview',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            // Add preview content here
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// screens/product_selector_dialog.dart
+class ProductSelectorDialog extends ConsumerWidget {
+  const ProductSelectorDialog({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return AlertDialog(
+      title: const Text('Select Products'),
+      content: SizedBox(
+        width: 600,
+        height: 400,
+        child: Column(
+          children: [
+            TextField(
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Search products...',
+              ),
+              onChanged: (value) {
+                // Implement search
+              },
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  childAspectRatio: 0.75,
+                ),
+                itemCount: 10, // Replace with actual product count
+                itemBuilder: (context, index) {
+                  return _buildProductCard();
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            // Save selected products
+            Navigator.pop(context);
+          },
+          child: const Text('Add Selected'),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildProductCard() {
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.image,
+                  size: 48,
+                  color: Colors.grey[400],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Product Name',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '\$99.99',
+                  style: TextStyle(
+                    color: Colors.green[700],
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// screens/promotion_history_screen.dart
+class PromotionHistoryScreen extends ConsumerWidget {
+  const PromotionHistoryScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final promotions = ref.watch(promotionHistoryProvider);
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Promotion History'),
+      ),
+      body: ListView.builder(
+        itemCount: promotions.length,
+        itemBuilder: (context, index) {
+          final promotion = promotions[index];
+          return Card(
+            margin: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
+            child: ExpansionTile(
+              title: Text(promotion.type.toString().split('.').last),
+              subtitle: Text(
+                'Valid: ${_formatDate(promotion.startDate)} - ${_formatDate(promotion.endDate)}',
+              ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildPromotionDetails(promotion),
+                      if (promotion.products.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _buildProductList(promotion.products),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+  
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'N/A';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+  
+  Widget _buildPromotionDetails(Promotion promotion) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Original Price: \$${promotion.originPrice}'),
+        Text('Promo Price: \$${promotion.promoPrice}'),
+        Text('Status: ${promotion.isActive ? 'Active' : 'Inactive'}'),
+        if (promotion.description != null)
+          Text('Description: ${promotion.description}'),
+      ],
+    );
+  }
+  
+  Widget _buildProductList(List<Product> products) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Included Products',
+          style: TextStyle(fontWeight: FontWeight.bold),

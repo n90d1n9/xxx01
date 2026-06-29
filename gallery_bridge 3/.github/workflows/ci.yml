@@ -1,0 +1,174 @@
+name: GalleryBridge CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Rust engine
+  # ─────────────────────────────────────────────────────────────────────────────
+  rust:
+    name: Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust_engine/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust_engine/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        working-directory: rust_engine
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (all targets, deny warnings)
+        working-directory: rust_engine
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run tests
+        working-directory: rust_engine
+        run: cargo test --all
+
+      - name: Build release
+        working-directory: rust_engine
+        run: cargo build --release
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Flutter frontend
+  # ─────────────────────────────────────────────────────────────────────────────
+  flutter:
+    name: Flutter (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: flutter_frontend
+        run: flutter pub get
+
+      - name: Analyze (no issues)
+        working-directory: flutter_frontend
+        run: flutter analyze
+
+      - name: Run tests
+        working-directory: flutter_frontend
+        run: flutter test --coverage
+
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v4
+        with:
+          file: flutter_frontend/coverage/lcov.info
+          flags: flutter
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # FRB code generation check
+  # ─────────────────────────────────────────────────────────────────────────────
+  frb-check:
+    name: FRB generated code is up-to-date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: stable
+
+      - name: Install flutter_rust_bridge_codegen
+        run: cargo install flutter_rust_bridge_codegen
+
+      - name: Install Flutter deps
+        working-directory: flutter_frontend
+        run: flutter pub get
+
+      - name: Regenerate bindings
+        run: |
+          flutter_rust_bridge_codegen generate \
+            --rust-input  rust_engine/src/api/mod.rs \
+            --dart-output flutter_frontend/lib/generated/
+
+      - name: Check for uncommitted changes
+        run: |
+          if [[ -n "$(git status --porcelain flutter_frontend/lib/generated/)" ]]; then
+            echo "Generated FRB bindings are out of date. Run flutter_rust_bridge_codegen and commit."
+            git diff flutter_frontend/lib/generated/
+            exit 1
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Release build (macOS)
+  # ─────────────────────────────────────────────────────────────────────────────
+  release-macos:
+    name: Release build (macOS)
+    runs-on: macos-latest
+    needs: [rust, flutter]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: stable
+
+      - name: Build Rust (universal binary)
+        working-directory: rust_engine
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+          lipo -create \
+            target/aarch64-apple-darwin/release/libgallery_bridge_engine.dylib \
+            target/x86_64-apple-darwin/release/libgallery_bridge_engine.dylib \
+            -output libgallery_bridge_engine.dylib
+
+      - name: Build Flutter macOS app
+        working-directory: flutter_frontend
+        run: |
+          flutter pub get
+          flutter build macos --release
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GalleryBridge-macOS
+          path: flutter_frontend/build/macos/Build/Products/Release/gallery_bridge.app
+          retention-days: 30

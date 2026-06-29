@@ -1,0 +1,45 @@
+import 'network_policy_ingress_rule.dart';
+import 'network_policy_egress_rule.dart';
+import 'label_selector.dart';
+
+class NetworkPolicySpec {
+  final LabelSelector podSelector;
+  final List<NetworkPolicyIngressRule>? ingress;
+  final List<NetworkPolicyEgressRule>? egress;
+  final List<String>? policyTypes;
+  NetworkPolicySpec({
+    required this.podSelector,
+    this.ingress,
+    this.egress,
+    this.policyTypes,
+  });
+  factory NetworkPolicySpec.fromJson(Map<String, dynamic> json) {
+    return NetworkPolicySpec(
+      podSelector: LabelSelector.fromJson(json['podSelector']),
+      ingress:
+          json['ingress'] != null
+              ? (json['ingress'] as List)
+                  .map((e) => NetworkPolicyIngressRule.fromJson(e))
+                  .toList()
+              : null,
+      egress:
+          json['egress'] != null
+              ? (json['egress'] as List)
+                  .map((e) => NetworkPolicyEgressRule.fromJson(e))
+                  .toList()
+              : null,
+      policyTypes:
+          json['policyTypes'] != null
+              ? List<String>.from(json['policyTypes'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'podSelector': podSelector.toJson(),
+      if (ingress != null) 'ingress': ingress!.map((e) => e.toJson()).toList(),
+      if (egress != null) 'egress': egress!.map((e) => e.toJson()).toList(),
+      if (policyTypes != null) 'policyTypes': policyTypes,
+    };
+  }
+}

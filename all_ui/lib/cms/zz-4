@@ -1,0 +1,2741 @@
+// pubspec.yaml dependencies:
+// flutter_riverpod: ^2.4.9
+// uuid: ^4.0.0
+// intl: ^0.18.0
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+
+// ============================================================================
+// DOMAIN MODELS
+// ============================================================================
+
+enum FieldType {
+  text,
+  richText,
+  number,
+  email,
+  url,
+  phone,
+  date,
+  datetime,
+  time,
+  boolean,
+  image,
+  file,
+  color,
+  reference,
+  multiReference,
+  select,
+  multiSelect,
+  textarea,
+  json,
+}
+
+class ValidationRule {
+  final String? minLength;
+  final String? maxLength;
+  final String? pattern;
+  final String? min;
+  final String? max;
+  final String? customMessage;
+
+  const ValidationRule({
+    this.minLength,
+    this.maxLength,
+    this.pattern,
+    this.min,
+    this.max,
+    this.customMessage,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'minLength': minLength,
+        'maxLength': maxLength,
+        'pattern': pattern,
+        'min': min,
+        'max': max,
+        'customMessage': customMessage,
+      };
+
+  factory ValidationRule.fromJson(Map<String, dynamic> json) => ValidationRule(
+        minLength: json['minLength'],
+        maxLength: json['maxLength'],
+        pattern: json['pattern'],
+        min: json['min'],
+        max: json['max'],
+        customMessage: json['customMessage'],
+      );
+}
+
+class FieldDefinition {
+  final String id;
+  final String name;
+  final String label;
+  final FieldType type;
+  final bool required;
+  final String? placeholder;
+  final String? helpText;
+  final dynamic defaultValue;
+  final ValidationRule? validation;
+  final Map<String, dynamic>? options;
+  final String? referenceTo;
+  final int? order;
+
+  const FieldDefinition({
+    required this.id,
+    required this.name,
+    required this.label,
+    required this.type,
+    this.required = false,
+    this.placeholder,
+    this.helpText,
+    this.defaultValue,
+    this.validation,
+    this.options,
+    this.referenceTo,
+    this.order,
+  });
+
+  FieldDefinition copyWith({
+    String? id,
+    String? name,
+    String? label,
+    FieldType? type,
+    bool? required,
+    String? placeholder,
+    String? helpText,
+    dynamic defaultValue,
+    ValidationRule? validation,
+    Map<String, dynamic>? options,
+    String? referenceTo,
+    int? order,
+  }) {
+    return FieldDefinition(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      label: label ?? this.label,
+      type: type ?? this.type,
+      required: required ?? this.required,
+      placeholder: placeholder ?? this.placeholder,
+      helpText: helpText ?? this.helpText,
+      defaultValue: defaultValue ?? this.defaultValue,
+      validation: validation ?? this.validation,
+      options: options ?? this.options,
+      referenceTo: referenceTo ?? this.referenceTo,
+      order: order ?? this.order,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'label': label,
+        'type': type.name,
+        'required': required,
+        'placeholder': placeholder,
+        'helpText': helpText,
+        'defaultValue': defaultValue,
+        'validation': validation?.toJson(),
+        'options': options,
+        'referenceTo': referenceTo,
+        'order': order,
+      };
+
+  factory FieldDefinition.fromJson(Map<String, dynamic> json) =>
+      FieldDefinition(
+        id: json['id'],
+        name: json['name'],
+        label: json['label'],
+        type: FieldType.values.firstWhere((e) => e.name == json['type']),
+        required: json['required'] ?? false,
+        placeholder: json['placeholder'],
+        helpText: json['helpText'],
+        defaultValue: json['defaultValue'],
+        validation: json['validation'] != null
+            ? ValidationRule.fromJson(json['validation'])
+            : null,
+        options: json['options'],
+        referenceTo: json['referenceTo'],
+        order: json['order'],
+      );
+}
+
+class ContentType {
+  final String id;
+  final String name;
+  final String pluralName;
+  final String description;
+  final String icon;
+  final List<FieldDefinition> fields;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final Map<String, dynamic>? settings;
+
+  const ContentType({
+    required this.id,
+    required this.name,
+    required this.pluralName,
+    required this.description,
+    required this.icon,
+    required this.fields,
+    required this.createdAt,
+    required this.updatedAt,
+    this.settings,
+  });
+
+  ContentType copyWith({
+    String? id,
+    String? name,
+    String? pluralName,
+    String? description,
+    String? icon,
+    List<FieldDefinition>? fields,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Map<String, dynamic>? settings,
+  }) {
+    return ContentType(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      pluralName: pluralName ?? this.pluralName,
+      description: description ?? this.description,
+      icon: icon ?? this.icon,
+      fields: fields ?? this.fields,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      settings: settings ?? this.settings,
+    );
+  }
+}
+
+class ContentEntry {
+  final String id;
+  final String contentTypeId;
+  final Map<String, dynamic> data;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String createdBy;
+  final String updatedBy;
+  final bool published;
+  final DateTime? publishedAt;
+  final Map<String, dynamic>? meta;
+
+  const ContentEntry({
+    required this.id,
+    required this.contentTypeId,
+    required this.data,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.createdBy,
+    required this.updatedBy,
+    this.published = false,
+    this.publishedAt,
+    this.meta,
+  });
+
+  ContentEntry copyWith({
+    String? id,
+    String? contentTypeId,
+    Map<String, dynamic>? data,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? createdBy,
+    String? updatedBy,
+    bool? published,
+    DateTime? publishedAt,
+    Map<String, dynamic>? meta,
+  }) {
+    return ContentEntry(
+      id: id ?? this.id,
+      contentTypeId: contentTypeId ?? this.contentTypeId,
+      data: data ?? this.data,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      createdBy: createdBy ?? this.createdBy,
+      updatedBy: updatedBy ?? this.updatedBy,
+      published: published ?? this.published,
+      publishedAt: publishedAt ?? this.publishedAt,
+      meta: meta ?? this.meta,
+    );
+  }
+}
+
+// ============================================================================
+// REPOSITORY & SERVICE LAYER
+// ============================================================================
+
+class CMSRepository {
+  final Map<String, ContentType> _contentTypes = {};
+  final Map<String, List<ContentEntry>> _entries = {};
+  int _idCounter = 1;
+
+  String _generateId() => 'id_${_idCounter++}_${DateTime.now().millisecondsSinceEpoch}';
+
+  // Content Types
+  Future<List<ContentType>> getContentTypes() async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    return _contentTypes.values.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  Future<ContentType?> getContentType(String id) async {
+    await Future.delayed(const Duration(milliseconds: 50));
+    return _contentTypes[id];
+  }
+
+  Future<ContentType> createContentType(ContentType contentType) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    _contentTypes[contentType.id] = contentType;
+    _entries[contentType.id] = [];
+    return contentType;
+  }
+
+  Future<ContentType> updateContentType(ContentType contentType) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    _contentTypes[contentType.id] = contentType;
+    return contentType;
+  }
+
+  Future<void> deleteContentType(String id) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    _contentTypes.remove(id);
+    _entries.remove(id);
+  }
+
+  // Content Entries
+  Future<List<ContentEntry>> getEntries(String contentTypeId, {bool? published}) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    var entries = _entries[contentTypeId] ?? [];
+    if (published != null) {
+      entries = entries.where((e) => e.published == published).toList();
+    }
+    return entries..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  Future<ContentEntry?> getEntry(String contentTypeId, String entryId) async {
+    await Future.delayed(const Duration(milliseconds: 50));
+    final entries = _entries[contentTypeId] ?? [];
+    try {
+      return entries.firstWhere((e) => e.id == entryId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<ContentEntry> createEntry(ContentEntry entry) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    _entries[entry.contentTypeId] = [
+      ..._entries[entry.contentTypeId] ?? [],
+      entry,
+    ];
+    return entry;
+  }
+
+  Future<ContentEntry> updateEntry(ContentEntry entry) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    final entries = List<ContentEntry>.from(_entries[entry.contentTypeId] ?? []);
+    final idx = entries.indexWhere((e) => e.id == entry.id);
+    if (idx != -1) {
+      entries[idx] = entry;
+      _entries[entry.contentTypeId] = entries;
+    }
+    return entry;
+  }
+
+  Future<void> deleteEntry(String contentTypeId, String entryId) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    _entries[contentTypeId] = (_entries[contentTypeId] ?? [])
+        .where((e) => e.id != entryId)
+        .toList();
+  }
+
+  Future<ContentEntry> duplicateEntry(String contentTypeId, String entryId) async {
+    final original = await getEntry(contentTypeId, entryId);
+    if (original == null) throw Exception('Entry not found');
+    
+    final duplicate = ContentEntry(
+      id: _generateId(),
+      contentTypeId: contentTypeId,
+      data: Map.from(original.data),
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      createdBy: 'system',
+      updatedBy: 'system',
+      published: false,
+    );
+    
+    return createEntry(duplicate);
+  }
+
+  Future<List<ContentEntry>> searchEntries(String contentTypeId, String query) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    final entries = _entries[contentTypeId] ?? [];
+    return entries.where((entry) {
+      return entry.data.values.any((value) =>
+          value.toString().toLowerCase().contains(query.toLowerCase()));
+    }).toList();
+  }
+}
+
+// ============================================================================
+// VALIDATION SERVICE
+// ============================================================================
+
+class ValidationService {
+  static String? validateField(FieldDefinition field, dynamic value) {
+    if (field.required && (value == null || value.toString().isEmpty)) {
+      return '${field.label} is required';
+    }
+
+    if (value == null || value.toString().isEmpty) return null;
+
+    final validation = field.validation;
+    if (validation == null) return null;
+
+    switch (field.type) {
+      case FieldType.text:
+      case FieldType.textarea:
+      case FieldType.email:
+      case FieldType.url:
+      case FieldType.phone:
+        final strValue = value.toString();
+        if (validation.minLength != null) {
+          final min = int.tryParse(validation.minLength!) ?? 0;
+          if (strValue.length < min) {
+            return validation.customMessage ?? 'Minimum length is $min characters';
+          }
+        }
+        if (validation.maxLength != null) {
+          final max = int.tryParse(validation.maxLength!) ?? 999999;
+          if (strValue.length > max) {
+            return validation.customMessage ?? 'Maximum length is $max characters';
+          }
+        }
+        if (validation.pattern != null) {
+          final regex = RegExp(validation.pattern!);
+          if (!regex.hasMatch(strValue)) {
+            return validation.customMessage ?? 'Invalid format';
+          }
+        }
+        break;
+
+      case FieldType.number:
+        final numValue = double.tryParse(value.toString());
+        if (numValue == null) return 'Must be a valid number';
+        
+        if (validation.min != null) {
+          final min = double.tryParse(validation.min!) ?? 0;
+          if (numValue < min) {
+            return validation.customMessage ?? 'Minimum value is $min';
+          }
+        }
+        if (validation.max != null) {
+          final max = double.tryParse(validation.max!) ?? 999999;
+          if (numValue > max) {
+            return validation.customMessage ?? 'Maximum value is $max';
+          }
+        }
+        break;
+
+      case FieldType.email:
+        final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+        if (!emailRegex.hasMatch(value.toString())) {
+          return 'Invalid email address';
+        }
+        break;
+
+      case FieldType.url:
+        final urlRegex = RegExp(r'^https?:\/\/.+');
+        if (!urlRegex.hasMatch(value.toString())) {
+          return 'Invalid URL';
+        }
+        break;
+
+      default:
+        break;
+    }
+
+    return null;
+  }
+}
+
+// ============================================================================
+// RIVERPOD PROVIDERS (Regular Riverpod)
+// ============================================================================
+
+final cmsRepositoryProvider = Provider<CMSRepository>((ref) {
+  return CMSRepository();
+});
+
+final contentTypesProvider = StateNotifierProvider<ContentTypesNotifier, AsyncValue<List<ContentType>>>((ref) {
+  return ContentTypesNotifier(ref.watch(cmsRepositoryProvider));
+});
+
+class ContentTypesNotifier extends StateNotifier<AsyncValue<List<ContentType>>> {
+  final CMSRepository _repository;
+
+  ContentTypesNotifier(this._repository) : super(const AsyncValue.loading()) {
+    _loadContentTypes();
+  }
+
+  Future<void> _loadContentTypes() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _repository.getContentTypes());
+  }
+
+  Future<void> create(ContentType contentType) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      await _repository.createContentType(contentType);
+      return _repository.getContentTypes();
+    });
+  }
+
+  Future<void> update(ContentType contentType) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.updateContentType(contentType);
+      return _repository.getContentTypes();
+    });
+  }
+
+  Future<void> delete(String id) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.deleteContentType(id);
+      return _repository.getContentTypes();
+    });
+  }
+
+  void refresh() => _loadContentTypes();
+}
+
+final contentEntriesProvider = StateNotifierProvider.family<ContentEntriesNotifier, AsyncValue<List<ContentEntry>>, String>((ref, contentTypeId) {
+  return ContentEntriesNotifier(ref.watch(cmsRepositoryProvider), contentTypeId);
+});
+
+class ContentEntriesNotifier extends StateNotifier<AsyncValue<List<ContentEntry>>> {
+  final CMSRepository _repository;
+  final String contentTypeId;
+
+  ContentEntriesNotifier(this._repository, this.contentTypeId)
+      : super(const AsyncValue.loading()) {
+    _loadEntries();
+  }
+
+  Future<void> _loadEntries() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _repository.getEntries(contentTypeId));
+  }
+
+  Future<void> create(ContentEntry entry) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      await _repository.createEntry(entry);
+      return _repository.getEntries(contentTypeId);
+    });
+  }
+
+  Future<void> update(ContentEntry entry) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.updateEntry(entry);
+      return _repository.getEntries(contentTypeId);
+    });
+  }
+
+  Future<void> delete(String entryId) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.deleteEntry(contentTypeId, entryId);
+      return _repository.getEntries(contentTypeId);
+    });
+  }
+
+  Future<void> duplicate(String entryId) async {
+    state = await AsyncValue.guard(() async {
+      await _repository.duplicateEntry(contentTypeId, entryId);
+      return _repository.getEntries(contentTypeId);
+    });
+  }
+
+  Future<void> togglePublish(ContentEntry entry) async {
+    final updated = entry.copyWith(
+      published: !entry.published,
+      publishedAt: !entry.published ? DateTime.now() : null,
+    );
+    await update(updated);
+  }
+
+  void refresh() => _loadEntries();
+}
+
+final searchQueryProvider = StateProvider<String>((ref) => '');
+
+// ============================================================================
+// MAIN APP
+// ============================================================================
+
+void main() {
+  runApp(const ProviderScope(child: CMSApp()));
+}
+
+class CMSApp extends StatelessWidget {
+  const CMSApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Professional CMS',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.indigo,
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+        cardTheme: CardTheme(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.shade200),
+          ),
+        ),
+      ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.indigo,
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+      ),
+      home: const CMSHomePage(),
+    );
+  }
+}
+
+// ============================================================================
+// HOME PAGE
+// ============================================================================
+
+class CMSHomePage extends ConsumerWidget {
+  const CMSHomePage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final contentTypesAsync = ref.watch(contentTypesProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Row(
+          children: [
+            Icon(Icons.dashboard_customize),
+            SizedBox(width: 8),
+            Text('CMS Dashboard'),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.read(contentTypesProvider.notifier).refresh(),
+            tooltip: 'Refresh',
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: contentTypesAsync.when(
+        data: (contentTypes) => contentTypes.isEmpty
+            ? _buildEmptyState(context, ref)
+            : _buildContentTypesList(context, ref, contentTypes),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: Colors.red.shade300),
+              const SizedBox(height: 16),
+              Text('Error: $err'),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () => ref.read(contentTypesProvider.notifier).refresh(),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showContentTypeDialog(context, ref),
+        icon: const Icon(Icons.add),
+        label: const Text('New Content Type'),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, WidgetRef ref) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.folder_open, size: 80, color: Colors.grey.shade300),
+          const SizedBox(height: 24),
+          Text(
+            'No Content Types Yet',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Create your first content type to get started',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey.shade600,
+                ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: () => _showContentTypeDialog(context, ref),
+            icon: const Icon(Icons.add),
+            label: const Text('Create Content Type'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContentTypesList(
+    BuildContext context,
+    WidgetRef ref,
+    List<ContentType> contentTypes,
+  ) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 300,
+        childAspectRatio: 1.2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: contentTypes.length,
+      itemBuilder: (context, index) {
+        final ct = contentTypes[index];
+        return _ContentTypeCard(contentType: ct);
+      },
+    );
+  }
+
+  void _showContentTypeDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => ContentTypeFormDialog(
+        onSave: (contentType) {
+          ref.read(contentTypesProvider.notifier).create(contentType);
+        },
+      ),
+    );
+  }
+}
+
+class _ContentTypeCard extends ConsumerWidget {
+  final ContentType contentType;
+
+  const _ContentTypeCard({required this.contentType});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ContentEntriesPage(contentType: contentType),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      _getIconData(contentType.icon),
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const Spacer(),
+                  PopupMenuButton(
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        child: const Row(
+                          children: [Icon(Icons.edit), SizedBox(width: 8), Text('Edit')],
+                        ),
+                        onTap: () => Future.delayed(
+                          Duration.zero,
+                          () => _showEditDialog(context, ref),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        child: const Row(
+                          children: [Icon(Icons.delete), SizedBox(width: 8), Text('Delete')],
+                        ),
+                        onTap: () => Future.delayed(
+                          Duration.zero,
+                          () => _confirmDelete(context, ref),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                contentType.name,
+                style: Theme.of(context).textTheme.titleLarge,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                contentType.description,
+                style: Theme.of(context).textTheme.bodySmall,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const Spacer(),
+              const Divider(),
+              Row(
+                children: [
+                  Icon(Icons.wysiwyg, size: 16, color: Colors.grey.shade600),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${contentType.fields.length} fields',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _getIconData(String iconName) {
+    switch (iconName) {
+      case 'article':
+        return Icons.article;
+      case 'image':
+        return Icons.image;
+      case 'video':
+        return Icons.video_library;
+      case 'person':
+        return Icons.person;
+      case 'category':
+        return Icons.category;
+      case 'settings':
+        return Icons.settings;
+      default:
+        return Icons.folder;
+    }
+  }
+
+  void _showEditDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => ContentTypeFormDialog(
+        contentType: contentType,
+        onSave: (updated) {
+          ref.read(contentTypesProvider.notifier).update(updated);
+        },
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Content Type'),
+        content: Text('Are you sure you want to delete "${contentType.name}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              ref.read(contentTypesProvider.notifier).delete(contentType.id);
+              Navigator.pop(context);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// CONTENT TYPE FORM DIALOG
+// ============================================================================
+
+class ContentTypeFormDialog extends StatefulWidget {
+  final ContentType? contentType;
+  final Function(ContentType) onSave;
+
+  const ContentTypeFormDialog({
+    super.key,
+    this.contentType,
+    required this.onSave,
+  });
+
+  @override
+  State<ContentTypeFormDialog> createState() => _ContentTypeFormDialogState();
+}
+
+class _ContentTypeFormDialogState extends State<ContentTypeFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nameController;
+  late TextEditingController _pluralNameController;
+  late TextEditingController _descController;
+  late String _selectedIcon;
+  late List<FieldDefinition> _fields;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.contentType?.name);
+    _pluralNameController = TextEditingController(text: widget.contentType?.pluralName);
+    _descController = TextEditingController(text: widget.contentType?.description);
+    _selectedIcon = widget.contentType?.icon ?? 'article';
+    _fields = widget.contentType?.fields ?? [];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: 700,
+        constraints: const BoxConstraints(maxHeight: 700),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                border: Border(
+                  bottom: BorderSide(color: Colors.grey.shade300),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    widget.contentType == null ? 'New Content Type' : 'Edit Content Type',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Name',
+                          hintText: 'e.g., Blog Post',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
+                        onChanged: (v) {
+                          if (_pluralNameController.text.isEmpty) {
+                            _pluralNameController.text = '${v}s';
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _pluralNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Plural Name',
+                          hintText: 'e.g., Blog Posts',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _descController,
+                        decoration: const InputDecoration(
+                          labelText: 'Description',
+                          hintText: 'Brief description of this content type',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 2,
+                        validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _selectedIcon,
+                        decoration: const InputDecoration(
+                          labelText: 'Icon',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'article', child: Text('📄 Article')),
+                          DropdownMenuItem(value: 'image', child: Text('🖼️ Image')),
+                          DropdownMenuItem(value: 'video', child: Text('🎥 Video')),
+                          DropdownMenuItem(value: 'person', child: Text('👤 Person')),
+                          DropdownMenuItem(value: 'category', child: Text('📁 Category')),
+                          DropdownMenuItem(value: 'settings', child: Text('⚙️ Settings')),
+                        ],
+                        onChanged: (v) => setState(() => _selectedIcon = v!),
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Fields (${_fields.length})',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          FilledButton.icon(
+                            onPressed: _addField,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Field'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      if (_fields.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'No fields yet. Add your first field.',
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ),
+                        )
+                      else
+                        ReorderableListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _fields.length,
+                          onReorder: (oldIndex, newIndex) {
+                            setState(() {
+                              if (newIndex > oldIndex) newIndex--;
+                              final field = _fields.removeAt(oldIndex);
+                              _fields.insert(newIndex, field);
+                            });
+                          },
+                          itemBuilder: (context, index) {
+                            final field = _fields[index];
+                            return _FieldListItem(
+                              key: ValueKey(field.id),
+                              field: field,
+                              onEdit: () => _editField(index),
+                              onDelete: () => setState(() => _fields.removeAt(index)),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                border: Border(
+                  top: BorderSide(color: Colors.grey.shade300),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _save,
+                    child: const Text('Save'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _addField() {
+    showDialog(
+      context: context,
+      builder: (context) => FieldFormDialog(
+        onSave: (field) {
+          setState(() => _fields.add(field));
+        },
+      ),
+    );
+  }
+
+  void _editField(int index) {
+    showDialog(
+      context: context,
+      builder: (context) => FieldFormDialog(
+        field: _fields[index],
+        onSave: (field) {
+          setState(() => _fields[index] = field);
+        },
+      ),
+    );
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    if (_fields.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add at least one field')),
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+    final contentType = ContentType(
+      id: widget.contentType?.id ?? 'ct_${now.millisecondsSinceEpoch}',
+      name: _nameController.text,
+      pluralName: _pluralNameController.text,
+      description: _descController.text,
+      icon: _selectedIcon,
+      fields: _fields,
+      createdAt: widget.contentType?.createdAt ?? now,
+      updatedAt: now,
+    );
+
+    widget.onSave(contentType);
+    Navigator.pop(context);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _pluralNameController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+}
+
+class _FieldListItem extends StatelessWidget {
+  final FieldDefinition field;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _FieldListItem({
+    super.key,
+    required this.field,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: Icon(_getFieldIcon(field.type)),
+        title: Text(field.label),
+        subtitle: Text('${field.type.name}${field.required ? ' • Required' : ''}'),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: onEdit,
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: onDelete,
+            ),
+            const Icon(Icons.drag_handle),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getFieldIcon(FieldType type) {
+    switch (type) {
+      case FieldType.text:
+        return Icons.text_fields;
+      case FieldType.textarea:
+        return Icons.notes;
+      case FieldType.richText:
+        return Icons.format_align_left;
+      case FieldType.number:
+        return Icons.numbers;
+      case FieldType.email:
+        return Icons.email;
+      case FieldType.url:
+        return Icons.link;
+      case FieldType.phone:
+        return Icons.phone;
+      case FieldType.date:
+        return Icons.calendar_today;
+      case FieldType.datetime:
+        return Icons.access_time;
+      case FieldType.time:
+        return Icons.schedule;
+      case FieldType.boolean:
+        return Icons.toggle_on;
+      case FieldType.image:
+        return Icons.image;
+      case FieldType.file:
+        return Icons.attach_file;
+      case FieldType.color:
+        return Icons.palette;
+      case FieldType.select:
+        return Icons.arrow_drop_down_circle;
+      case FieldType.multiSelect:
+        return Icons.checklist;
+      case FieldType.reference:
+        return Icons.link;
+      case FieldType.multiReference:
+        return Icons.link;
+      case FieldType.json:
+        return Icons.code;
+    }
+  }
+}
+
+// ============================================================================
+// FIELD FORM DIALOG
+// ============================================================================
+
+class FieldFormDialog extends StatefulWidget {
+  final FieldDefinition? field;
+  final Function(FieldDefinition) onSave;
+
+  const FieldFormDialog({
+    super.key,
+    this.field,
+    required this.onSave,
+  });
+
+  @override
+  State<FieldFormDialog> createState() => _FieldFormDialogState();
+}
+
+class _FieldFormDialogState extends State<FieldFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nameController;
+  late TextEditingController _labelController;
+  late TextEditingController _placeholderController;
+  late TextEditingController _helpTextController;
+  late TextEditingController _defaultValueController;
+  late TextEditingController _minLengthController;
+  late TextEditingController _maxLengthController;
+  late TextEditingController _minController;
+  late TextEditingController _maxController;
+  late TextEditingController _patternController;
+  late TextEditingController _optionsController;
+  
+  late FieldType _selectedType;
+  late bool _required;
+  bool _showValidation = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.field?.name);
+    _labelController = TextEditingController(text: widget.field?.label);
+    _placeholderController = TextEditingController(text: widget.field?.placeholder);
+    _helpTextController = TextEditingController(text: widget.field?.helpText);
+    _defaultValueController = TextEditingController(text: widget.field?.defaultValue?.toString());
+    _minLengthController = TextEditingController(text: widget.field?.validation?.minLength);
+    _maxLengthController = TextEditingController(text: widget.field?.validation?.maxLength);
+    _minController = TextEditingController(text: widget.field?.validation?.min);
+    _maxController = TextEditingController(text: widget.field?.validation?.max);
+    _patternController = TextEditingController(text: widget.field?.validation?.pattern);
+    _optionsController = TextEditingController(
+      text: widget.field?.options?['choices']?.join(', '),
+    );
+    
+    _selectedType = widget.field?.type ?? FieldType.text;
+    _required = widget.field?.required ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: 600,
+        constraints: const BoxConstraints(maxHeight: 700),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    widget.field == null ? 'New Field' : 'Edit Field',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Field Name (API)',
+                          hintText: 'e.g., title, author_name',
+                          helperText: 'Used in API responses (lowercase, no spaces)',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (v) {
+                          if (v?.isEmpty ?? true) return 'Required';
+                          if (!RegExp(r'^[a-z_][a-z0-9_]*).hasMatch(v!)) {
+                            return 'Only lowercase letters, numbers, and underscores';
+                          }
+                          return null;
+                        },
+                        onChanged: (v) {
+                          if (_labelController.text.isEmpty) {
+                            _labelController.text = v.split('_').map((w) => 
+                              w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1)
+                            ).join(' ');
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _labelController,
+                        decoration: const InputDecoration(
+                          labelText: 'Label',
+                          hintText: 'e.g., Title, Author Name',
+                          helperText: 'Display name shown in forms',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<FieldType>(
+                        value: _selectedType,
+                        decoration: const InputDecoration(
+                          labelText: 'Field Type',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: FieldType.values.map((type) {
+                          return DropdownMenuItem(
+                            value: type,
+                            child: Row(
+                              children: [
+                                Icon(_getFieldIcon(type), size: 20),
+                                const SizedBox(width: 8),
+                                Text(type.name),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (v) => setState(() => _selectedType = v!),
+                      ),
+                      const SizedBox(height: 16),
+                      SwitchListTile(
+                        title: const Text('Required Field'),
+                        subtitle: const Text('Users must provide a value'),
+                        value: _required,
+                        onChanged: (v) => setState(() => _required = v),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _placeholderController,
+                        decoration: const InputDecoration(
+                          labelText: 'Placeholder',
+                          hintText: 'e.g., Enter title here...',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _helpTextController,
+                        decoration: const InputDecoration(
+                          labelText: 'Help Text',
+                          hintText: 'Additional guidance for users',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 16),
+                      if (_needsOptions())
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextFormField(
+                              controller: _optionsController,
+                              decoration: const InputDecoration(
+                                labelText: 'Options',
+                                hintText: 'Option 1, Option 2, Option 3',
+                                helperText: 'Comma-separated list of choices',
+                                border: OutlineInputBorder(),
+                              ),
+                              maxLines: 3,
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                        ),
+                      ExpansionTile(
+                        title: const Text('Validation Rules'),
+                        initiallyExpanded: _showValidation,
+                        onExpansionChanged: (v) => setState(() => _showValidation = v),
+                        children: [
+                          const SizedBox(height: 8),
+                          if (_supportsStringValidation())
+                            ...[
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _minLengthController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Min Length',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _maxLengthController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Max Length',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                          if (_selectedType == FieldType.number)
+                            ...[
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _minController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Min Value',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      keyboardType: TextInputType.number,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _maxController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Max Value',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      keyboardType: TextInputType.number,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                          if (_supportsStringValidation())
+                            TextFormField(
+                              controller: _patternController,
+                              decoration: const InputDecoration(
+                                labelText: 'Pattern (Regex)',
+                                hintText: 'e.g., ^[A-Z][a-z]+,
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                border: Border(top: BorderSide(color: Colors.grey.shade300)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _save,
+                    child: const Text('Save'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _needsOptions() {
+    return _selectedType == FieldType.select || _selectedType == FieldType.multiSelect;
+  }
+
+  bool _supportsStringValidation() {
+    return [
+      FieldType.text,
+      FieldType.textarea,
+      FieldType.email,
+      FieldType.url,
+      FieldType.phone,
+    ].contains(_selectedType);
+  }
+
+  IconData _getFieldIcon(FieldType type) {
+    switch (type) {
+      case FieldType.text:
+        return Icons.text_fields;
+      case FieldType.textarea:
+        return Icons.notes;
+      case FieldType.richText:
+        return Icons.format_align_left;
+      case FieldType.number:
+        return Icons.numbers;
+      case FieldType.email:
+        return Icons.email;
+      case FieldType.url:
+        return Icons.link;
+      case FieldType.phone:
+        return Icons.phone;
+      case FieldType.date:
+        return Icons.calendar_today;
+      case FieldType.datetime:
+        return Icons.access_time;
+      case FieldType.time:
+        return Icons.schedule;
+      case FieldType.boolean:
+        return Icons.toggle_on;
+      case FieldType.image:
+        return Icons.image;
+      case FieldType.file:
+        return Icons.attach_file;
+      case FieldType.color:
+        return Icons.palette;
+      case FieldType.select:
+        return Icons.arrow_drop_down_circle;
+      case FieldType.multiSelect:
+        return Icons.checklist;
+      case FieldType.reference:
+        return Icons.link;
+      case FieldType.multiReference:
+        return Icons.link;
+      case FieldType.json:
+        return Icons.code;
+    }
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+
+    ValidationRule? validation;
+    if (_minLengthController.text.isNotEmpty ||
+        _maxLengthController.text.isNotEmpty ||
+        _minController.text.isNotEmpty ||
+        _maxController.text.isNotEmpty ||
+        _patternController.text.isNotEmpty) {
+      validation = ValidationRule(
+        minLength: _minLengthController.text.isEmpty ? null : _minLengthController.text,
+        maxLength: _maxLengthController.text.isEmpty ? null : _maxLengthController.text,
+        min: _minController.text.isEmpty ? null : _minController.text,
+        max: _maxController.text.isEmpty ? null : _maxController.text,
+        pattern: _patternController.text.isEmpty ? null : _patternController.text,
+      );
+    }
+
+    Map<String, dynamic>? options;
+    if (_needsOptions() && _optionsController.text.isNotEmpty) {
+      options = {
+        'choices': _optionsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
+      };
+    }
+
+    final field = FieldDefinition(
+      id: widget.field?.id ?? 'field_${DateTime.now().millisecondsSinceEpoch}',
+      name: _nameController.text,
+      label: _labelController.text,
+      type: _selectedType,
+      required: _required,
+      placeholder: _placeholderController.text.isEmpty ? null : _placeholderController.text,
+      helpText: _helpTextController.text.isEmpty ? null : _helpTextController.text,
+      defaultValue: _defaultValueController.text.isEmpty ? null : _defaultValueController.text,
+      validation: validation,
+      options: options,
+      order: widget.field?.order,
+    );
+
+    widget.onSave(field);
+    Navigator.pop(context);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _labelController.dispose();
+    _placeholderController.dispose();
+    _helpTextController.dispose();
+    _defaultValueController.dispose();
+    _minLengthController.dispose();
+    _maxLengthController.dispose();
+    _minController.dispose();
+    _maxController.dispose();
+    _patternController.dispose();
+    _optionsController.dispose();
+    super.dispose();
+  }
+}
+
+// ============================================================================
+// CONTENT ENTRIES PAGE
+// ============================================================================
+
+class ContentEntriesPage extends ConsumerStatefulWidget {
+  final ContentType contentType;
+
+  const ContentEntriesPage({super.key, required this.contentType});
+
+  @override
+  ConsumerState<ContentEntriesPage> createState() => _ContentEntriesPageState();
+}
+
+class _ContentEntriesPageState extends ConsumerState<ContentEntriesPage> {
+  bool _showPublishedOnly = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final entriesAsync = ref.watch(contentEntriesProvider(widget.contentType.id));
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.contentType.pluralName),
+        actions: [
+          FilterChip(
+            label: const Text('Published only'),
+            selected: _showPublishedOnly,
+            onSelected: (v) => setState(() => _showPublishedOnly = v),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.read(contentEntriesProvider(widget.contentType.id).notifier).refresh(),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: entriesAsync.when(
+        data: (entries) {
+          final filteredEntries = _showPublishedOnly
+              ? entries.where((e) => e.published).toList()
+              : entries;
+
+          if (filteredEntries.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inbox, size: 64, color: Colors.grey.shade300),
+                  const SizedBox(height: 16),
+                  Text(
+                    _showPublishedOnly ? 'No published entries' : 'No entries yet',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _showPublishedOnly
+                        ? 'Publish an entry to see it here'
+                        : 'Create your first ${widget.contentType.name.toLowerCase()}',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: filteredEntries.length,
+            itemBuilder: (context, index) {
+              final entry = filteredEntries[index];
+              return _EntryListItem(
+                entry: entry,
+                contentType: widget.contentType,
+              );
+            },
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showEntryForm(context),
+        icon: const Icon(Icons.add),
+        label: Text('New ${widget.contentType.name}'),
+      ),
+    );
+  }
+
+  void _showEntryForm(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EntryFormPage(
+          contentType: widget.contentType,
+          onSave: (entry) {
+            ref.read(contentEntriesProvider(widget.contentType.id).notifier).create(entry);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _EntryListItem extends ConsumerWidget {
+  final ContentEntry entry;
+  final ContentType contentType;
+
+  const _EntryListItem({
+    required this.entry,
+    required this.contentType,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final firstField = contentType.fields.first;
+    final title = entry.data[firstField.name]?.toString() ?? 'Untitled';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: entry.published
+              ? Colors.green.shade100
+              : Colors.orange.shade100,
+          child: Icon(
+            entry.published ? Icons.check_circle : Icons.edit_note,
+            color: entry.published ? Colors.green : Colors.orange,
+          ),
+        ),
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Updated: ${DateFormat('MMM d, y HH:mm').format(entry.updatedAt)}'),
+            if (entry.published && entry.publishedAt != null)
+              Text('Published: ${DateFormat('MMM d, y').format(entry.publishedAt!)}'),
+          ],
+        ),
+        isThreeLine: entry.published,
+        trailing: PopupMenuButton(
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              child: Row(
+                children: [
+                  const Icon(Icons.edit),
+                  const SizedBox(width: 8),
+                  const Text('Edit'),
+                ],
+              ),
+              onTap: () => Future.delayed(Duration.zero, () => _editEntry(context, ref)),
+            ),
+            PopupMenuItem(
+              child: Row(
+                children: [
+                  Icon(entry.published ? Icons.unpublished : Icons.publish),
+                  const SizedBox(width: 8),
+                  Text(entry.published ? 'Unpublish' : 'Publish'),
+                ],
+              ),
+              onTap: () => ref
+                  .read(contentEntriesProvider(contentType.id).notifier)
+                  .togglePublish(entry),
+            ),
+            PopupMenuItem(
+              child: const Row(
+                children: [Icon(Icons.copy), SizedBox(width: 8), Text('Duplicate')],
+              ),
+              onTap: () => ref
+                  .read(contentEntriesProvider(contentType.id).notifier)
+                  .duplicate(entry.id),
+            ),
+            const PopupMenuDivider(),
+            PopupMenuItem(
+              child: const Row(
+                children: [
+                  Icon(Icons.delete, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Delete', style: TextStyle(color: Colors.red)),
+                ],
+              ),
+              onTap: () => Future.delayed(Duration.zero, () => _confirmDelete(context, ref)),
+            ),
+          ],
+        ),
+        onTap: () => _editEntry(context, ref),
+      ),
+    );
+  }
+
+  void _editEntry(BuildContext context, WidgetRef ref) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EntryFormPage(
+          contentType: contentType,
+          entry: entry,
+          onSave: (updated) {
+            ref.read(contentEntriesProvider(contentType.id).notifier).update(updated);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Entry'),
+        content: const Text('Are you sure you want to delete this entry? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              ref.read(contentEntriesProvider(contentType.id).notifier).delete(entry.id);
+              Navigator.pop(context);
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// ENTRY FORM PAGE (Dynamic Form Builder)
+// ============================================================================
+
+class EntryFormPage extends StatefulWidget {
+  final ContentType contentType;
+  final ContentEntry? entry;
+  final Function(ContentEntry) onSave;
+
+  const EntryFormPage({
+    super.key,
+    required this.contentType,
+    this.entry,
+    required this.onSave,
+  });
+
+  @override
+  State<EntryFormPage> createState() => _EntryFormPageState();
+}
+
+class _EntryFormPageState extends State<EntryFormPage> {
+  final _formKey = GlobalKey<FormState>();
+  final Map<String, dynamic> _formData = {};
+  final Map<String, String?> _errors = {};
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize form data with existing values or defaults
+    for (final field in widget.contentType.fields) {
+      if (widget.entry != null) {
+        _formData[field.name] = widget.entry!.data[field.name];
+      } else if (field.defaultValue != null) {
+        _formData[field.name] = field.defaultValue;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.entry == null ? 'New ${widget.contentType.name}' : 'Edit ${widget.contentType.name}'),
+        actions: [
+          TextButton.icon(
+            onPressed: _isSaving ? null : _saveAsDraft,
+            icon: const Icon(Icons.save),
+            label: const Text('Save Draft'),
+          ),
+          const SizedBox(width: 8),
+          FilledButton.icon(
+            onPressed: _isSaving ? null : _saveAndPublish,
+            icon: const Icon(Icons.publish),
+            label: const Text('Publish'),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: _isSaving
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 800),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Content',
+                                  style: Theme.of(context).textTheme.headlineSmall,
+                                ),
+                                const SizedBox(height: 24),
+                                ...widget.contentType.fields.map((field) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 24),
+                                    child: _buildFieldWidget(field),
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (widget.entry != null)
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Metadata',
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _buildInfoRow('Created', DateFormat('MMM d, y HH:mm').format(widget.entry!.createdAt)),
+                                  _buildInfoRow('Updated', DateFormat('MMM d, y HH:mm').format(widget.entry!.updatedAt)),
+                                  _buildInfoRow('Status', widget.entry!.published ? 'Published' : 'Draft'),
+                                  if (widget.entry!.publishedAt != null)
+                                    _buildInfoRow('Published', DateFormat('MMM d, y HH:mm').format(widget.entry!.publishedAt!)),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+          Text(value),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFieldWidget(FieldDefinition field) {
+    switch (field.type) {
+      case FieldType.text:
+      case FieldType.email:
+      case FieldType.url:
+      case FieldType.phone:
+        return _buildTextFieldWidget(field);
+      
+      case FieldType.textarea:
+        return _buildTextAreaWidget(field);
+      
+      case FieldType.number:
+        return _buildNumberFieldWidget(field);
+      
+      case FieldType.boolean:
+        return _buildBooleanWidget(field);
+      
+      case FieldType.date:
+        return _buildDateFieldWidget(field);
+      
+      case FieldType.datetime:
+        return _buildDateTimeFieldWidget(field);
+      
+      case FieldType.time:
+        return _buildTimeFieldWidget(field);
+      
+      case FieldType.select:
+        return _buildSelectWidget(field);
+      
+      case FieldType.multiSelect:
+        return _buildMultiSelectWidget(field);
+      
+      case FieldType.color:
+        return _buildColorFieldWidget(field);
+      
+      case FieldType.richText:
+        return _buildRichTextWidget(field);
+      
+      default:
+        return _buildTextFieldWidget(field);
+    }
+  }
+
+  Widget _buildTextFieldWidget(FieldDefinition field) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              field.label,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            if (field.required)
+              const Text(' *', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        if (field.helpText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            field.helpText!,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+        const SizedBox(height: 8),
+        TextFormField(
+          initialValue: _formData[field.name]?.toString(),
+          decoration: InputDecoration(
+            hintText: field.placeholder,
+            border: const OutlineInputBorder(),
+            errorText: _errors[field.name],
+          ),
+          keyboardType: _getKeyboardType(field.type),
+          onChanged: (value) {
+            setState(() {
+              _formData[field.name] = value;
+              _errors[field.name] = ValidationService.validateField(field, value);
+            });
+          },
+          validator: (value) => ValidationService.validateField(field, value),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTextAreaWidget(FieldDefinition field) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              field.label,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            if (field.required)
+              const Text(' *', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        if (field.helpText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            field.helpText!,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+        const SizedBox(height: 8),
+        TextFormField(
+          initialValue: _formData[field.name]?.toString(),
+          decoration: InputDecoration(
+            hintText: field.placeholder,
+            border: const OutlineInputBorder(),
+            errorText: _errors[field.name],
+          ),
+          maxLines: 5,
+          onChanged: (value) {
+            setState(() {
+              _formData[field.name] = value;
+              _errors[field.name] = ValidationService.validateField(field, value);
+            });
+          },
+          validator: (value) => ValidationService.validateField(field, value),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNumberFieldWidget(FieldDefinition field) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              field.label,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            if (field.required)
+              const Text(' *', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        if (field.helpText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            field.helpText!,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+        const SizedBox(height: 8),
+        TextFormField(
+          initialValue: _formData[field.name]?.toString(),
+          decoration: InputDecoration(
+            hintText: field.placeholder,
+            border: const OutlineInputBorder(),
+            errorText: _errors[field.name],
+          ),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+          ],
+          onChanged: (value) {
+            setState(() {
+              _formData[field.name] = value.isEmpty ? null : double.tryParse(value);
+              _errors[field.name] = ValidationService.validateField(field, value);
+            });
+          },
+          validator: (value) => ValidationService.validateField(field, value),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBooleanWidget(FieldDefinition field) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchListTile(
+          title: Text(field.label),
+          subtitle: field.helpText != null ? Text(field.helpText!) : null,
+          value: _formData[field.name] ?? false,
+          onChanged: (value) {
+            setState(() => _formData[field.name] = value);
+          },
+          contentPadding: EdgeInsets.zero,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateFieldWidget(FieldDefinition field) {
+    final currentDate = _formData[field.name] as DateTime?;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              field.label,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            if (field.required)
+              const Text(' *', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        if (field.helpText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            field.helpText!,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: () async {
+            final date = await showDatePicker(
+              context: context,
+              initialDate: currentDate ?? DateTime.now(),
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
+            );
+            if (date != null) {
+              setState(() => _formData[field.name] = date);
+            }
+          },
+          child: InputDecorator(
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              suffixIcon: const Icon(Icons.calendar_today),
+              errorText: _errors[field.name],
+            ),
+            child: Text(
+              currentDate != null
+                  ? DateFormat('MMM d, y').format(currentDate)
+                  : field.placeholder ?? 'Select date',
+              style: TextStyle(
+                color: currentDate != null ? null : Colors.grey.shade600,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateTimeFieldWidget(FieldDefinition field) {
+    final currentDateTime = _formData[field.name] as DateTime?;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              field.label,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            if (field.required)
+              const Text(' *', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        if (field.helpText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            field.helpText!,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: () async {
+            final date = await showDatePicker(
+              context: context,
+              initialDate: currentDateTime ?? DateTime.now(),
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
+            );
+            if (date != null && mounted) {
+              final time = await showTimePicker(
+                context: context,
+                initialTime: TimeOfDay.fromDateTime(currentDateTime ?? DateTime.now()),
+              );
+              if (time != null) {
+                setState(() {
+                  _formData[field.name] = DateTime(
+                    date.year,
+                    date.month,
+                    date.day,
+                    time.hour,
+                    time.minute,
+                  );
+                });
+              }
+            }
+          },
+          child: InputDecorator(
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              suffixIcon: const Icon(Icons.calendar_today),
+              errorText: _errors[field.name],
+            ),
+            child: Text(
+              currentDateTime != null
+                  ? DateFormat('MMM d, y HH:mm').format(currentDateTime)
+                  : field.placeholder ?? 'Select date & time',
+              style: TextStyle(
+                color: currentDateTime != null ? null : Colors.grey.shade600,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimeFieldWidget(FieldDefinition field) {
+    final currentTime = _formData[field.name] as TimeOfDay?;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              field.label,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            if (field.required)
+              const Text(' *', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        if (field.helpText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            field.helpText!,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: () async {
+            final time = await showTimePicker(
+              context: context,
+              initialTime: currentTime ?? TimeOfDay.now(),
+            );
+            if (time != null) {
+              setState(() => _formData[field.name] = time);
+            }
+          },
+          child: InputDecorator(
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              suffixIcon: const Icon(Icons.access_time),
+              errorText: _errors[field.name],
+            ),
+            child: Text(
+              currentTime != null
+                  ? currentTime.format(context)
+                  : field.placeholder ?? 'Select time',
+              style: TextStyle(
+                color: currentTime != null ? null : Colors.grey.shade600,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSelectWidget(FieldDefinition field) {
+    final choices = field.options?['choices'] as List? ?? [];
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              field.label,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            if (field.required)
+              const Text(' *', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        if (field.helpText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            field.helpText!,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _formData[field.name],
+          decoration: InputDecoration(
+            border: const OutlineInputBorder(),
+            hintText: field.placeholder,
+            errorText: _errors[field.name],
+          ),
+          items: choices.map((choice) {
+            return DropdownMenuItem(
+              value: choice.toString(),
+              child: Text(choice.toString()),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _formData[field.name] = value;
+              _errors[field.name] = ValidationService.validateField(field, value);
+            });
+          },
+          validator: (value) => ValidationService.validateField(field, value),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMultiSelectWidget(FieldDefinition field) {
+    final choices = field.options?['choices'] as List? ?? [];
+    final selected = _formData[field.name] as List? ?? [];
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              field.label,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            if (field.required)
+              const Text(' *', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        if (field.helpText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            field.helpText!,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Column(
+            children: choices.map((choice) {
+              final isSelected = selected.contains(choice.toString());
+              return CheckboxListTile(
+                title: Text(choice.toString()),
+                value: isSelected,
+                onChanged: (checked) {
+                  setState(() {
+                    final newSelected = List.from(selected);
+                    if (checked == true) {
+                      newSelected.add(choice.toString());
+                    } else {
+                      newSelected.remove(choice.toString());
+                    }
+                    _formData[field.name] = newSelected;
+                  });
+                },
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildColorFieldWidget(FieldDefinition field) {
+    final currentColor = _formData[field.name] as String?;
+    Color? displayColor;
+    if (currentColor != null) {
+      try {
+        displayColor = Color(int.parse(currentColor.replaceFirst('#', '0xFF')));
+      } catch (_) {}
+    }
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              field.label,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            if (field.required)
+              const Text(' *', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        if (field.helpText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            field.helpText!,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: displayColor ?? Colors.grey.shade300,
+                border: Border.all(color: Colors.grey.shade400),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: TextFormField(
+                initialValue: currentColor,
+                decoration: InputDecoration(
+                  hintText: '#000000',
+                  border: const OutlineInputBorder(),
+                  prefixText: '#',
+                  errorText: _errors[field.name],
+                ),
+                maxLength: 6,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9A-Fa-f]')),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _formData[field.name] = value.isEmpty ? null : '#$value';
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRichTextWidget(FieldDefinition field) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              field.label,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            if (field.required)
+              const Text(' *', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        if (field.helpText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            field.helpText!,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.format_bold, size: 20),
+                      onPressed: () {},
+                      tooltip: 'Bold',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.format_italic, size: 20),
+                      onPressed: () {},
+                      tooltip: 'Italic',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.format_underlined, size: 20),
+                      onPressed: () {},
+                      tooltip: 'Underline',
+                    ),
+                    const VerticalDivider(),
+                    IconButton(
+                      icon: const Icon(Icons.format_list_bulleted, size: 20),
+                      onPressed: () {},
+                      tooltip: 'Bullet List',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.format_list_numbered, size: 20),
+                      onPressed: () {},
+                      tooltip: 'Numbered List',
+                    ),
+                  ],
+                ),
+              ),
+              TextFormField(
+                initialValue: _formData[field.name]?.toString(),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.all(16),
+                ),
+                maxLines: 10,
+                onChanged: (value) {
+                  setState(() => _formData[field.name] = value);
+                },
+                validator: (value) => ValidationService.validateField(field, value),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  TextInputType _getKeyboardType(FieldType type) {
+    switch (type) {
+      case FieldType.email:
+        return TextInputType.emailAddress;
+      case FieldType.url:
+        return TextInputType.url;
+      case FieldType.phone:
+        return TextInputType.phone;
+      case FieldType.number:
+        return const TextInputType.numberWithOptions(decimal: true);
+      default:
+        return TextInputType.text;
+    }
+  }
+
+  Future<void> _saveAsDraft() async {
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fix the errors in the form')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    final now = DateTime.now();
+    final entry = ContentEntry(
+      id: widget.entry?.id ?? 'entry_${now.millisecondsSinceEpoch}',
+      contentTypeId: widget.contentType.id,
+      data: Map.from(_formData),
+      createdAt: widget.entry?.createdAt ?? now,
+      updatedAt: now,
+      createdBy: 'system',
+      updatedBy: 'system',
+      published: false,
+    );
+
+    await Future.delayed(const Duration(milliseconds: 500));
+    widget.onSave(entry);
+
+    if (mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saved as draft')),
+      );
+    }
+  }
+
+  Future<void> _saveAndPublish() async {
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fix the errors in the form')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    final now = DateTime.now();
+    final entry = ContentEntry(
+      id: widget.entry?.id ?? 'entry_${now.millisecondsSinceEpoch}',
+      contentTypeId: widget.contentType.id,
+      data: Map.from(_formData),
+      createdAt: widget.entry?.createdAt ?? now,
+      updatedAt: now,
+      createdBy: 'system',
+      updatedBy: 'system',
+      published: true,
+      publishedAt: now,
+    );
+
+    await Future.delayed(const Duration(milliseconds: 500));
+    widget.onSave(entry);
+
+    if (mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Published successfully')),
+      );
+    }
+  }
+}

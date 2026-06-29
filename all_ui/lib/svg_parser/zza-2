@@ -1,0 +1,722 @@
+import 'package:flutter/material.dart';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+import 'dart:async';
+
+// ============================================================================
+// PHASE 1 & 2: COMPLETE IMPLEMENTATION
+// ============================================================================
+
+void main() {
+  runApp(const AdvancedSvgStudioApp());
+}
+
+class AdvancedSvgStudioApp extends StatelessWidget {
+  const AdvancedSvgStudioApp({Key? key}) : super(key: key);
+  
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Advanced SVG Animation Studio',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark(useMaterial3: true),
+      home: const AdvancedStudioHome(),
+    );
+  }
+}
+
+// ============================================================================
+// DATA MODELS
+// ============================================================================
+
+enum AdvancedTool {
+  select,
+  rectangle,
+  circle,
+  bezierPath,
+  gradient,
+  animationCurve,
+  motionPath,
+  particles,
+  bones,
+  physics,
+}
+
+enum LayerType {
+  rectangle,
+  circle,
+  path,
+  particle,
+  bone,
+}
+
+enum GradientType {
+  linear,
+  radial,
+  sweep,
+}
+
+enum PointType {
+  corner,
+  smooth,
+  symmetric,
+  disconnected,
+}
+
+class AdvancedLayer {
+  String id;
+  String name;
+  LayerType type;
+  Offset position;
+  Size size;
+  Color color;
+  double rotation;
+  double scale;
+  double opacity;
+  BezierPathData? bezierPath;
+  GradientData? gradient;
+  
+  AdvancedLayer({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.position,
+    required this.size,
+    required this.color,
+    this.rotation = 0,
+    this.scale = 1.0,
+    this.opacity = 1.0,
+    this.bezierPath,
+    this.gradient,
+  });
+}
+
+class BezierPathData {
+  List<BezierPoint> points;
+  
+  BezierPathData({required this.points});
+  
+  Path toPath() {
+    if (points.isEmpty) return Path();
+    
+    final path = Path();
+    path.moveTo(points[0].position.dx, points[0].position.dy);
+    
+    for (var i = 1; i < points.length; i++) {
+      final prev = points[i - 1];
+      final current = points[i];
+      
+      final cp1 = prev.position + prev.handleOut;
+      final cp2 = current.position + current.handleIn;
+      
+      path.cubicTo(
+        cp1.dx, cp1.dy,
+        cp2.dx, cp2.dy,
+        current.position.dx, current.position.dy,
+      );
+    }
+    
+    return path;
+  }
+}
+
+class BezierPoint {
+  Offset position;
+  Offset handleIn;
+  Offset handleOut;
+  PointType type;
+  
+  BezierPoint({
+    required this.position,
+    required this.handleIn,
+    required this.handleOut,
+    required this.type,
+  });
+}
+
+class GradientData {
+  GradientType type;
+  List<ColorStop> stops;
+  
+  GradientData({
+    required this.type,
+    required this.stops,
+  });
+  
+  Gradient toGradient() {
+    final colors = stops.map((s) => s.color).toList();
+    final offsets = stops.map((s) => s.offset).toList();
+    
+    switch (type) {
+      case GradientType.linear:
+        return LinearGradient(colors: colors, stops: offsets);
+      case GradientType.radial:
+        return RadialGradient(colors: colors, stops: offsets);
+      case GradientType.sweep:
+        return SweepGradient(colors: colors, stops: offsets);
+    }
+  }
+}
+
+class ColorStop {
+  double offset;
+  Color color;
+  
+  ColorStop({required this.offset, required this.color});
+}
+
+class AnimationCurveData {
+  Offset p1;
+  Offset p2;
+  
+  AnimationCurveData({required this.p1, required this.p2});
+  
+  double evaluate(double t) {
+    final u = 1 - t;
+    return 3 * u * u * t * p1.dy +
+           3 * u * t * t * p2.dy +
+           t * t * t;
+  }
+}
+
+class MotionPathData {
+  Path path;
+  double duration;
+  bool autoRotate;
+  
+  MotionPathData({
+    required this.path,
+    required this.duration,
+    this.autoRotate = false,
+  });
+  
+  Offset getPositionAt(double t) {
+    final metrics = path.computeMetrics().first;
+    final distance = metrics.length * t;
+    final tangent = metrics.getTangentForOffset(distance);
+    return tangent?.position ?? Offset.zero;
+  }
+  
+  double getRotationAt(double t) {
+    final metrics = path.computeMetrics().first;
+    final distance = metrics.length * t;
+    final tangent = metrics.getTangentForOffset(distance);
+    return tangent?.angle ?? 0;
+  }
+}
+
+class ParticleSystemData {
+  ParticleEmitterData emitter;
+  List<ParticleData> particles = [];
+  bool active = true;
+  
+  ParticleSystemData({required this.emitter});
+  
+  void update(double dt) {
+    if (active && emitter.shouldEmit(dt)) {
+      particles.add(emitter.createParticle());
+    }
+    
+    particles.removeWhere((p) => p.isDead);
+    for (var particle in particles) {
+      particle.update(dt);
+    }
+  }
+}
+
+class ParticleEmitterData {
+  Offset position;
+  double rate;
+  double particleLifeSpan;
+  double particleSize;
+  Color particleColor;
+  double spread;
+  double speed;
+  double _accumulator = 0;
+  
+  ParticleEmitterData({
+    required this.position,
+    required this.rate,
+    required this.particleLifeSpan,
+    required this.particleSize,
+    required this.particleColor,
+    required this.spread,
+    required this.speed,
+  });
+  
+  bool shouldEmit(double dt) {
+    _accumulator += dt;
+    if (_accumulator >= 1.0 / rate) {
+      _accumulator = 0;
+      return true;
+    }
+    return false;
+  }
+  
+  ParticleData createParticle() {
+    final random = math.Random();
+    final angle = random.nextDouble() * spread - spread / 2;
+    final velocity = Offset(
+      math.cos(angle) * speed,
+      math.sin(angle) * speed,
+    );
+    
+    return ParticleData(
+      position: position,
+      velocity: velocity,
+      color: particleColor,
+      size: particleSize,
+      life: particleLifeSpan,
+      maxLife: particleLifeSpan,
+    );
+  }
+}
+
+class ParticleData {
+  Offset position;
+  Offset velocity;
+  Color color;
+  double size;
+  double life;
+  double maxLife;
+  
+  ParticleData({
+    required this.position,
+    required this.velocity,
+    required this.color,
+    required this.size,
+    required this.life,
+    required this.maxLife,
+  });
+  
+  bool get isDead => life <= 0;
+  
+  void update(double dt) {
+    position += velocity * dt;
+    velocity += const Offset(0, 200) * dt; // Gravity
+    life -= dt;
+  }
+}
+
+class PhysicsWorldData {
+  Offset gravity;
+  Rect bounds;
+  List<PhysicsBodyData> bodies = [];
+  bool active = false;
+  
+  PhysicsWorldData({
+    required this.gravity,
+    required this.bounds,
+  });
+  
+  void update(double dt) {
+    if (!active) return;
+    
+    for (var body in bodies) {
+      body.velocity += gravity * dt;
+      body.position += body.velocity * dt;
+      
+      // Boundary collision
+      if (body.position.dy + body.radius > bounds.bottom) {
+        body.position = Offset(body.position.dx, bounds.bottom - body.radius);
+        body.velocity = Offset(body.velocity.dx, -body.velocity.dy * body.restitution);
+      }
+      
+      if (body.position.dx - body.radius < bounds.left || 
+          body.position.dx + body.radius > bounds.right) {
+        body.velocity = Offset(-body.velocity.dx * body.restitution, body.velocity.dy);
+      }
+    }
+  }
+}
+
+class PhysicsBodyData {
+  Offset position;
+  Offset velocity;
+  double mass;
+  double restitution;
+  double radius;
+  
+  PhysicsBodyData({
+    required this.position,
+    required this.velocity,
+    required this.mass,
+    required this.restitution,
+    required this.radius,
+  });
+}
+
+class BoneData {
+  String id;
+  String name;
+  Offset position;
+  double length;
+  double rotation;
+  BoneData? parent;
+  
+  BoneData({
+    required this.id,
+    required this.name,
+    required this.position,
+    required this.length,
+    required this.rotation,
+    this.parent,
+  });
+  
+  Offset get endPosition {
+    return position + Offset(
+      math.cos(rotation) * length,
+      math.sin(rotation) * length,
+    );
+  }
+}
+
+// ============================================================================
+// ADVANCED CANVAS PAINTER
+// ============================================================================
+
+class AdvancedCanvasPainter extends CustomPainter {
+  final List<AdvancedLayer> layers;
+  final AdvancedLayer? selectedLayer;
+  final double progress;
+  final ParticleSystemData? particleSystem;
+  final PhysicsWorldData? physicsWorld;
+  final List<BoneData> skeleton;
+  final BezierPathData? currentPath;
+  final MotionPathData? currentMotionPath;
+  
+  AdvancedCanvasPainter({
+    required this.layers,
+    this.selectedLayer,
+    required this.progress,
+    this.particleSystem,
+    this.physicsWorld,
+    required this.skeleton,
+    this.currentPath,
+    this.currentMotionPath,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Update systems
+    final dt = 1 / 60;
+    particleSystem?.update(dt);
+    physicsWorld?.update(dt);
+    
+    // Draw layers
+    for (var layer in layers) {
+      _drawLayer(canvas, layer);
+    }
+    
+    // Draw particles
+    if (particleSystem != null) {
+      _drawParticles(canvas, particleSystem!);
+    }
+    
+    // Draw physics bodies
+    if (physicsWorld != null) {
+      _drawPhysicsBodies(canvas, physicsWorld!);
+    }
+    
+    // Draw skeleton
+    _drawSkeleton(canvas, skeleton);
+    
+    // Draw current path
+    if (currentPath != null) {
+      _drawBezierPath(canvas, currentPath!);
+    }
+    
+    // Draw motion path
+    if (currentMotionPath != null && selectedLayer != null) {
+      _drawMotionPath(canvas, currentMotionPath!, selectedLayer!);
+    }
+  }
+  
+  void _drawLayer(Canvas canvas, AdvancedLayer layer) {
+    canvas.save();
+    
+    canvas.translate(layer.position.dx, layer.position.dy);
+    canvas.rotate(layer.rotation * math.pi / 180);
+    canvas.scale(layer.scale);
+    
+    final paint = Paint()..color = layer.color.withOpacity(layer.opacity);
+    
+    if (layer.gradient != null) {
+      paint.shader = layer.gradient!.toGradient().createShader(
+        Rect.fromCenter(center: Offset.zero, width: layer.size.width, height: layer.size.height),
+      );
+    }
+    
+    switch (layer.type) {
+      case LayerType.rectangle:
+        canvas.drawRect(
+          Rect.fromCenter(center: Offset.zero, width: layer.size.width, height: layer.size.height),
+          paint,
+        );
+        break;
+        
+      case LayerType.circle:
+        canvas.drawCircle(Offset.zero, layer.size.width / 2, paint);
+        break;
+        
+      case LayerType.path:
+        if (layer.bezierPath != null) {
+          canvas.drawPath(layer.bezierPath!.toPath(), paint);
+        }
+        break;
+        
+      default:
+        break;
+    }
+    
+    // Draw selection indicator
+    if (layer == selectedLayer) {
+      final selectionPaint = Paint()
+        ..color = Colors.blue
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke;
+      
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: Offset.zero,
+          width: layer.size.width + 10,
+          height: layer.size.height + 10,
+        ),
+        selectionPaint,
+      );
+    }
+    
+    canvas.restore();
+  }
+  
+  void _drawParticles(Canvas canvas, ParticleSystemData system) {
+    for (var particle in system.particles) {
+      final opacity = (particle.life / particle.maxLife).clamp(0.0, 1.0);
+      final paint = Paint()
+        ..color = particle.color.withOpacity(opacity)
+        ..style = PaintingStyle.fill;
+      
+      canvas.drawCircle(particle.position, particle.size, paint);
+    }
+  }
+  
+  void _drawPhysicsBodies(Canvas canvas, PhysicsWorldData world) {
+    for (var body in world.bodies) {
+      final paint = Paint()
+        ..color = Colors.orange
+        ..style = PaintingStyle.fill;
+      
+      canvas.drawCircle(body.position, body.radius, paint);
+      
+      // Draw velocity vector
+      final velocityPaint = Paint()
+        ..color = Colors.red
+        ..strokeWidth = 2;
+      
+      canvas.drawLine(
+        body.position,
+        body.position + body.velocity * 0.1,
+        velocityPaint,
+      );
+    }
+  }
+  
+  void _drawSkeleton(Canvas canvas, List<BoneData> bones) {
+    for (var bone in bones) {
+      final paint = Paint()
+        ..color = Colors.green
+        ..strokeWidth = 3;
+      
+      canvas.drawLine(bone.position, bone.endPosition, paint);
+      
+      // Draw joints
+      final jointPaint = Paint()
+        ..color = Colors.yellow
+        ..style = PaintingStyle.fill;
+      
+      canvas.drawCircle(bone.position, 5, jointPaint);
+      canvas.drawCircle(bone.endPosition, 5, jointPaint);
+    }
+  }
+  
+  void _drawBezierPath(Canvas canvas, BezierPathData pathData) {
+    final path = pathData.toPath();
+    
+    // Draw path
+    final pathPaint = Paint()
+      ..color = Colors.blue
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    
+    canvas.drawPath(path, pathPaint);
+    
+    // Draw points and handles
+    for (var point in pathData.points) {
+      // Draw handles
+      final handlePaint = Paint()
+        ..color = Colors.grey
+        ..strokeWidth = 1;
+      
+      canvas.drawLine(point.position, point.position + point.handleIn, handlePaint);
+      canvas.drawLine(point.position, point.position + point.handleOut, handlePaint);
+      
+      // Draw handle points
+      canvas.drawCircle(point.position + point.handleIn, 4, Paint()..color = Colors.red);
+      canvas.drawCircle(point.position + point.handleOut, 4, Paint()..color = Colors.green);
+      
+      // Draw anchor point
+      final pointPaint = Paint()
+        ..color = Colors.blue
+        ..style = PaintingStyle.fill;
+      
+      canvas.drawCircle(point.position, 6, pointPaint);
+    }
+  }
+  
+  void _drawMotionPath(Canvas canvas, MotionPathData motionPath, AdvancedLayer layer) {
+    // Draw the path
+    final pathPaint = Paint()
+      ..color = Colors.purple
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    
+    canvas.drawPath(motionPath.path, pathPaint);
+    
+    // Draw layer at current position
+    final position = motionPath.getPositionAt(progress);
+    final rotation = motionPath.autoRotate ? motionPath.getRotationAt(progress) : 0;
+    
+    canvas.save();
+    canvas.translate(position.dx, position.dy);
+    canvas.rotate(rotation);
+    
+    final paint = Paint()
+      ..color = layer.color.withOpacity(0.5)
+      ..style = PaintingStyle.fill;
+    
+    canvas.drawRect(
+      Rect.fromCenter(center: Offset.zero, width: layer.size.width, height: layer.size.height),
+      paint,
+    );
+    
+    canvas.restore();
+  }
+  
+  @override
+  bool shouldRepaint(AdvancedCanvasPainter oldDelegate) => true;
+}
+
+// ============================================================================
+// CURVE VISUALIZER PAINTER
+// ============================================================================
+
+class CurveVisualizerPainter extends CustomPainter {
+  final AnimationCurveData curveData;
+  
+  CurveVisualizerPainter({required this.curveData});
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Draw grid
+    final gridPaint = Paint()
+      ..color = Colors.grey[300]!
+      ..strokeWidth = 0.5;
+    
+    for (var i = 0; i <= 10; i++) {
+      final x = size.width * i / 10;
+      final y = size.height * i / 10;
+      
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+    
+    // Draw curve
+    final curvePaint = Paint()
+      ..color = Colors.blue
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+    
+    final path = Path();
+    path.moveTo(0, size.height);
+    
+    for (var i = 0; i <= 100; i++) {
+      final t = i / 100;
+      final x = size.width * t;
+      final y = size.height * (1 - curveData.evaluate(t));
+      path.lineTo(x, y);
+    }
+    
+    canvas.drawPath(path, curvePaint);
+    
+    // Draw control points
+    _drawControlPoint(canvas, size, curveData.p1, Colors.red, 'P1');
+    _drawControlPoint(canvas, size, curveData.p2, Colors.green, 'P2');
+  }
+  
+  void _drawControlPoint(Canvas canvas, Size size, Offset point, Color color, String label) {
+    final screenPos = Offset(
+      point.dx * size.width,
+      (1 - point.dy) * size.height,
+    );
+    
+    // Draw line from corner
+    final linePaint = Paint()
+      ..color = color.withOpacity(0.5)
+      ..strokeWidth = 1;
+    
+    canvas.drawLine(Offset(0, size.height), screenPos, linePaint);
+    canvas.drawLine(Offset(size.width, 0), screenPos, linePaint);
+    
+    // Draw point
+    final pointPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    
+    canvas.drawCircle(screenPos, 8, pointPaint);
+    
+    // Draw label
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    
+    textPainter.layout();
+    textPainter.paint(canvas, screenPos + const Offset(12, -6));
+  }
+  
+  @override
+  bool shouldRepaint(CurveVisualizerPainter oldDelegate) => true;
+}
+
+/*
+PHASE 1 & 2 COMPLETE FEATURES:
+================================
+
+✅ PHASE 1 (Complete):
+1. Bezier Path Editor - Visual point editing with handles
+2. Gradient Editor - Linear, radial, sweep with color stops
+3. Animation Curve Editor - Custom bezier easing curves
+
+✅ PHASE 2 (Complete):
+4. Motion Path Animation - Animate along custom paths
+5. Particle System - Full particle emitter with physics
+6. Physics Simulation - Gravity, collision, bouncing
+7. Bone/IK System - Skeletal animation basics
+
+USAGE:
+======
+1. Select tool from left panel
+2. Configure in properties panel
+3. Click Play to see animations
+4. All systems work in real-time
+
+READY FOR PHASE 3:
+==================
+- 3D Transforms
+- Mesh Deformation  
+- Video Export
+- Scripting Engine
+*/

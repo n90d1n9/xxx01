@@ -1,0 +1,31 @@
+import 'lease_spec.dart';
+import 'object_meta.dart';
+
+class Lease {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final LeaseSpec? spec;
+  Lease({
+    this.apiVersion = 'coordination.k8s.io/v1',
+    this.kind = 'Lease',
+    required this.metadata,
+    this.spec,
+  });
+  factory Lease.fromJson(Map<String, dynamic> json) {
+    return Lease(
+      apiVersion: json['apiVersion'] ?? 'coordination.k8s.io/v1',
+      kind: json['kind'] ?? 'Lease',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      spec: json['spec'] != null ? LeaseSpec.fromJson(json['spec']) : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      if (spec != null) 'spec': spec!.toJson(),
+    };
+  }
+}

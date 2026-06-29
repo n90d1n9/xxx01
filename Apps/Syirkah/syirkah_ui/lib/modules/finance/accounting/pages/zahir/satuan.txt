@@ -1,0 +1,66 @@
+Box
+Box
+Satuan Dasar
+Box
+Aktif
+
+Cup
+Cup
+Satuan Dasar
+Cup
+Aktif
+
+Dzn
+Dozen
+Konversi Satuan
+Dozen
+Aktif
+
+Gr
+Gram
+Satuan Dasar
+Gram
+Aktif
+
+Gross
+Gross
+Konversi Satuan
+Gross
+Aktif
+
+Hour
+Hour
+Satuan Dasar
+Hour
+Aktif
+
+Kg
+Kg
+Satuan Dasar
+Kilogram
+Aktif
+
+Pack
+Pack
+Satuan Dasar
+Pack
+Aktif
+
+Pcs
+Pcs
+Satuan Dasar
+Pieces
+Aktif
+
+Score
+Score
+Konversi Satuan
+Score
+Aktif
+
+Ton
+Ton
+Konversi Satuan
+Ton
+Aktif
+

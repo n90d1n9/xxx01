@@ -1,0 +1,31 @@
+import 'csidriver_spec.dart';
+import 'object_meta.dart';
+
+class CSIDriver {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final CSIDriverSpec spec;
+  CSIDriver({
+    this.apiVersion = 'storage.k8s.io/v1',
+    this.kind = 'CSIDriver',
+    required this.metadata,
+    required this.spec,
+  });
+  factory CSIDriver.fromJson(Map<String, dynamic> json) {
+    return CSIDriver(
+      apiVersion: json['apiVersion'] ?? 'storage.k8s.io/v1',
+      kind: json['kind'] ?? 'CSIDriver',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      spec: CSIDriverSpec.fromJson(json['spec']),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      'spec': spec.toJson(),
+    };
+  }
+}

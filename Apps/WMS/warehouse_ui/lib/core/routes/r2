@@ -1,0 +1,210 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+// Router Configuration
+final GoRouter router = GoRouter(
+  initialLocation: '/',
+  debugLogDiagnostics: true,
+  routes: [
+    // Root route
+    GoRoute(
+      path: '/',
+      name: 'home',
+      builder: (context, state) => const HomeScreen(),
+      routes: [
+        // Products section with nested routes
+        GoRoute(
+          path: 'products',
+          name: 'products',
+          builder: (context, state) => const ProductsScreen(),
+          routes: [
+            GoRoute(
+              path: ':productId',
+              name: 'product-details',
+              builder: (context, state) {
+                final productId = state.pathParameters['productId']!;
+                return ProductDetailsScreen(productId: productId);
+              },
+              // Nested routes under product details
+              routes: [
+                GoRoute(
+                  path: 'reviews',
+                  name: 'product-reviews',
+                  builder: (context, state) {
+                    final productId = state.pathParameters['productId']!;
+                    return ProductReviewsScreen(productId: productId);
+                  },
+                ),
+                GoRoute(
+                  path: 'edit',
+                  name: 'edit-product',
+                  builder: (context, state) {
+                    final productId = state.pathParameters['productId']!;
+                    return EditProductScreen(productId: productId);
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+        
+        // Profile section with nested routes
+        GoRoute(
+          path: 'profile',
+          name: 'profile',
+          builder: (context, state) => const ProfileScreen(),
+          routes: [
+            GoRoute(
+              path: 'settings',
+              name: 'settings',
+              builder: (context, state) => const SettingsScreen(),
+            ),
+            GoRoute(
+              path: 'orders',
+              name: 'orders',
+              builder: (context, state) => const OrdersScreen(),
+              routes: [
+                GoRoute(
+                  path: ':orderId',
+                  name: 'order-details',
+                  builder: (context, state) {
+                    final orderId = state.pathParameters['orderId']!;
+                    return OrderDetailsScreen(orderId: orderId);
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    ),
+  ],
+  
+  // Error handling
+  errorBuilder: (context, state) => const ErrorScreen(),
+  
+  // Navigation observers
+  observers: [RouterObserver()],
+  
+  // Redirect logic
+  redirect: (BuildContext context, GoRouterState state) {
+    // Example: Check authentication
+    final bool isAuthenticated = checkAuthStatus();
+    final bool isAuthRoute = state.matchedLocation == '/login';
+
+    if (!isAuthenticated && !isAuthRoute) {
+      return '/login';
+    }
+    if (isAuthenticated && isAuthRoute) {
+      return '/';
+    }
+    return null;
+  },
+);
+
+// Example of how to use the router in navigation
+class NavigationExample {
+  void navigateToProductDetails(BuildContext context, String productId) {
+    // Using named routes
+    context.goNamed(
+      'product-details',
+      pathParameters: {'productId': productId},
+    );
+    
+    // Or using path
+    context.go('/products/$productId');
+  }
+  
+  void navigateToProductReviews(BuildContext context, String productId) {
+    context.goNamed(
+      'product-reviews',
+      pathParameters: {'productId': productId},
+    );
+  }
+}
+
+// Router Observer for logging and analytics
+class RouterObserver extends NavigatorObserver {
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    print('New route pushed: ${route.settings.name}');
+  }
+}
+
+// Example screens (implementations omitted for brevity)
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+  @override
+  Widget build(BuildContext context) => const Scaffold();
+}
+
+class ProductsScreen extends StatelessWidget {
+  const ProductsScreen({super.key});
+  @override
+  Widget build(BuildContext context) => const Scaffold();
+}
+
+class ProductDetailsScreen extends StatelessWidget {
+  final String productId;
+  const ProductDetailsScreen({super.key, required this.productId});
+  @override
+  Widget build(BuildContext context) => const Scaffold();
+}
+
+
+
+Here are the key best practices demonstrated in this example:
+
+1. **Organized Structure**:
+   - Routes are nested logically (products/profile sections)
+   - Related routes are grouped together
+   - Clear hierarchy in the routing structure
+
+2. **Named Routes**:
+   - Use meaningful route names
+   - Consistent naming convention
+   - Makes navigation more maintainable
+
+3. **Path Parameters**:
+   - Proper handling of dynamic segments (`:productId`, `:orderId`)
+   - Clean parameter extraction from `GoRouterState`
+
+4. **Error Handling**:
+   - Dedicated error screen for unmatched routes
+   - Centralized error handling
+
+5. **Navigation Patterns**:
+   - Both named and path-based navigation examples
+   - Type-safe parameter passing
+   - Clean navigation methods
+
+6. **Route Guards**:
+   - Authentication check in redirect
+   - Proper handling of protected routes
+
+7. **Monitoring**:
+   - Navigation observer for logging/analytics
+   - Debug logging enabled
+
+To use these patterns effectively:
+
+1. Navigate using named routes when possible:
+```dart
+context.goNamed(
+  'product-details',
+  pathParameters: {'productId': '123'},
+);
+```
+
+2. For deep linking or complex paths:
+```dart
+context.go('/products/123/reviews');
+```
+
+3. Access path parameters:
+```dart
+final productId = GoRouterState.of(context).pathParameters['productId'];
+```
+
+Would you like me to explain any specific part in more detail or show additional patterns?
+

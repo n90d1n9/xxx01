@@ -1,0 +1,124 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'dart:ui' as ui;
+import 'dart:math' as math;
+
+// ============================================================================
+// SVG ELEMENT BASE CLASSES
+// ============================================================================
+
+
+// ============================================================================
+// SVG STYLE CLASS
+// ============================================================================
+
+class SvgStyle {
+  Color? fill;
+  Color? stroke;
+  double strokeWidth;
+  double opacity;
+  double fillOpacity;
+  double strokeOpacity;
+  StrokeCap strokeLinecap;
+  StrokeJoin strokeLinejoin;
+  double strokeMiterlimit;
+  List<double>? strokeDasharray;
+  PathFillType fillRule;
+  String? clipPathId;
+  String? maskId;
+  String? filterId;
+  
+  SvgStyle({
+    this.fill,
+    this.stroke,
+    this.strokeWidth = 1.0,
+    this.opacity = 1.0,
+    this.fillOpacity = 1.0,
+    this.strokeOpacity = 1.0,
+    this.strokeLinecap = StrokeCap.butt,
+    this.strokeLinejoin = StrokeJoin.miter,
+    this.strokeMiterlimit = 4.0,
+    this.strokeDasharray,
+    this.fillRule = PathFillType.nonZero,
+    this.clipPathId,
+    this.maskId,
+    this.filterId,
+  });
+  
+  SvgStyle.from(SvgStyle other)
+      : fill = other.fill,
+        stroke = other.stroke,
+        strokeWidth = other.strokeWidth,
+        opacity = other.opacity,
+        fillOpacity = other.fillOpacity,
+        strokeOpacity = other.strokeOpacity,
+        strokeLinecap = other.strokeLinecap,
+        strokeLinejoin = other.strokeLinejoin,
+        strokeMiterlimit = other.strokeMiterlimit,
+        strokeDasharray = other.strokeDasharray,
+        fillRule = other.fillRule,
+        clipPathId = other.clipPathId,
+        maskId = other.maskId,
+        filterId = other.filterId;
+}
+
+// ============================================================================
+// SVG IMAGE ELEMENT
+// ============================================================================
+
+// ============================================================================
+// TRANSFORM PARSER
+// ============================================================================
+
+// ============================================================================
+// INTERACTIVE SVG WIDGET
+// ============================================================================
+
+// ============================================================================
+// ANIMATED SVG ELEMENT
+// ============================================================================
+
+
+// ============================================================================
+// EXAMPLE USAGE
+// ============================================================================
+
+/*
+void main() {
+  runApp(MaterialApp(
+    home: Scaffold(
+      appBar: AppBar(title: Text('Interactive SVG')),
+      body: Center(
+        child: InteractiveSvgWidget(
+          size: Size(400, 400),
+          backgroundColor: Colors.grey[100],
+          enablePanZoom: true,
+          elements: [
+            SvgImage(
+              href: 'https://example.com/image.png',
+              x: 50,
+              y: 50,
+              width: 100,
+              height: 100,
+              style: SvgStyle(),
+              onClick: () => print('Image clicked!'),
+              onHover: () => print('Hovering over image'),
+              onHoverExit: () => print('Left image'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  ));
+  
+  // Parse transform
+  final transform = SvgTransformParser.parseTransform(
+    'translate(10, 20) rotate(45) scale(1.5)',
+  );
+  print('Parsed transform: $transform');
+  
+  // Convert matrix back to string
+  final transformStr = SvgTransformParser.matrixToTransform(transform!);
+  print('Transform string: $transformStr');
+}
+*/

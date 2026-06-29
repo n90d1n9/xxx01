@@ -1,0 +1,39 @@
+import 'resource_claim_spec.dart';
+import 'resource_claim_status.dart';
+import 'object_meta.dart';
+
+class ResourceClaim {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final ResourceClaimSpec spec;
+  final ResourceClaimStatus? status;
+  ResourceClaim({
+    this.apiVersion = 'resource.k8s.io/v1alpha2',
+    this.kind = 'ResourceClaim',
+    required this.metadata,
+    required this.spec,
+    this.status,
+  });
+  factory ResourceClaim.fromJson(Map<String, dynamic> json) {
+    return ResourceClaim(
+      apiVersion: json['apiVersion'] ?? 'resource.k8s.io/v1alpha2',
+      kind: json['kind'] ?? 'ResourceClaim',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      spec: ResourceClaimSpec.fromJson(json['spec']),
+      status:
+          json['status'] != null
+              ? ResourceClaimStatus.fromJson(json['status'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      'spec': spec.toJson(),
+      if (status != null) 'status': status!.toJson(),
+    };
+  }
+}

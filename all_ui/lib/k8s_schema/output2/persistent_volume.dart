@@ -1,0 +1,39 @@
+import 'persistent_volume_spec.dart';
+import 'persistent_volume_status.dart';
+import 'object_meta.dart';
+
+class PersistentVolume {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final PersistentVolumeSpec spec;
+  final PersistentVolumeStatus? status;
+  PersistentVolume({
+    this.apiVersion = 'v1',
+    this.kind = 'PersistentVolume',
+    required this.metadata,
+    required this.spec,
+    this.status,
+  });
+  factory PersistentVolume.fromJson(Map<String, dynamic> json) {
+    return PersistentVolume(
+      apiVersion: json['apiVersion'] ?? 'v1',
+      kind: json['kind'] ?? 'PersistentVolume',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      spec: PersistentVolumeSpec.fromJson(json['spec']),
+      status:
+          json['status'] != null
+              ? PersistentVolumeStatus.fromJson(json['status'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      'spec': spec.toJson(),
+      if (status != null) 'status': status!.toJson(),
+    };
+  }
+}

@@ -1,0 +1,2 @@
+
+class IngressBackend {final IngressServiceBackend? service; final TypedLocalObjectReference? resource; IngressBackend({this.service, this.resource}); factory IngressBackend.fromJson(Map<String, dynamic> json) {return IngressBackend(service: json['service'] != null ? IngressServiceBackend.fromJson(json['service']) : null, resource: json['resource'] != null ? TypedLocalObjectReference.fromJson(json['resource']) : null);} Map<String, dynamic> toJson() {return {if (service != null) 'service' : service!.toJson(), if (resource != null) 'resource' : resource!.toJson()};}}

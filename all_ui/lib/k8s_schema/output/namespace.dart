@@ -1,0 +1,39 @@
+import 'namespace_spec.dart';
+import 'namespace_status.dart';
+import 'object_meta.dart';
+
+class Namespace {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final NamespaceSpec? spec;
+  final NamespaceStatus? status;
+  Namespace({
+    this.apiVersion = 'v1',
+    this.kind = 'Namespace',
+    required this.metadata,
+    this.spec,
+    this.status,
+  });
+  factory Namespace.fromJson(Map<String, dynamic> json) {
+    return Namespace(
+      apiVersion: json['apiVersion'] ?? 'v1',
+      kind: json['kind'] ?? 'Namespace',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      spec: json['spec'] != null ? NamespaceSpec.fromJson(json['spec']) : null,
+      status:
+          json['status'] != null
+              ? NamespaceStatus.fromJson(json['status'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      if (spec != null) 'spec': spec!.toJson(),
+      if (status != null) 'status': status!.toJson(),
+    };
+  }
+}

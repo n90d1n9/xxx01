@@ -1,0 +1,24 @@
+[
+  {
+    "code": "IT-SEC-001",
+    "title": "Cybersecurity Breach",
+    "description": "Unauthorized access or hacking attempt that compromises system data.",
+    "category": "IT",
+    "type": "THREAT",
+    "defaultProbability": "HIGH",
+    "defaultImpact": "HIGH",
+    "mitigationSuggestion": "Implement firewalls, intrusion detection, and multi-factor authentication.",
+    "contingencySuggestion": "Maintain incident response plan and backup systems."
+  },
+  {
+    "code": "FIN-BUD-001",
+    "title": "Budget Overrun",
+    "description": "Project costs exceeding approved budget due to scope creep or estimation errors.",
+    "category": "FINANCIAL",
+    "type": "THREAT",
+    "defaultProbability": "MEDIUM",
+    "defaultImpact": "HIGH",
+    "mitigationSuggestion": "Track expenses, enforce change control, use contingency reserves.",
+    "contingencySuggestion": "Reduce scope or renegotiate funding."
+  }
+]

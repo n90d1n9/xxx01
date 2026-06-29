@@ -1,0 +1,442 @@
+Here's a Dart code for an Icon Font Generator that converts SVG icons to a font file and generates corresponding Dart code:
+
+## main.dart - Entry Point
+
+```dart
+import 'dart:io';
+import 'package:args/args.dart';
+import 'icon_font_generator.dart';
+
+void main(List<String> arguments) async {
+  final parser = ArgParser()
+    ..addOption('input', abbr: 'i', help: 'Input directory containing SVG files')
+    ..addOption('output', abbr: 'o', help: 'Output directory for generated files')
+    ..addOption('font-name', help: 'Name of the font family', defaultsTo: 'CustomIcons')
+    ..addOption('class-name', help: 'Name of the Dart class', defaultsTo: 'CustomIcons')
+    ..addOption('font-file', help: 'Name of the font file', defaultsTo: 'custom_icons')
+    ..addFlag('help', abbr: 'h', help: 'Show usage information', negatable: false);
+
+  try {
+    final results = parser.parse(arguments);
+
+    if (results['help'] || arguments.isEmpty) {
+      print('''
+Icon Font Generator
+
+Usage: dart main.dart -i <input_dir> -o <output_dir> [options]
+
+Options:
+${parser.usage}
+''');
+      return;
+    }
+
+    final inputDir = results['input'] as String?;
+    final outputDir = results['output'] as String?;
+
+    if (inputDir == null || outputDir == null) {
+      throw ArgumentError('Input and output directories are required');
+    }
+
+    final generator = IconFontGenerator(
+      inputDir: inputDir,
+      outputDir: outputDir,
+      fontName: results['font-name'],
+      className: results['class-name'],
+      fontFileName: results['font-file'],
+    );
+
+    await generator.generate();
+    print('Icon font generation completed successfully!');
+  } catch (e) {
+    print('Error: $e');
+    exit(1);
+  }
+}
+```
+
+## icon_font_generator.dart - Main Generator Class
+
+```dart
+import 'dart:io';
+import 'dart:convert';
+import 'package:path/path.dart' as path;
+
+class IconFontGenerator {
+  final String inputDir;
+  final String outputDir;
+  final String fontName;
+  final String className;
+  final String fontFileName;
+
+  IconFontGenerator({
+    required this.inputDir,
+    required this.outputDir,
+    required this.fontName,
+    required this.className,
+    required this.fontFileName,
+  });
+
+  Future<void> generate() async {
+    // Create output directory if it doesn't exist
+    await Directory(outputDir).create(recursive: true);
+
+    // Get all SVG files
+    final svgFiles = await _getSvgFiles();
+    
+    if (svgFiles.isEmpty) {
+      throw Exception('No SVG files found in $inputDir');
+    }
+
+    // Generate font using flutter-iconfont
+    await _generateFont(svgFiles);
+
+    // Generate Dart class
+    await _generateDartClass(svgFiles);
+
+    print('Generated ${svgFiles.length} icons');
+  }
+
+  Future<List<Map<String, String>>> _getSvgFiles() async {
+    final dir = Directory(inputDir);
+    final files = await dir.list().toList();
+    
+    final svgFiles = <Map<String, String>>[];
+    int codePoint = 0xE000; // Start from private use area
+
+    for (final file in files) {
+      if (file is File && file.path.toLowerCase().endsWith('.svg')) {
+        final fileName = path.basenameWithoutExtension(file.path);
+        final iconName = _toCamelCase(fileName);
+        
+        svgFiles.add({
+          'name': iconName,
+          'fileName': fileName,
+          'filePath': file.path,
+          'codePoint': '0x${codePoint.toRadixString(16).toUpperCase()}',
+        });
+        
+        codePoint++;
+      }
+    }
+
+    return svgFiles;
+  }
+
+  String _toCamelCase(String input) {
+    // Convert snake_case and kebab-case to camelCase
+    final parts = input.replaceAll('-', '_').split('_');
+    return parts.first.toLowerCase() + 
+           parts.skip(1).map((part) => 
+             part.isEmpty ? '' : part[0].toUpperCase() + part.substring(1).toLowerCase()
+           ).join();
+  }
+
+  Future<void> _generateFont(List<Map<String, String>> icons) async {
+    // This is a simplified implementation
+    // In a real implementation, you would use a proper font generation library
+    // or call external tools like fontforge or icon-font-generator
+    
+    final config = {
+      'font_name': fontName,
+      'icons': icons.map((icon) => {
+        'name': icon['fileName'],
+        'svg': icon['filePath'],
+        'code': int.parse(icon['codePoint']!),
+      }).toList(),
+    };
+
+    // Save config for external font generation tool
+    final configFile = File(path.join(outputDir, 'iconfont-config.json'));
+    await configFile.writeAsString(jsonEncode(config));
+
+    print('Font configuration saved to ${configFile.path}');
+    print('Note: Actual font generation requires external tools like:');
+    print('- flutter-iconfont (npm package)');
+    print('- fontforge');
+    print('- icon-font-generator');
+  }
+
+  Future<void> _generateDartClass(List<Map<String, String>> icons) async {
+    final buffer = StringBuffer();
+
+    // Header
+    buffer.writeln('''
+// This file is generated by icon_font_generator.dart
+// Don't edit this file manually.
+
+import 'package:flutter/widgets.dart';
+
+''');
+
+    // Class definition
+    buffer.writeln('class $className {');
+    buffer.writeln('  $className._();\n');
+
+    // Font family constant
+    buffer.writeln("  static const String _fontFamily = '$fontName';\n");
+
+    // Icon data constants
+    for (final icon in icons) {
+      final name = icon['name']!;
+      final codePoint = icon['codePoint']!;
+      
+      buffer.writeln('''
+  static const IconData $name = IconData(
+    $codePoint,
+    fontFamily: _fontFamily,
+  );''');
+    }
+
+    // All icons getter
+    buffer.writeln('\n  /// All available icons');
+    buffer.writeln('  static const all = <String, IconData>{');
+    for (final icon in icons) {
+      buffer.writeln("    '${icon['name']}': ${icon['name']},");
+    }
+    buffer.writeln('  };');
+
+    buffer.writeln('}');
+
+    // Save Dart file
+    final dartFile = File(path.join(outputDir, '${className.toLowerCase()}.dart'));
+    await dartFile.writeAsString(buffer.toString());
+  }
+}
+```
+
+## pubspec.yaml
+
+```yaml
+name: icon_font_generator
+description: A Dart tool to generate icon fonts from SVG files
+version: 1.0.0
+
+environment:
+  sdk: '>=2.17.0 <3.0.0'
+
+dependencies:
+  args: ^2.3.0
+  path: ^1.8.0
+
+dev_dependencies:
+  test: ^1.16.0
+```
+
+## Alternative Implementation Using flutter_svg (More Complete)
+
+Here's an enhanced version that uses the `flutter_svg` package for better SVG processing:
+
+```dart
+// enhanced_icon_font_generator.dart
+import 'dart:io';
+import 'dart:convert';
+import 'package:path/path.dart' as path;
+import 'package:xml/xml.dart';
+
+class EnhancedIconFontGenerator {
+  final String inputDir;
+  final String outputDir;
+  final String fontName;
+  final String className;
+  final String fontFileName;
+
+  EnhancedIconFontGenerator({
+    required this.inputDir,
+    required this.outputDir,
+    required this.fontName,
+    required this.className,
+    required this.fontFileName,
+  });
+
+  Future<void> generate() async {
+    await Directory(outputDir).create(recursive: true);
+    
+    final svgFiles = await _getSvgFiles();
+    
+    if (svgFiles.isEmpty) {
+      throw Exception('No SVG files found in $inputDir');
+    }
+
+    // Generate configuration for external font tools
+    await _generateIcoMoonConfig(svgFiles);
+    await _generateFlutterIconFontConfig(svgFiles);
+    await _generateDartClass(svgFiles);
+
+    print('''
+Icon Font Generation Complete!
+
+Next steps:
+1. Use the generated config with a font generation tool:
+   - Option 1 (IcoMoon): Upload icomoon-config.json to https://icomoon.io/
+   - Option 2 (Flutter Icon Font): Run: npx flutter-iconfont
+
+2. Place the generated .ttf file in your Flutter project's fonts directory
+3. Add the font to your pubspec.yaml:
+   
+   flutter:
+     fonts:
+       - family: $fontName
+         fonts:
+           - asset: fonts/${fontFileName}.ttf
+
+4. Import and use the generated Dart class!
+''');
+  }
+
+  Future<void> _generateIcoMoonConfig(List<Map<String, String>> icons) async {
+    final config = {
+      'IcoMoonType': 'selection',
+      'icons': icons.map((icon) => {
+        'icon': {
+          'paths': ['M0 0H1024V1024H0V0Z'], // Placeholder path
+          'tags': [icon['name']],
+        },
+        'attrs': [],
+        'properties': {
+          'order': icons.indexOf(icon) + 1,
+          'id': icons.indexOf(icon) + 1,
+          'name': icon['fileName'],
+          'prevSize': 32,
+          'code': int.parse(icon['codePoint']!),
+        },
+      }).toList(),
+    };
+
+    final configFile = File(path.join(outputDir, 'icomoon-config.json'));
+    await configFile.writeAsString(jsonEncode(config));
+  }
+
+  Future<void> _generateFlutterIconFontConfig(List<Map<String, String>> icons) async {
+    final config = {
+      'font_family': fontName,
+      'font_package': null,
+      'icons': icons.map((icon) => {
+        'name': icon['fileName'],
+        'style': 'regular',
+        'code': int.parse(icon['codePoint']!),
+      }).toList(),
+    };
+
+    final configFile = File(path.join(outputDir, 'flutter-iconfont-config.json'));
+    await configFile.writeAsString(jsonEncode(config));
+  }
+
+  Future<List<Map<String, String>>> _getSvgFiles() async {
+    final dir = Directory(inputDir);
+    final files = await dir.list().toList();
+    
+    final svgFiles = <Map<String, String>>[];
+    int codePoint = 0xE000;
+
+    for (final file in files) {
+      if (file is File && file.path.toLowerCase().endsWith('.svg')) {
+        final fileName = path.basenameWithoutExtension(file.path);
+        final iconName = _toCamelCase(fileName);
+        
+        svgFiles.add({
+          'name': iconName,
+          'fileName': fileName,
+          'filePath': file.path,
+          'codePoint': '0x${codePoint.toRadixString(16).toUpperCase()}',
+        });
+        
+        codePoint++;
+      }
+    }
+
+    return svgFiles;
+  }
+
+  String _toCamelCase(String input) {
+    final parts = input.replaceAll('-', '_').split('_');
+    return parts.first.toLowerCase() + 
+           parts.skip(1).map((part) => 
+             part.isEmpty ? '' : part[0].toUpperCase() + part.substring(1).toLowerCase()
+           ).join();
+  }
+
+  Future<void> _generateDartClass(List<Map<String, String>> icons) async {
+    final buffer = StringBuffer();
+
+    buffer.writeln('''
+// GENERATED CODE - DO NOT EDIT MANUALLY
+// This file is generated by the Icon Font Generator
+
+import 'package:flutter/widgets.dart';
+
+/// $fontName icon font
+class $className {
+  $className._();
+''');
+
+    // Font family
+    buffer.writeln("  static const String _kFontFamily = '$fontName';");
+    buffer.writeln("  static const String _kFontPkg = null;\n");
+
+    // Icons
+    for (final icon in icons) {
+      final name = icon['name']!;
+      final codePoint = icon['codePoint']!;
+      
+      buffer.writeln('''
+  /// ${icon['fileName']} icon
+  static const IconData $name = IconData(
+    $codePoint, 
+    fontFamily: _kFontFamily,
+    fontPackage: _kFontPkg,
+  );''');
+    }
+
+    // All icons map
+    buffer.writeln('\n  /// Map of all icon names to IconData');
+    buffer.writeln('  static const Map<String, IconData> allIcons = {');
+    for (final icon in icons) {
+      buffer.writeln("    '${icon['name']}': ${icon['name']},");
+    }
+    buffer.writeln('  };');
+
+    buffer.writeln('}');
+
+    final dartFile = File(path.join(outputDir, '${className.toLowerCase()}.dart'));
+    await dartFile.writeAsString(buffer.toString());
+  }
+}
+```
+
+## Usage Instructions
+
+1. **Install dependencies:**
+```bash
+dart pub get
+```
+
+2. **Run the generator:**
+```bash
+dart main.dart -i ./svg_icons -o ./lib/icons -f "MyIcons" -c "MyIcons"
+```
+
+3. **After generation, use external tools to create the actual font:**
+```bash
+# Using flutter-iconfont (requires Node.js)
+npx flutter-iconfont ./lib/icons/flutter-iconfont-config.json
+```
+
+4. **Add the font to your Flutter project's pubspec.yaml:**
+```yaml
+flutter:
+  fonts:
+    - family: MyIcons
+      fonts:
+        - asset: fonts/my_icons.ttf
+```
+
+5. **Use the icons in your Flutter app:**
+```dart
+import 'icons/my_icons.dart';
+
+Icon(MyIcons.home),
+Icon(MyIcons.settings),
+```
+
+This generator creates the necessary configuration files and Dart code structure, while relying on external tools for the actual font generation from SVG files.

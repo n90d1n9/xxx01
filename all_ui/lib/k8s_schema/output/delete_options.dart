@@ -1,0 +1,45 @@
+import 'preconditions.dart';
+
+class DeleteOptions {
+  final String apiVersion;
+  final String kind;
+  final int? gracePeriodSeconds;
+  final Preconditions? preconditions;
+  final bool? orphanDependents;
+  final String? propagationPolicy;
+  final List<String>? dryRun;
+  DeleteOptions({
+    this.apiVersion = 'v1',
+    this.kind = 'DeleteOptions',
+    this.gracePeriodSeconds,
+    this.preconditions,
+    this.orphanDependents,
+    this.propagationPolicy,
+    this.dryRun,
+  });
+  factory DeleteOptions.fromJson(Map<String, dynamic> json) {
+    return DeleteOptions(
+      apiVersion: json['apiVersion'] ?? 'v1',
+      kind: json['kind'] ?? 'DeleteOptions',
+      gracePeriodSeconds: json['gracePeriodSeconds'],
+      preconditions:
+          json['preconditions'] != null
+              ? Preconditions.fromJson(json['preconditions'])
+              : null,
+      orphanDependents: json['orphanDependents'],
+      propagationPolicy: json['propagationPolicy'],
+      dryRun: json['dryRun'] != null ? List<String>.from(json['dryRun']) : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      if (gracePeriodSeconds != null) 'gracePeriodSeconds': gracePeriodSeconds,
+      if (preconditions != null) 'preconditions': preconditions!.toJson(),
+      if (orphanDependents != null) 'orphanDependents': orphanDependents,
+      if (propagationPolicy != null) 'propagationPolicy': propagationPolicy,
+      if (dryRun != null) 'dryRun': dryRun,
+    };
+  }
+}

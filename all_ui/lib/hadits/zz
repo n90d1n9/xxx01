@@ -1,0 +1,1391 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:collection/collection.dart';
+
+// Multilingual text model
+class MultilingualText {
+  final String id;
+  final String en;
+  final String ar;
+
+  MultilingualText({required this.id, required this.en, required this.ar});
+
+  String get(String locale) {
+    switch (locale) {
+      case 'id':
+        return id;
+      case 'en':
+        return en;
+      case 'ar':
+        return ar;
+      default:
+        return id;
+    }
+  }
+}
+
+// Models
+class Rawi {
+  final String id;
+  final MultilingualText name;
+  final String birthYear;
+  final String deathYear;
+  final MultilingualText region;
+  final MultilingualText biography;
+  final List<String> teachers;
+  final List<String> students;
+
+  Rawi({
+    required this.id,
+    required this.name,
+    required this.birthYear,
+    required this.deathYear,
+    required this.region,
+    required this.biography,
+    required this.teachers,
+    required this.students,
+  });
+}
+
+class Book {
+  final String id;
+  final MultilingualText name;
+  final MultilingualText author;
+  final MultilingualText description;
+
+  Book({
+    required this.id,
+    required this.name,
+    required this.author,
+    required this.description,
+  });
+}
+
+class Hadith {
+  final String id;
+  final String arabicText;
+  final MultilingualText translation;
+  final MultilingualText explanation;
+  final List<String> sanad;
+  final String grade;
+  final String bookId;
+  final MultilingualText chapter;
+  final int number;
+  final List<String> topics;
+  final List<String> relatedHadiths;
+
+  Hadith({
+    required this.id,
+    required this.arabicText,
+    required this.translation,
+    required this.explanation,
+    required this.sanad,
+    required this.grade,
+    required this.bookId,
+    required this.chapter,
+    required this.number,
+    required this.topics,
+    required this.relatedHadiths,
+  });
+
+  // Get hadith type based on sanad
+  HadithType get type {
+    if (sanad.isEmpty) return HadithType.unknown;
+    if (sanad.first == 'prophet') return HadithType.prophetic;
+    return HadithType.companion;
+  }
+}
+
+enum HadithType { prophetic, companion, unknown }
+
+// Sample Data
+final sampleBooks = [
+  Book(
+    id: 'b1',
+    name: MultilingualText(
+      id: 'Shahih Bukhari',
+      en: 'Sahih Bukhari',
+      ar: 'صحيح البخاري',
+    ),
+    author: MultilingualText(
+      id: 'Imam Bukhari',
+      en: 'Imam al-Bukhari',
+      ar: 'الإمام البخاري',
+    ),
+    description: MultilingualText(
+      id: 'Koleksi hadits sahih yang paling otentik',
+      en: 'The most authentic collection of hadith',
+      ar: 'أصح كتب الحديث',
+    ),
+  ),
+  Book(
+    id: 'b2',
+    name: MultilingualText(
+      id: 'Muwatta Malik',
+      en: 'Muwatta Malik',
+      ar: 'موطأ مالك',
+    ),
+    author: MultilingualText(
+      id: 'Imam Malik',
+      en: 'Imam Malik ibn Anas',
+      ar: 'الإمام مالك بن أنس',
+    ),
+    description: MultilingualText(
+      id: 'Kitab hadits tertua yang masih ada',
+      en: 'The earliest surviving book of hadith',
+      ar: 'أقدم كتب الحديث الموجودة',
+    ),
+  ),
+];
+
+final sampleRawis = [
+  Rawi(
+    id: 'r1',
+    name: MultilingualText(
+      id: 'Abu Hurairah',
+      en: 'Abu Hurairah',
+      ar: 'أبو هريرة',
+    ),
+    birthYear: '19 SH',
+    deathYear: '59 H',
+    region: MultilingualText(id: 'Madinah', en: 'Madinah', ar: 'المدينة'),
+    biography: MultilingualText(
+      id: 'Sahabat Nabi yang meriwayatkan hadits terbanyak',
+      en: 'Companion who narrated the most hadiths',
+      ar: 'أكثر الصحابة رواية للحديث',
+    ),
+    teachers: [],
+    students: ['r2', 'r3'],
+  ),
+  Rawi(
+    id: 'r2',
+    name: MultilingualText(
+      id: 'Said bin Al-Musayyib',
+      en: 'Sa\'id ibn al-Musayyib',
+      ar: 'سعيد بن المسيب',
+    ),
+    birthYear: '13 H',
+    deathYear: '94 H',
+    region: MultilingualText(id: 'Madinah', en: 'Madinah', ar: 'المدينة'),
+    biography: MultilingualText(
+      id: 'Salah satu ulama tabi\'in terbesar',
+      en: 'One of the greatest scholars of the Tabi\'in',
+      ar: 'من كبار التابعين',
+    ),
+    teachers: ['r1'],
+    students: ['r4'],
+  ),
+  Rawi(
+    id: 'r3',
+    name: MultilingualText(id: 'Az-Zuhri', en: 'Az-Zuhri', ar: 'الزهري'),
+    birthYear: '50 H',
+    deathYear: '124 H',
+    region: MultilingualText(id: 'Madinah', en: 'Madinah', ar: 'المدينة'),
+    biography: MultilingualText(
+      id: 'Pelopor penulisan hadits',
+      en: 'Pioneer of hadith compilation',
+      ar: 'أول من دون الحديث',
+    ),
+    teachers: ['r1'],
+    students: ['r5'],
+  ),
+  Rawi(
+    id: 'r4',
+    name: MultilingualText(
+      id: 'Yahya bin Said',
+      en: 'Yahya ibn Sa\'id',
+      ar: 'يحيى بن سعيد',
+    ),
+    birthYear: '20 H',
+    deathYear: '143 H',
+    region: MultilingualText(id: 'Madinah', en: 'Madinah', ar: 'المدينة'),
+    biography: MultilingualText(
+      id: 'Ahli hadits dan fiqih terkemuka',
+      en: 'Renowned hadith and fiqh scholar',
+      ar: 'من علماء الحديث والفقه',
+    ),
+    teachers: ['r2'],
+    students: ['r6'],
+  ),
+  Rawi(
+    id: 'r5',
+    name: MultilingualText(
+      id: 'Malik bin Anas',
+      en: 'Malik ibn Anas',
+      ar: 'مالك بن أنس',
+    ),
+    birthYear: '93 H',
+    deathYear: '179 H',
+    region: MultilingualText(id: 'Madinah', en: 'Madinah', ar: 'المدينة'),
+    biography: MultilingualText(
+      id: 'Imam mazhab Maliki, penulis Al-Muwatta',
+      en: 'Founder of Maliki school, author of Al-Muwatta',
+      ar: 'إمام دار الهجرة، صاحب الموطأ',
+    ),
+    teachers: ['r3'],
+    students: [],
+  ),
+  Rawi(
+    id: 'r6',
+    name: MultilingualText(
+      id: 'Imam Bukhari',
+      en: 'Imam al-Bukhari',
+      ar: 'الإمام البخاري',
+    ),
+    birthYear: '194 H',
+    deathYear: '256 H',
+    region: MultilingualText(id: 'Bukhara', en: 'Bukhara', ar: 'بخارى'),
+    biography: MultilingualText(
+      id: 'Penulis kitab hadits paling sahih',
+      en: 'Author of the most authentic hadith collection',
+      ar: 'صاحب أصح كتب الحديث',
+    ),
+    teachers: ['r4'],
+    students: [],
+  ),
+];
+
+final sampleHadiths = [
+  Hadith(
+    id: 'h1',
+    arabicText:
+        'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى',
+    translation: MultilingualText(
+      id:
+          'Sesungguhnya setiap amal perbuatan tergantung pada niatnya, dan sesungguhnya setiap orang akan mendapat balasan sesuai dengan apa yang dia niatkan.',
+      en:
+          'Verily actions are by intentions, and for every person is what he intended.',
+      ar: 'إنما الأعمال بالنيات وإنما لكل امرئ ما نوى',
+    ),
+    explanation: MultilingualText(
+      id:
+          'Hadits ini menjelaskan pentingnya niat dalam setiap amal ibadah dan perbuatan. Niat yang baik akan mengubah perbuatan biasa menjadi ibadah.',
+      en:
+          'This hadith explains the importance of intention in every act of worship and deed. A good intention transforms ordinary actions into worship.',
+      ar: 'هذا الحديث يبين أهمية النية في كل عمل وعبادة',
+    ),
+    sanad: ['prophet', 'r1', 'r2', 'r4', 'r6'],
+    grade: 'Mutawatir',
+    bookId: 'b1',
+    chapter: MultilingualText(
+      id: 'Kitab Permulaan Wahyu',
+      en: 'Book of Revelation',
+      ar: 'كتاب بدء الوحي',
+    ),
+    number: 1,
+    topics: ['Niat', 'Iman', 'Amal'],
+    relatedHadiths: ['h2', 'h3'],
+  ),
+  Hadith(
+    id: 'h2',
+    arabicText: 'الدِّينُ النَّصِيحَةُ',
+    translation: MultilingualText(
+      id: 'Agama adalah nasihat.',
+      en: 'The religion is sincerity and sincere advice.',
+      ar: 'الدين النصيحة',
+    ),
+    explanation: MultilingualText(
+      id:
+          'Hadits ini menekankan bahwa inti dari agama adalah memberikan nasihat yang tulus kepada Allah, Rasul-Nya, para pemimpin, dan kaum muslimin.',
+      en:
+          'This hadith emphasizes that the essence of religion is sincere advice to Allah, His Messenger, the leaders, and the Muslims.',
+      ar: 'يبين هذا الحديث أن جوهر الدين هو النصيحة',
+    ),
+    sanad: ['prophet', 'r1', 'r3', 'r5'],
+    grade: 'Sahih',
+    bookId: 'b2',
+    chapter: MultilingualText(
+      id: 'Kitab Akhlak yang Baik',
+      en: 'Book of Good Character',
+      ar: 'كتاب حسن الخلق',
+    ),
+    number: 47,
+    topics: ['Nasihat', 'Iman', 'Akhlak'],
+    relatedHadiths: ['h1'],
+  ),
+  Hadith(
+    id: 'h3',
+    arabicText: 'خَيْرُ الْكَلَامِ مَا قَلَّ وَدَلَّ',
+    translation: MultilingualText(
+      id: 'Sebaik-baik perkataan adalah yang sedikit namun jelas maknanya.',
+      en: 'The best speech is that which is concise and clear.',
+      ar: 'خير الكلام ما قل ودل',
+    ),
+    explanation: MultilingualText(
+      id:
+          'Hadits ini mengajarkan untuk berbicara dengan ringkas namun bermakna, tidak bertele-tele dalam perkataan.',
+      en:
+          'This hadith teaches us to speak concisely yet meaningfully, without being verbose.',
+      ar: 'يعلمنا هذا الحديث الإيجاز في الكلام',
+    ),
+    sanad: ['prophet', 'r1', 'r2', 'r4', 'r6'],
+    grade: 'Hasan',
+    bookId: 'b1',
+    chapter: MultilingualText(
+      id: 'Kitab Ilmu',
+      en: 'Book of Knowledge',
+      ar: 'كتاب العلم',
+    ),
+    number: 68,
+    topics: ['Ilmu', 'Perkataan', 'Akhlak'],
+    relatedHadiths: ['h1'],
+  ),
+  Hadith(
+    id: 'h4',
+    arabicText: 'طَلَبُ الْعِلْمِ فَرِيضَةٌ عَلَى كُلِّ مُسْلِمٍ',
+    translation: MultilingualText(
+      id: 'Menuntut ilmu adalah kewajiban bagi setiap muslim.',
+      en: 'Seeking knowledge is obligatory upon every Muslim.',
+      ar: 'طلب العلم فريضة على كل مسلم',
+    ),
+    explanation: MultilingualText(
+      id:
+          'Hadits ini mewajibkan setiap muslim untuk menuntut ilmu, khususnya ilmu agama yang diperlukan dalam kehidupan.',
+      en:
+          'This hadith obligates every Muslim to seek knowledge, especially religious knowledge needed in life.',
+      ar: 'هذا الحديث يوجب على كل مسلم طلب العلم',
+    ),
+    sanad: ['r1', 'r2', 'r4', 'r6'],
+    grade: 'Daif',
+    bookId: 'b1',
+    chapter: MultilingualText(
+      id: 'Kitab Ilmu',
+      en: 'Book of Knowledge',
+      ar: 'كتاب العلم',
+    ),
+    number: 224,
+    topics: ['Ilmu', 'Kewajiban'],
+    relatedHadiths: ['h3'],
+  ),
+];
+
+// State Management
+final localeProvider = StateProvider<String>((ref) => 'id');
+final bookListProvider = StateProvider<List<Book>>((ref) => sampleBooks);
+final rawiListProvider = StateProvider<List<Rawi>>((ref) => sampleRawis);
+final hadithListProvider = StateProvider<List<Hadith>>((ref) => sampleHadiths);
+
+final selectedHadithProvider = StateProvider<Hadith?>((ref) => null);
+final selectedRawiProvider = StateProvider<Rawi?>((ref) => null);
+
+// Translation helper
+String tr(WidgetRef ref, String key) {
+  final locale = ref.watch(localeProvider);
+  return translations[locale]?[key] ?? key;
+}
+
+// Main App
+void main() {
+  runApp(const ProviderScope(child: HadithSanadApp()));
+}
+
+class HadithSanadApp extends StatelessWidget {
+  const HadithSanadApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Hadith Sanad Visualizer',
+      theme: ThemeData(
+        primarySwatch: Colors.teal,
+        useMaterial3: true,
+        cardTheme: CardTheme(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      home: const HomeScreen(),
+    );
+  }
+}
+
+class LanguageSelector extends ConsumerWidget {
+  const LanguageSelector({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(localeProvider);
+
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.language),
+      onSelected: (value) {
+        ref.read(localeProvider.notifier).state = value;
+      },
+      itemBuilder:
+          (context) => [
+            PopupMenuItem(
+              value: 'id',
+              child: Row(
+                children: [
+                  if (locale == 'id') const Icon(Icons.check, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('Bahasa Indonesia'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'en',
+              child: Row(
+                children: [
+                  if (locale == 'en') const Icon(Icons.check, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('English'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'ar',
+              child: Row(
+                children: [
+                  if (locale == 'ar') const Icon(Icons.check, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('العربية'),
+                ],
+              ),
+            ),
+          ],
+    );
+  }
+}
+
+class NavigationDrawer extends ConsumerWidget {
+  const NavigationDrawer({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration: const BoxDecoration(color: Colors.teal),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                const Icon(Icons.book, size: 48, color: Colors.white),
+                const SizedBox(height: 8),
+                Text(
+                  tr(ref, 'app_title'),
+                  style: const TextStyle(color: Colors.white, fontSize: 20),
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.library_books),
+            title: Text(tr(ref, 'browse_by_book')),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BrowseByBookScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.topic),
+            title: Text(tr(ref, 'browse_by_topic')),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BrowseByTopicScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.people),
+            title: Text(tr(ref, 'browse_by_rawi')),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BrowseByRawiScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.star),
+            title: Text(tr(ref, 'browse_by_grade')),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BrowseByGradeScreen()),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SearchBar extends ConsumerWidget {
+  const SearchBar({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filterType = ref.watch(filterTypeProvider);
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: tr(ref, 'search_hint'),
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onChanged: (value) {
+                ref.read(searchQueryProvider.notifier).state = value;
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          DropdownButton<FilterType>(
+            value: filterType,
+            items: [
+              DropdownMenuItem(
+                value: FilterType.all,
+                child: Text(tr(ref, 'filter_all')),
+              ),
+              DropdownMenuItem(
+                value: FilterType.book,
+                child: Text(tr(ref, 'filter_book')),
+              ),
+              DropdownMenuItem(
+                value: FilterType.topic,
+                child: Text(tr(ref, 'filter_topic')),
+              ),
+              DropdownMenuItem(
+                value: FilterType.rawi,
+                child: Text(tr(ref, 'filter_rawi')),
+              ),
+              DropdownMenuItem(
+                value: FilterType.grade,
+                child: Text(tr(ref, 'filter_grade')),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                ref.read(filterTypeProvider.notifier).state = value;
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class GraphView extends ConsumerWidget {
+  const GraphView({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedHadith = ref.watch(selectedHadithProvider);
+    final hadiths = ref.watch(filteredHadithsProvider);
+
+    if (hadiths.isEmpty) {
+      return Center(child: Text(tr(ref, 'no_hadiths')));
+    }
+
+    final displayHadith = selectedHadith ?? hadiths.first;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          SanadGraph(hadith: displayHadith),
+          const SizedBox(height: 16),
+          HadithDetailCard(hadith: displayHadith),
+          if (displayHadith.relatedHadiths.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            RelatedHadithsSection(hadithIds: displayHadith.relatedHadiths),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class SanadGraph extends ConsumerWidget {
+  final Hadith hadith;
+
+  const SanadGraph({Key? key, required this.hadith}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rawis = ref.watch(rawiListProvider);
+    final locale = ref.watch(localeProvider);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              tr(ref, 'chain_of_narrators'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ...hadith.sanad.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final rawiId = entry.value;
+              final rawi = rawis.firstWhereOrNull((r) => r.id == rawiId);
+
+              if (rawi == null) return const SizedBox.shrink();
+
+              return Column(
+                children: [
+                  InkWell(
+                    onTap: () {
+                      ref.read(selectedRawiProvider.notifier).state = rawi;
+                      showDialog(
+                        context: context,
+                        builder: (_) => RawiDetailDialog(rawi: rawi),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.teal.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.teal),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: Colors.teal,
+                            child: Text(
+                              '${idx + 1}',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  rawi.name.get(locale),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  rawi.name.ar,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade700,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                Text(
+                                  '${rawi.birthYear} - ${rawi.deathYear}',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward_ios, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (idx < hadith.sanad.length - 1)
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.arrow_downward, color: Colors.teal),
+                          const SizedBox(width: 8),
+                          Text(tr(ref, 'narrated_from')),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class HadithDetailCard extends ConsumerWidget {
+  final Hadith hadith;
+
+  const HadithDetailCard({Key? key, required this.hadith}) : super(key: key);
+
+  Color _getGradeColor(String grade) {
+    switch (grade.toLowerCase()) {
+      case 'sahih':
+        return Colors.green;
+      case 'hasan':
+        return Colors.orange;
+      case 'daif':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(localeProvider);
+    final books = ref.watch(bookListProvider);
+    final book = books.firstWhereOrNull((b) => b.id == hadith.bookId);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        book?.name.get(locale) ?? '',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '${tr(ref, 'author')}: ${book?.author.get(locale) ?? ''}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Chip(
+                  label: Text(hadith.grade),
+                  backgroundColor: _getGradeColor(hadith.grade),
+                  labelStyle: const TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${hadith.chapter.get(locale)} - ${tr(ref, 'hadith_number')}${hadith.number}',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            const Divider(height: 24),
+            Text(
+              tr(ref, 'arabic_text'),
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.teal,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hadith.arabicText,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                height: 1.8,
+              ),
+              textAlign: TextAlign.right,
+              textDirection: TextDirection.rtl,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              tr(ref, 'translation'),
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.teal,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hadith.translation.get(locale),
+              style: const TextStyle(fontSize: 16, height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              tr(ref, 'explanation'),
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.teal,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                hadith.explanation.get(locale),
+                style: const TextStyle(fontSize: 14, height: 1.5),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children:
+                  hadith.topics
+                      .map(
+                        (t) => Chip(
+                          label: Text(t),
+                          backgroundColor: Colors.blue.shade50,
+                        ),
+                      )
+                      .toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class RelatedHadithsSection extends ConsumerWidget {
+  final List<String> hadithIds;
+
+  const RelatedHadithsSection({Key? key, required this.hadithIds})
+    : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final allHadiths = ref.watch(hadithListProvider);
+    final locale = ref.watch(localeProvider);
+    final books = ref.watch(bookListProvider);
+    final relatedHadiths =
+        allHadiths.where((h) => hadithIds.contains(h.id)).toList();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              tr(ref, 'related_hadiths'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            ...relatedHadiths.map((h) {
+              final book = books.firstWhereOrNull((b) => b.id == h.bookId);
+              return ListTile(
+                title: Text(
+                  h.translation.get(locale),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text('${book?.name.get(locale) ?? ''} - ${h.grade}'),
+                trailing: const Icon(Icons.arrow_forward),
+                onTap: () {
+                  ref.read(selectedHadithProvider.notifier).state = h;
+                },
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ListView extends ConsumerWidget {
+  const ListView({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hadiths = ref.watch(filteredHadithsProvider);
+    final locale = ref.watch(localeProvider);
+    final books = ref.watch(bookListProvider);
+
+    return flutter.ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: hadiths.length,
+      itemBuilder: (context, idx) {
+        final hadith = hadiths[idx];
+        final book = books.firstWhereOrNull((b) => b.id == hadith.bookId);
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ListTile(
+            title: Text(
+              hadith.translation.get(locale),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text('${book?.name.get(locale) ?? ''} - ${hadith.grade}'),
+            trailing: const Icon(Icons.arrow_forward),
+            onTap: () {
+              ref.read(selectedHadithProvider.notifier).state = hadith;
+              ref.read(viewModeProvider.notifier).state = ViewMode.graph;
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+class GridView extends ConsumerWidget {
+  const GridView({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hadiths = ref.watch(filteredHadithsProvider);
+    final locale = ref.watch(localeProvider);
+    final books = ref.watch(bookListProvider);
+
+    return flutter.GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.75,
+      ),
+      itemCount: hadiths.length,
+      itemBuilder: (context, idx) {
+        final hadith = hadiths[idx];
+        final book = books.firstWhereOrNull((b) => b.id == hadith.bookId);
+        return Card(
+          child: InkWell(
+            onTap: () {
+              ref.read(selectedHadithProvider.notifier).state = hadith;
+              ref.read(viewModeProvider.notifier).state = ViewMode.graph;
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Chip(
+                    label: Text(hadith.grade),
+                    backgroundColor: Colors.green,
+                    labelStyle: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    book?.name.get(locale) ?? '',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    hadith.translation.get(locale),
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${hadith.sanad.length} ${tr(ref, 'narrators')}',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class RawiDetailDialog extends ConsumerWidget {
+  final Rawi rawi;
+
+  const RawiDetailDialog({Key? key, required this.rawi}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(localeProvider);
+    final allRawis = ref.watch(rawiListProvider);
+    final teachers =
+        allRawis.where((r) => rawi.teachers.contains(r.id)).toList();
+    final students =
+        allRawis.where((r) => rawi.students.contains(r.id)).toList();
+
+    return Dialog(
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      tr(ref, 'narrator_details'),
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              Text(
+                rawi.name.get(locale),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                rawi.name.ar,
+                style: const TextStyle(fontSize: 18, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              _buildInfoRow(ref, 'birth', rawi.birthYear),
+              _buildInfoRow(ref, 'death', rawi.deathYear),
+              _buildInfoRow(ref, 'region', rawi.region.get(locale)),
+              const SizedBox(height: 16),
+              Text(
+                tr(ref, 'biography'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  rawi.biography.get(locale),
+                  style: const TextStyle(height: 1.5),
+                ),
+              ),
+              if (teachers.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text(
+                  tr(ref, 'teachers'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...teachers.map(
+                  (t) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.person, size: 16, color: Colors.teal),
+                        const SizedBox(width: 8),
+                        Text(t.name.get(locale)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              if (students.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text(
+                  tr(ref, 'students'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...students.map(
+                  (s) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.school, size: 16, color: Colors.teal),
+                        const SizedBox(width: 8),
+                        Text(s.name.get(locale)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(WidgetRef ref, String labelKey, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              '${tr(ref, labelKey)}:',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Text(value),
+        ],
+      ),
+    );
+  }
+}
+
+// Browse Screens
+class BrowseByBookScreen extends ConsumerWidget {
+  const BrowseByBookScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hadiths = ref.watch(hadithListProvider);
+    final books = ref.watch(bookListProvider);
+    final locale = ref.watch(localeProvider);
+
+    final bookGroups = <String, List<Hadith>>{};
+    for (final hadith in hadiths) {
+      bookGroups.putIfAbsent(hadith.bookId, () => []).add(hadith);
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: Text(tr(ref, 'browse_by_book'))),
+      body: flutter.ListView(
+        padding: const EdgeInsets.all(16),
+        children:
+            bookGroups.entries.map((entry) {
+              final book = books.firstWhereOrNull((b) => b.id == entry.key);
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ExpansionTile(
+                  title: Text(
+                    book?.name.get(locale) ?? '',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${tr(ref, 'author')}: ${book?.author.get(locale) ?? ''}',
+                      ),
+                      Text('${entry.value.length} ${tr(ref, 'hadiths')}'),
+                    ],
+                  ),
+                  children:
+                      entry.value.map((h) {
+                        return ListTile(
+                          title: Text(
+                            h.translation.get(locale),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            '${tr(ref, 'hadith_number')}${h.number}',
+                          ),
+                          onTap: () {
+                            ref.read(selectedHadithProvider.notifier).state = h;
+                            Navigator.pop(context);
+                          },
+                        );
+                      }).toList(),
+                ),
+              );
+            }).toList(),
+      ),
+    );
+  }
+}
+
+class BrowseByTopicScreen extends ConsumerWidget {
+  const BrowseByTopicScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hadiths = ref.watch(hadithListProvider);
+    final locale = ref.watch(localeProvider);
+    final allTopics = <String, List<Hadith>>{};
+
+    for (final h in hadiths) {
+      for (final topic in h.topics) {
+        allTopics.putIfAbsent(topic, () => []).add(h);
+      }
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: Text(tr(ref, 'browse_by_topic'))),
+      body: flutter.ListView(
+        padding: const EdgeInsets.all(16),
+        children:
+            allTopics.entries.map((entry) {
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ExpansionTile(
+                  title: Text(
+                    entry.key,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text('${entry.value.length} ${tr(ref, 'hadiths')}'),
+                  children:
+                      entry.value.map((h) {
+                        return ListTile(
+                          title: Text(
+                            h.translation.get(locale),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            '${h.grade} - ${tr(ref, 'hadith_number')}${h.number}',
+                          ),
+                          onTap: () {
+                            ref.read(selectedHadithProvider.notifier).state = h;
+                            Navigator.pop(context);
+                          },
+                        );
+                      }).toList(),
+                ),
+              );
+            }).toList(),
+      ),
+    );
+  }
+}
+
+class BrowseByRawiScreen extends ConsumerWidget {
+  const BrowseByRawiScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rawis = ref.watch(rawiListProvider);
+    final hadiths = ref.watch(hadithListProvider);
+    final locale = ref.watch(localeProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: Text(tr(ref, 'browse_by_rawi'))),
+      body: flutter.ListView(
+        padding: const EdgeInsets.all(16),
+        children:
+            rawis.map((rawi) {
+              final rawiHadiths =
+                  hadiths.where((h) => h.sanad.contains(rawi.id)).toList();
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ExpansionTile(
+                  title: Text(
+                    rawi.name.get(locale),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(rawi.name.ar),
+                      Text('${rawiHadiths.length} ${tr(ref, 'hadiths')}'),
+                    ],
+                  ),
+                  children:
+                      rawiHadiths.map((h) {
+                        return ListTile(
+                          title: Text(
+                            h.translation.get(locale),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            '${h.grade} - ${tr(ref, 'hadith_number')}${h.number}',
+                          ),
+                          onTap: () {
+                            ref.read(selectedHadithProvider.notifier).state = h;
+                            Navigator.pop(context);
+                          },
+                        );
+                      }).toList(),
+                ),
+              );
+            }).toList(),
+      ),
+    );
+  }
+}
+
+class BrowseByGradeScreen extends ConsumerWidget {
+  const BrowseByGradeScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hadiths = ref.watch(hadithListProvider);
+    final locale = ref.watch(localeProvider);
+    final gradeGroups = groupBy(hadiths, (h) => h.grade);
+
+    return Scaffold(
+      appBar: AppBar(title: Text(tr(ref, 'browse_by_grade'))),
+      body: flutter.ListView(
+        padding: const EdgeInsets.all(16),
+        children:
+            gradeGroups.entries.map((entry) {
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ExpansionTile(
+                  title: Text(
+                    entry.key,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text('${entry.value.length} ${tr(ref, 'hadiths')}'),
+                  children:
+                      entry.value.map((h) {
+                        return ListTile(
+                          title: Text(
+                            h.translation.get(locale),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            '${tr(ref, 'hadith_number')}${h.number}',
+                          ),
+                          onTap: () {
+                            ref.read(selectedHadithProvider.notifier).state = h;
+                            Navigator.pop(context);
+                          },
+                        );
+                      }).toList(),
+                ),
+              );
+            }).toList(),
+      ),
+    );
+  }
+}

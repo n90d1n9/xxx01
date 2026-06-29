@@ -1,0 +1,2 @@
+
+class ConfigMapKeySelector {final String name; final String key; final bool? optional; ConfigMapKeySelector({required this.name, required this.key, this.optional}); factory ConfigMapKeySelector.fromJson(Map<String, dynamic> json) {return ConfigMapKeySelector(name: json['name'], key: json['key'], optional: json['optional']);} Map<String, dynamic> toJson() {return {'name' : name, 'key' : key, if (optional != null) 'optional' : optional};}}

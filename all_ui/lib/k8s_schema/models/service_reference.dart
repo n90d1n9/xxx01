@@ -1,0 +1,2 @@
+
+class ServiceReference {final String namespace; final String name; final String? path; final int? port; ServiceReference({required this.namespace, required this.name, this.path, this.port}); factory ServiceReference.fromJson(Map<String, dynamic> json) {return ServiceReference(namespace: json['namespace'], name: json['name'], path: json['path'], port: json['port']);} Map<String, dynamic> toJson() {return {'namespace' : namespace, 'name' : name, if (path != null) 'path' : path, if (port != null) 'port' : port};}}

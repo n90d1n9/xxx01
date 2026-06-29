@@ -1,0 +1,1614 @@
+// ===== ADVANCED ENTITIES =====
+
+// User.java - Enhanced user management
+@Entity
+@Table(name = "users")
+public class User extends PanacheEntity {
+    
+    @Column(unique = true)
+    public String username;
+    
+    @Column(unique = true)
+    public String email;
+    
+    public String firstName;
+    public String lastName;
+    public String department;
+    public String position;
+    
+    @Enumerated(EnumType.STRING)
+    public UserRole role;
+    
+    @Column(name = "is_active")
+    public Boolean isActive = true;
+    
+    @Column(name = "created_date")
+    public LocalDateTime createdDate = LocalDateTime.now();
+    
+    @Column(name = "last_login")
+    public LocalDateTime lastLogin;
+    
+    // Relationship with risks as owner/reviewer
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    public List<RiskRegister> ownedRisks;
+    
+    public enum UserRole {
+        RISK_OWNER("Risk Owner"),
+        RISK_MANAGER("Risk Manager"),
+        RISK_ANALYST("Risk Analyst"),
+        EXECUTIVE("Executive"),
+        AUDITOR("Auditor"),
+        ADMIN("Administrator");
+        
+        private final String label;
+        UserRole(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    
+    public String getFullName() {
+        return firstName + " " + lastName;
+    }
+}
+
+// Enhanced RiskRegister with advanced features
+@Entity
+@Table(name = "risk_register")
+@EntityListeners(RiskRegisterListener.class)
+public class RiskRegister extends PanacheEntity {
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id")
+    public Project project;
+    
+    @Column(name = "risk_id", unique = true)
+    public String riskId;
+    
+    @Column(name = "risk_title")
+    public String riskTitle;
+    
+    @Column(length = 5000)
+    public String description;
+    
+    @Enumerated(EnumType.STRING)
+    public RiskCategory category;
+    
+    @Enumerated(EnumType.STRING)
+    public RiskType type;
+    
+    // Enhanced probability and impact with quantitative measures
+    @Enumerated(EnumType.STRING)
+    public RiskProbability probability;
+    
+    @Enumerated(EnumType.STRING)
+    public RiskImpact impact;
+    
+    @Column(name = "quantitative_probability")
+    public Double quantitativeProbability; // 0.0 to 1.0
+    
+    @Column(name = "financial_impact")
+    public BigDecimal financialImpact;
+    
+    @Column(name = "risk_score")
+    public Integer riskScore;
+    
+    @Column(name = "inherent_risk_score")
+    public Integer inherentRiskScore; // Before mitigation
+    
+    @Column(name = "residual_risk_score")
+    public Integer residualRiskScore; // After mitigation
+    
+    @Enumerated(EnumType.STRING)
+    public RiskStatus status = RiskStatus.IDENTIFIED;
+    
+    @Enumerated(EnumType.STRING)
+    public RiskTrend trend = RiskTrend.STABLE;
+    
+    // Enhanced ownership and responsibility
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    public User owner;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reviewer_id")
+    public User reviewer;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approver_id")
+    public User approver;
+    
+    // Enhanced dates and tracking
+    @Column(name = "identified_date")
+    public LocalDate identifiedDate;
+    
+    @Column(name = "last_assessment_date")
+    public LocalDate lastAssessmentDate;
+    
+    @Column(name = "next_review_date")
+    public LocalDate nextReviewDate;
+    
+    @Column(name = "target_closure_date")
+    public LocalDate targetClosureDate;
+    
+    @Column(name = "actual_closure_date")
+    public LocalDate actualClosureDate;
+    
+    // Enhanced mitigation
+    @Column(name = "mitigation_strategy", length = 5000)
+    public String mitigationStrategy;
+    
+    @Column(name = "contingency_plan", length = 5000)
+    public String contingencyPlan;
+    
+    @Enumerated(EnumType.STRING)
+    public MitigationStrategy mitigationApproach;
+    
+    // Compliance and regulatory
+    @ElementCollection
+    @Enumerated(EnumType.STRING)
+    @CollectionTable(name = "risk_regulatory_requirements")
+    public Set<RegulatoryRequirement> regulatoryRequirements = new HashSet<>();
+    
+    @Column(name = "compliance_notes", length = 2000)
+    public String complianceNotes;
+    
+    // KRIs (Key Risk Indicators)
+    @OneToMany(mappedBy = "risk", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    public List<KeyRiskIndicator> keyRiskIndicators;
+    
+    // Relationships
+    @OneToMany(mappedBy = "risk", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    public List<RiskMitigationAction> mitigationActions;
+    
+    @OneToMany(mappedBy = "risk", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    public List<RiskAssessmentHistory> assessmentHistory;
+    
+    @OneToMany(mappedBy = "risk", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    public List<RiskDocument> documents;
+    
+    @OneToMany(mappedBy = "risk", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    public List<RiskEscalation> escalations;
+    
+    // Audit trail
+    @CreationTimestamp
+    @Column(name = "created_date")
+    public LocalDateTime createdDate;
+    
+    @UpdateTimestamp
+    @Column(name = "updated_date")
+    public LocalDateTime updatedDate;
+    
+    @Column(name = "created_by")
+    public String createdBy;
+    
+    @Column(name = "updated_by")
+    public String updatedBy;
+    
+    @Version
+    public Long version;
+    
+    // Enhanced enums with more sophisticated categorization
+    public enum RiskCategory {
+        STRATEGIC("Strategic Risk"),
+        OPERATIONAL("Operational Risk"),
+        FINANCIAL("Financial Risk"),
+        COMPLIANCE("Compliance Risk"),
+        REPUTATIONAL("Reputational Risk"),
+        TECHNOLOGY("Technology Risk"),
+        CYBER_SECURITY("Cyber Security Risk"),
+        MARKET("Market Risk"),
+        CREDIT("Credit Risk"),
+        LIQUIDITY("Liquidity Risk"),
+        ENVIRONMENTAL("Environmental Risk"),
+        LEGAL("Legal Risk"),
+        HUMAN_RESOURCES("Human Resources Risk");
+        
+        private final String label;
+        RiskCategory(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    
+    public enum RiskType {
+        INTERNAL("Internal"),
+        EXTERNAL("External"),
+        PROJECT_SPECIFIC("Project Specific"),
+        ENTERPRISE_WIDE("Enterprise Wide"),
+        SYSTEMATIC("Systematic"),
+        IDIOSYNCRATIC("Idiosyncratic");
+        
+        private final String label;
+        RiskType(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    
+    public enum RiskTrend {
+        INCREASING("Meningkat"),
+        DECREASING("Menurun"),
+        STABLE("Stabil"),
+        VOLATILE("Tidak Stabil");
+        
+        private final String label;
+        RiskTrend(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    
+    public enum MitigationStrategy {
+        AVOID("Menghindari"),
+        MITIGATE("Memitigasi"),
+        TRANSFER("Mentransfer"),
+        ACCEPT("Menerima"),
+        MONITOR("Memantau");
+        
+        private final String label;
+        MitigationStrategy(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    
+    public enum RegulatoryRequirement {
+        SOX("Sarbanes-Oxley Act"),
+        GDPR("General Data Protection Regulation"),
+        ISO27001("ISO 27001"),
+        PCI_DSS("PCI DSS"),
+        HIPAA("HIPAA"),
+        BASEL_III("Basel III"),
+        COSO("COSO Framework"),
+        LOCAL_BANKING("Local Banking Regulation"),
+        ENVIRONMENTAL_COMPLIANCE("Environmental Compliance");
+        
+        private final String label;
+        RegulatoryRequirement(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    
+    // Enhanced calculation methods
+    @PrePersist
+    @PreUpdate
+    public void calculateRiskScores() {
+        if (probability != null && impact != null) {
+            this.riskScore = probability.getScore() * impact.getScore();
+            
+            // Set inherent risk score if not set
+            if (this.inherentRiskScore == null) {
+                this.inherentRiskScore = this.riskScore;
+            }
+            
+            // Calculate residual risk based on mitigation effectiveness
+            calculateResidualRisk();
+        }
+    }
+    
+    private void calculateResidualRisk() {
+        if (mitigationActions != null && !mitigationActions.isEmpty()) {
+            double mitigationEffectiveness = calculateMitigationEffectiveness();
+            this.residualRiskScore = (int) Math.round(this.inherentRiskScore * (1 - mitigationEffectiveness));
+        } else {
+            this.residualRiskScore = this.inherentRiskScore;
+        }
+    }
+    
+    private double calculateMitigationEffectiveness() {
+        if (mitigationActions == null || mitigationActions.isEmpty()) {
+            return 0.0;
+        }
+        
+        double totalEffectiveness = mitigationActions.stream()
+                .filter(action -> action.status == RiskMitigationAction.ActionStatus.COMPLETED)
+                .mapToDouble(action -> action.effectiveness != null ? action.effectiveness : 0.0)
+                .sum();
+        
+        return Math.min(totalEffectiveness / 100.0, 0.9); // Max 90% mitigation
+    }
+    
+    public RiskLevel getRiskLevel() {
+        if (residualRiskScore != null) {
+            if (residualRiskScore >= 20) return RiskLevel.CRITICAL;
+            if (residualRiskScore >= 15) return RiskLevel.HIGH;
+            if (residualRiskScore >= 10) return RiskLevel.MEDIUM;
+            if (residualRiskScore >= 5) return RiskLevel.LOW;
+        }
+        return RiskLevel.VERY_LOW;
+    }
+    
+    public enum RiskLevel {
+        CRITICAL("Critical", "#DC2626"),
+        HIGH("High", "#EA580C"),
+        MEDIUM("Medium", "#D97706"),
+        LOW("Low", "#65A30D"),
+        VERY_LOW("Very Low", "#16A34A");
+        
+        private final String label;
+        private final String color;
+        
+        RiskLevel(String label, String color) {
+            this.label = label;
+            this.color = color;
+        }
+        
+        public String getLabel() { return label; }
+        public String getColor() { return color; }
+    }
+}
+
+// KeyRiskIndicator.java - Advanced KRI management
+@Entity
+@Table(name = "key_risk_indicators")
+public class KeyRiskIndicator extends PanacheEntity {
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "risk_id")
+    public RiskRegister risk;
+    
+    @Column(name = "indicator_name")
+    public String indicatorName;
+    
+    @Column(name = "description", length = 2000)
+    public String description;
+    
+    @Enumerated(EnumType.STRING)
+    public IndicatorType type;
+    
+    @Column(name = "current_value")
+    public BigDecimal currentValue;
+    
+    @Column(name = "target_value")
+    public BigDecimal targetValue;
+    
+    @Column(name = "threshold_value")
+    public BigDecimal thresholdValue;
+    
+    @Column(name = "alert_threshold")
+    public BigDecimal alertThreshold;
+    
+    @Column(name = "unit_of_measure")
+    public String unitOfMeasure;
+    
+    @Enumerated(EnumType.STRING)
+    public FrequencyType frequency;
+    
+    @Column(name = "last_measured_date")
+    public LocalDate lastMeasuredDate;
+    
+    @Column(name = "next_measurement_date")
+    public LocalDate nextMeasurementDate;
+    
+    @Column(name = "data_source")
+    public String dataSource;
+    
+    @Column(name = "responsible_party")
+    public String responsibleParty;
+    
+    @Column(name = "is_active")
+    public Boolean isActive = true;
+    
+    @OneToMany(mappedBy = "indicator", cascade = CascadeType.ALL)
+    public List<KRIMeasurement> measurements;
+    
+    public enum IndicatorType {
+        QUANTITATIVE("Quantitative"),
+        QUALITATIVE("Qualitative"),
+        FINANCIAL("Financial"),
+        OPERATIONAL("Operational"),
+        COMPLIANCE("Compliance");
+        
+        private final String label;
+        IndicatorType(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    
+    public enum FrequencyType {
+        DAILY("Daily"),
+        WEEKLY("Weekly"),
+        MONTHLY("Monthly"),
+        QUARTERLY("Quarterly"),
+        SEMI_ANNUALLY("Semi-Annually"),
+        ANNUALLY("Annually");
+        
+        private final String label;
+        FrequencyType(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+}
+
+// KRIMeasurement.java - Historical KRI data
+@Entity
+@Table(name = "kri_measurements")
+public class KRIMeasurement extends PanacheEntity {
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "indicator_id")
+    public KeyRiskIndicator indicator;
+    
+    @Column(name = "measurement_date")
+    public LocalDate measurementDate;
+    
+    @Column(name = "measured_value")
+    public BigDecimal measuredValue;
+    
+    @Column(name = "notes", length = 1000)
+    public String notes;
+    
+    @Column(name = "measured_by")
+    public String measuredBy;
+    
+    @Column(name = "is_breach")
+    public Boolean isBreach = false;
+    
+    @Column(name = "breach_explanation", length = 1000)
+    public String breachExplanation;
+}
+
+// RiskWorkflow.java - Advanced workflow management
+@Entity
+@Table(name = "risk_workflows")
+public class RiskWorkflow extends PanacheEntity {
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "risk_id")
+    public RiskRegister risk;
+    
+    @Enumerated(EnumType.STRING)
+    public WorkflowType workflowType;
+    
+    @Enumerated(EnumType.STRING)
+    public WorkflowStatus status = WorkflowStatus.PENDING;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "initiated_by")
+    public User initiatedBy;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "current_assignee")
+    public User currentAssignee;
+    
+    @Column(name = "workflow_data", columnDefinition = "TEXT")
+    public String workflowData; // JSON data for workflow state
+    
+    @Column(name = "initiated_date")
+    public LocalDateTime initiatedDate = LocalDateTime.now();
+    
+    @Column(name = "due_date")
+    public LocalDateTime dueDate;
+    
+    @Column(name = "completed_date")
+    public LocalDateTime completedDate;
+    
+    @Column(name = "comments", length = 2000)
+    public String comments;
+    
+    @OneToMany(mappedBy = "workflow", cascade = CascadeType.ALL)
+    public List<WorkflowStep> steps;
+    
+    public enum WorkflowType {
+        RISK_ASSESSMENT("Risk Assessment"),
+        RISK_APPROVAL("Risk Approval"),
+        MITIGATION_REVIEW("Mitigation Review"),
+        PERIODIC_REVIEW("Periodic Review"),
+        ESCALATION("Escalation"),
+        CLOSURE_REQUEST("Closure Request");
+        
+        private final String label;
+        WorkflowType(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    
+    public enum WorkflowStatus {
+        PENDING("Pending"),
+        IN_PROGRESS("In Progress"),
+        APPROVED("Approved"),
+        REJECTED("Rejected"),
+        ESCALATED("Escalated"),
+        COMPLETED("Completed"),
+        CANCELLED("Cancelled");
+        
+        private final String label;
+        WorkflowStatus(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+}
+
+// WorkflowStep.java - Individual workflow steps
+@Entity
+@Table(name = "workflow_steps")
+public class WorkflowStep extends PanacheEntity {
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workflow_id")
+    public RiskWorkflow workflow;
+    
+    @Column(name = "step_order")
+    public Integer stepOrder;
+    
+    @Column(name = "step_name")
+    public String stepName;
+    
+    @Enumerated(EnumType.STRING)
+    public StepStatus status = StepStatus.PENDING;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_to")
+    public User assignedTo;
+    
+    @Column(name = "started_date")
+    public LocalDateTime startedDate;
+    
+    @Column(name = "completed_date")
+    public LocalDateTime completedDate;
+    
+    @Column(name = "comments", length = 2000)
+    public String comments;
+    
+    @Column(name = "decision")
+    public String decision;
+    
+    public enum StepStatus {
+        PENDING("Pending"),
+        IN_PROGRESS("In Progress"),
+        COMPLETED("Completed"),
+        SKIPPED("Skipped");
+        
+        private final String label;
+        StepStatus(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+}
+
+// RiskEscalation.java - Escalation management
+@Entity
+@Table(name = "risk_escalations")
+public class RiskEscalation extends PanacheEntity {
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "risk_id")
+    public RiskRegister risk;
+    
+    @Enumerated(EnumType.STRING)
+    public EscalationType escalationType;
+    
+    @Enumerated(EnumType.STRING)
+    public EscalationLevel escalationLevel;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "escalated_by")
+    public User escalatedBy;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "escalated_to")
+    public User escalatedTo;
+    
+    @Column(name = "reason", length = 2000)
+    public String reason;
+    
+    @Column(name = "escalation_date")
+    public LocalDateTime escalationDate = LocalDateTime.now();
+    
+    @Column(name = "resolution_required_by")
+    public LocalDateTime resolutionRequiredBy;
+    
+    @Column(name = "resolved_date")
+    public LocalDateTime resolvedDate;
+    
+    @Column(name = "resolution", length = 2000)
+    public String resolution;
+    
+    @Enumerated(EnumType.STRING)
+    public EscalationStatus status = EscalationStatus.OPEN;
+    
+    public enum EscalationType {
+        RISK_BREACH("Risk Threshold Breach"),
+        OVERDUE_ACTION("Overdue Mitigation Action"),
+        HIGH_IMPACT("High Impact Risk"),
+        REGULATORY("Regulatory Concern"),
+        BOARD_ATTENTION("Board Attention Required");
+        
+        private final String label;
+        EscalationType(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    
+    public enum EscalationLevel {
+        MANAGER("Manager"),
+        DIRECTOR("Director"),
+        EXECUTIVE("Executive"),
+        BOARD("Board");
+        
+        private final String label;
+        EscalationLevel(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    
+    public enum EscalationStatus {
+        OPEN("Open"),
+        ACKNOWLEDGED("Acknowledged"),
+        RESOLVED("Resolved"),
+        CLOSED("Closed");
+        
+        private final String label;
+        EscalationStatus(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+}
+
+// Enhanced RiskMitigationAction with effectiveness tracking
+@Entity
+@Table(name = "risk_mitigation_actions")
+public class RiskMitigationAction extends PanacheEntity {
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "risk_id")
+    public RiskRegister risk;
+    
+    @Column(name = "action_id", unique = true)
+    public String actionId;
+    
+    @Column(name = "action_description", length = 2000)
+    public String actionDescription;
+    
+    @Enumerated(EnumType.STRING)
+    public ActionType actionType;
+    
+    @Enumerated(EnumType.STRING)
+    public ActionPriority priority = ActionPriority.MEDIUM;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_to")
+    public User assignedTo;
+    
+    @Column(name = "estimated_cost")
+    public BigDecimal estimatedCost;
+    
+    @Column(name = "actual_cost")
+    public BigDecimal actualCost;
+    
+    @Column(name = "effectiveness")
+    public Double effectiveness; // 0-100 percentage
+    
+    @Column(name = "start_date")
+    public LocalDate startDate;
+    
+    @Column(name = "due_date")
+    public LocalDate dueDate;
+    
+    @Column(name = "completion_date")
+    public LocalDate completionDate;
+    
+    @Enumerated(EnumType.STRING)
+    public ActionStatus status = ActionStatus.PENDING;
+    
+    @Column(name = "progress_percentage")
+    public Integer progressPercentage = 0;
+    
+    @Column(name = "notes", length = 2000)
+    public String notes;
+    
+    @OneToMany(mappedBy = "action", cascade = CascadeType.ALL)
+    public List<ActionProgressUpdate> progressUpdates;
+    
+    @CreationTimestamp
+    @Column(name = "created_date")
+    public LocalDateTime createdDate;
+    
+    @Column(name = "created_by")
+    public String createdBy;
+    
+    public enum ActionType {
+        PREVENTIVE("Preventive"),
+        DETECTIVE("Detective"),
+        CORRECTIVE("Corrective"),
+        COMPENSATING("Compensating"),
+        DIRECTIVE("Directive");
+        
+        private final String label;
+        ActionType(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    
+    public enum ActionPriority {
+        CRITICAL("Critical"),
+        HIGH("High"),
+        MEDIUM("Medium"),
+        LOW("Low");
+        
+        private final String label;
+        ActionPriority(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    
+    public enum ActionStatus {
+        PENDING("Pending"),
+        IN_PROGRESS("In Progress"),
+        ON_HOLD("On Hold"),
+        COMPLETED("Completed"),
+        CANCELLED("Cancelled"),
+        OVERDUE("Overdue");
+        
+        private final String label;
+        ActionStatus(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    
+    @PreUpdate
+    public void updateStatus() {
+        if (dueDate != null && dueDate.isBefore(LocalDate.now()) && 
+            status != ActionStatus.COMPLETED && status != ActionStatus.CANCELLED) {
+            status = ActionStatus.OVERDUE;
+        }
+    }
+}
+
+// ActionProgressUpdate.java - Track progress updates
+@Entity
+@Table(name = "action_progress_updates")
+public class ActionProgressUpdate extends PanacheEntity {
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "action_id")
+    public RiskMitigationAction action;
+    
+    @Column(name = "update_date")
+    public LocalDateTime updateDate = LocalDateTime.now();
+    
+    @Column(name = "progress_percentage")
+    public Integer progressPercentage;
+    
+    @Column(name = "update_notes", length = 1000)
+    public String updateNotes;
+    
+    @Column(name = "updated_by")
+    public String updatedBy;
+    
+    @Column(name = "challenges", length = 1000)
+    public String challenges;
+    
+    @Column(name = "next_steps", length = 1000)
+    public String nextSteps;
+}
+
+// ===== ADVANCED SERVICES =====
+
+// RiskAnalyticsService.java - Advanced analytics and reporting
+@ApplicationScoped
+public class RiskAnalyticsService {
+    
+    @Inject
+    EntityManager em;
+    
+    public RiskHeatmapData generateRiskHeatmap(Long projectId, LocalDate asOfDate) {
+        String query = """
+            SELECT r.probability, r.impact, COUNT(r) as count
+            FROM RiskRegister r
+            WHERE (:projectId IS NULL OR r.project.id = :projectId)
+            AND r.status != com.company.risk.entity.RiskRegister$RiskStatus.CLOSED
+            GROUP BY r.probability, r.impact
+            """;
+        
+        List<Object[]> results = em.createQuery(query, Object[].class)
+                .setParameter("projectId", projectId)
+                .getResultList();
+        
+        RiskHeatmapData heatmap = new RiskHeatmapData();
+        heatmap.data = results.stream()
+                .collect(Collectors.toMap(
+                    row -> new RiskCoordinate((RiskRegister.RiskProbability) row[0], 
+                                            (RiskRegister.RiskImpact) row[1]),
+                    row -> ((Long) row[2]).intValue()
+                ));
+        
+        return heatmap;
+    }
+    
+    public List<RiskTrendData> calculateRiskTrends(Long projectId, int months) {
+        LocalDate startDate = LocalDate.now().minusMonths(months);
+        
+        String query = """
+            SELECT DATE_TRUNC('month', rah.assessmentDate), 
+                   AVG(rah.newScore), 
+                   COUNT(DISTINCT rah.risk.id)
+            FROM RiskAssessmentHistory rah
+            WHERE rah.assessmentDate >= :startDate
+            AND (:projectId IS NULL OR rah.risk.project.id = :projectId)
+            GROUP BY DATE_TRUNC('month', rah.assessmentDate)
+            ORDER BY DATE_TRUNC('month', rah.assessmentDate)
+            """;
+        
+        List<Object[]> results = em.createQuery(query, Object[].class)
+                .setParameter("startDate", startDate.atStartOfDay())
+                .setParameter("projectId", projectId)
+                .getResultList();
+        
+        return results.stream()
+                .map(row -> new RiskTrendData(
+                    ((Timestamp) row[0]).toLocalDateTime().toLocalDate(),
+                    ((Double) row[1]),
+                    ((Long) row[2]).intValue()
+                ))
+                .collect(Collectors.toList());
+    }
+    
+    public RiskPortfolioAnalysis analyzeRiskPortfolio(Long projectId) {
+        String baseQuery = """
+            SELECT r FROM RiskRegister r 
+            WHERE (:projectId IS NULL OR r.project.id = :projectId)
+            AND r.status != com.company.risk.entity.RiskRegister$RiskStatus.CLOSED
+            """;
+        
+        List<RiskRegister> risks = em.createQuery(baseQuery, RiskRegister.class)
+                .setParameter("projectId", projectId)
+                .getResultList();
+        
+        return new RiskPortfolioAnalysis(risks);
+    }
+    
+    public List<KRITrendData> analyzeKRITrends(Long riskId, int months) {
+        LocalDate startDate = LocalDate.now().minusMonths(months);
+        
+        String query = """
+            SELECT km.measurementDate, km.measuredValue, kri.indicatorName
+            FROM KRIMeasurement km
+            JOIN km.indicator kri
+            WHERE kri.risk.id = :riskId
+            AND km.measurementDate >= :startDate
+            ORDER BY km.measurementDate
+            """;
+        
+        List<Object[]> results = em.createQuery(query, Object[].class)
+                .setParameter("riskId", riskId)
+                .setParameter("startDate", startDate)
+                .getResultList();
+        
+        return results.stream()
+                .map(row -> new KRITrendData(
+                    (LocalDate) row[0],
+                    (BigDecimal) row[1],
+                    (String) row[2]
+                ))
+                .collect(Collectors.toList());
+    }
+}
+
+// WorkflowService.java - Advanced workflow management
+@ApplicationScoped
+@Transactional
+public class WorkflowService {
+    
+    @Inject
+    NotificationService notificationService;
+    
+    public RiskWorkflow initiateWorkflow(Long riskId, RiskWorkflow.WorkflowType type, Long initiatorId) {
+        RiskRegister risk = RiskRegister.findById(riskId);
+        User initiator = User.findById(initiatorId);
+        
+        RiskWorkflow workflow = new RiskWorkflow();
+        workflow.risk = risk;
+        workflow.workflowType = type;
+        workflow.initiatedBy = initiator;
+        
+        // Set due date based on workflow type
+        workflow.dueDate = calculateWorkflowDueDate(type);
+        
+        // Create workflow steps based on type
+        createWorkflowSteps(workflow, type);
+        
+        workflow.persist();
+        
+        // Send notification to first assignee
+        if (!workflow.steps.isEmpty()) {
+            WorkflowStep firstStep = workflow.steps.get(0);
+            firstStep.status = WorkflowStep.StepStatus.IN_PROGRESS;
+            firstStep.startedDate = LocalDateTime.now();
+            workflow.currentAssignee = firstStep.assignedTo;
+            
+            notificationService.sendWorkflowNotification(workflow, firstStep);
+        }
+        
+        return workflow;
+    }
+    
+    public boolean processWorkflowStep(Long workflowId, Long stepId, String decision, String comments, Long userId) {
+        RiskWorkflow workflow = RiskWorkflow.findById(workflowId);
+        WorkflowStep step = WorkflowStep.findById(stepId);
+        
+        if (!step.assignedTo.id.equals(userId)) {
+            throw new SecurityException("User not authorized to process this step");
+        }
+        
+        step.decision = decision;
+        step.comments = comments;
+        step.completedDate = LocalDateTime.now();
+        step.status = WorkflowStep.StepStatus.COMPLETED;
+        
+        // Check if workflow should proceed to next step
+        WorkflowStep nextStep = getNextStep(workflow, step);
+        if (nextStep != null) {
+            nextStep.status = WorkflowStep.StepStatus.IN_PROGRESS;
+            nextStep.startedDate = LocalDateTime.now();
+            workflow.currentAssignee = nextStep.assignedTo;
+            
+            notificationService.sendWorkflowNotification(workflow, nextStep);
+        } else {
+            // Workflow completed
+            workflow.status = RiskWorkflow.WorkflowStatus.COMPLETED;
+            workflow.completedDate = LocalDateTime.now();
+            processWorkflowCompletion(workflow, decision);
+        }
+        
+        return true;
+    }
+    
+    private LocalDateTime calculateWorkflowDueDate(RiskWorkflow.WorkflowType type) {
+        return switch (type) {
+            case RISK_ASSESSMENT -> LocalDateTime.now().plusDays(7);
+            case RISK_APPROVAL -> LocalDateTime.now().plusDays(5);
+            case MITIGATION_REVIEW -> LocalDateTime.now().plusDays(10);
+            case PERIODIC_REVIEW -> LocalDateTime.now().plusDays(14);
+            case ESCALATION -> LocalDateTime.now().plusDays(3);
+            case CLOSURE_REQUEST -> LocalDateTime.now().plusDays(5);
+        };
+    }
+    
+    private void createWorkflowSteps(RiskWorkflow workflow, RiskWorkflow.WorkflowType type) {
+        switch (type) {
+            case RISK_ASSESSMENT -> createRiskAssessmentSteps(workflow);
+            case RISK_APPROVAL -> createRiskApprovalSteps(workflow);
+            case MITIGATION_REVIEW -> createMitigationReviewSteps(workflow);
+            case PERIODIC_REVIEW -> createPeriodicReviewSteps(workflow);
+            case ESCALATION -> createEscalationSteps(workflow);
+            case CLOSURE_REQUEST -> createClosureSteps(workflow);
+        }
+    }
+    
+    private void createRiskAssessmentSteps(RiskWorkflow workflow) {
+        // Step 1: Risk Owner Assessment
+        WorkflowStep step1 = new WorkflowStep();
+        step1.workflow = workflow;
+        step1.stepOrder = 1;
+        step1.stepName = "Risk Owner Assessment";
+        step1.assignedTo = workflow.risk.owner;
+        
+        // Step 2: Risk Manager Review
+        WorkflowStep step2 = new WorkflowStep();
+        step2.workflow = workflow;
+        step2.stepOrder = 2;
+        step2.stepName = "Risk Manager Review";
+        step2.assignedTo = workflow.risk.reviewer;
+        
+        workflow.steps = List.of(step1, step2);
+    }
+    
+    private void createRiskApprovalSteps(RiskWorkflow workflow) {
+        // Step 1: Department Head Approval
+        WorkflowStep step1 = new WorkflowStep();
+        step1.workflow = workflow;
+        step1.stepOrder = 1;
+        step1.stepName = "Department Head Approval";
+        step1.assignedTo = findDepartmentHead(workflow.risk.owner.department);
+        
+        // Step 2: Risk Committee Approval (for high risks)
+        if (workflow.risk.getRiskLevel().ordinal() >= RiskRegister.RiskLevel.HIGH.ordinal()) {
+            WorkflowStep step2 = new WorkflowStep();
+            step2.workflow = workflow;
+            step2.stepOrder = 2;
+            step2.stepName = "Risk Committee Approval";
+            step2.assignedTo = findRiskCommitteeChair();
+            workflow.steps = List.of(step1, step2);
+        } else {
+            workflow.steps = List.of(step1);
+        }
+    }
+    
+    private User findDepartmentHead(String department) {
+        return User.<User>find("department = ?1 and role = ?2", 
+                              department, User.UserRole.RISK_MANAGER)
+                   .firstResult();
+    }
+    
+    private User findRiskCommitteeChair() {
+        return User.<User>find("role = ?1", User.UserRole.EXECUTIVE)
+                   .firstResult();
+    }
+}
+
+// NotificationService.java - Advanced notification system
+@ApplicationScoped
+public class NotificationService {
+    
+    @Inject
+    @Channel("risk-notifications")
+    Emitter<NotificationMessage> notificationEmitter;
+    
+    @Inject
+    EmailService emailService;
+    
+    public void sendRiskAlert(RiskRegister risk, AlertType alertType) {
+        NotificationMessage message = new NotificationMessage();
+        message.type = NotificationType.RISK_ALERT;
+        message.riskId = risk.id;
+        message.alertType = alertType;
+        message.message = buildAlertMessage(risk, alertType);
+        message.recipients = determineRecipients(risk, alertType);
+        message.timestamp = LocalDateTime.now();
+        
+        // Send to message queue
+        notificationEmitter.send(message);
+        
+        // Send email notifications
+        emailService.sendRiskAlertEmail(message);
+    }
+    
+    public void sendWorkflowNotification(RiskWorkflow workflow, WorkflowStep step) {
+        NotificationMessage message = new NotificationMessage();
+        message.type = NotificationType.WORKFLOW;
+        message.workflowId = workflow.id;
+        message.stepId = step.id;
+        message.message = "Workflow step '" + step.stepName + "' requires your attention";
+        message.recipients = List.of(step.assignedTo.email);
+        message.timestamp = LocalDateTime.now();
+        
+        notificationEmitter.send(message);
+        emailService.sendWorkflowNotification(message);
+    }
+    
+    public void sendKRIBreach(KeyRiskIndicator kri, BigDecimal breachValue) {
+        NotificationMessage message = new NotificationMessage();
+        message.type = NotificationType.KRI_BREACH;
+        message.kriId = kri.id;
+        message.riskId = kri.risk.id;
+        message.message = String.format("KRI '%s' has breached threshold: %s %s", 
+                                       kri.indicatorName, breachValue, kri.unitOfMeasure);
+        message.recipients = List.of(kri.risk.owner.email, kri.responsibleParty);
+        message.timestamp = LocalDateTime.now();
+        
+        notificationEmitter.send(message);
+        emailService.sendKRIBreachEmail(message);
+    }
+    
+    private String buildAlertMessage(RiskRegister risk, AlertType alertType) {
+        return switch (alertType) {
+            case HIGH_RISK -> String.format("High risk identified: %s (Score: %d)", 
+                                           risk.riskTitle, risk.residualRiskScore);
+            case OVERDUE_ACTION -> String.format("Overdue mitigation action for risk: %s", 
+                                                risk.riskTitle);
+            case REVIEW_DUE -> String.format("Risk review due: %s", risk.riskTitle);
+            case ESCALATION -> String.format("Risk escalated: %s", risk.riskTitle);
+        };
+    }
+    
+    private List<String> determineRecipients(RiskRegister risk, AlertType alertType) {
+        List<String> recipients = new ArrayList<>();
+        recipients.add(risk.owner.email);
+        
+        if (risk.reviewer != null) {
+            recipients.add(risk.reviewer.email);
+        }
+        
+        if (alertType == AlertType.HIGH_RISK || alertType == AlertType.ESCALATION) {
+            // Add executives for high risks
+            List<String> executives = User.<User>find("role = ?1", User.UserRole.EXECUTIVE)
+                    .stream()
+                    .map(u -> u.email)
+                    .collect(Collectors.toList());
+            recipients.addAll(executives);
+        }
+        
+        return recipients.stream().distinct().collect(Collectors.toList());
+    }
+    
+    public enum AlertType {
+        HIGH_RISK,
+        OVERDUE_ACTION,
+        REVIEW_DUE,
+        ESCALATION
+    }
+    
+    public enum NotificationType {
+        RISK_ALERT,
+        WORKFLOW,
+        KRI_BREACH,
+        SYSTEM
+    }
+}
+
+// RiskReportingService.java - Advanced reporting and compliance
+@ApplicationScoped
+public class RiskReportingService {
+    
+    @Inject
+    EntityManager em;
+    
+    @Inject
+    RiskAnalyticsService analyticsService;
+    
+    public RiskDashboardData generateExecutiveDashboard(Long projectId) {
+        RiskDashboardData dashboard = new RiskDashboardData();
+        
+        // Risk summary statistics
+        dashboard.riskSummary = getRiskSummaryStats(projectId);
+        
+        // Top risks
+        dashboard.topRisks = getTopRisks(projectId, 10);
+        
+        // Risk trends
+        dashboard.riskTrends = analyticsService.calculateRiskTrends(projectId, 12);
+        
+        // Risk heatmap
+        dashboard.heatmap = analyticsService.generateRiskHeatmap(projectId, LocalDate.now());
+        
+        // KRI status
+        dashboard.kriStatus = getKRIStatus(projectId);
+        
+        // Compliance status
+        dashboard.complianceStatus = getComplianceStatus(projectId);
+        
+        // Recent escalations
+        dashboard.recentEscalations = getRecentEscalations(projectId, 30);
+        
+        return dashboard;
+    }
+    
+    public byte[] generateRiskRegisterReport(Long projectId, ReportFormat format) {
+        List<RiskRegister> risks = getRisksForReport(projectId);
+        
+        return switch (format) {
+            case PDF -> generatePDFReport(risks);
+            case EXCEL -> generateExcelReport(risks);
+            case CSV -> generateCSVReport(risks);
+        };
+    }
+    
+    public ComplianceReport generateComplianceReport(RiskRegister.RegulatoryRequirement requirement, 
+                                                   LocalDate fromDate, LocalDate toDate) {
+        String query = """
+            SELECT r FROM RiskRegister r 
+            WHERE :requirement MEMBER OF r.regulatoryRequirements
+            AND r.identifiedDate BETWEEN :fromDate AND :toDate
+            """;
+        
+        List<RiskRegister> risks = em.createQuery(query, RiskRegister.class)
+                .setParameter("requirement", requirement)
+                .setParameter("fromDate", fromDate)
+                .setParameter("toDate", toDate)
+                .getResultList();
+        
+        ComplianceReport report = new ComplianceReport();
+        report.requirement = requirement;
+        report.reportPeriod = new DateRange(fromDate, toDate);
+        report.totalRisks = risks.size();
+        report.riskBreakdown = analyzeComplianceRisks(risks);
+        report.mitigationEffectiveness = calculateComplianceMitigationEffectiveness(risks);
+        report.recommendations = generateComplianceRecommendations(risks);
+        
+        return report;
+    }
+    
+    public RiskAppetiteReport generateRiskAppetiteReport(Long projectId) {
+        RiskAppetiteReport report = new RiskAppetiteReport();
+        
+        // Get current risk levels vs appetite
+        List<RiskRegister> risks = getRisksForReport(projectId);
+        
+        report.riskAppetiteBreaches = risks.stream()
+                .filter(r -> r.residualRiskScore > getRiskAppetiteThreshold(r.category))
+                .map(this::mapToAppetiteBreach)
+                .collect(Collectors.toList());
+        
+        report.categoryAnalysis = risks.stream()
+                .collect(Collectors.groupingBy(r -> r.category,
+                         Collectors.collectingAndThen(
+                             Collectors.toList(),
+                             this::analyzeCategoryRiskAppetite)));
+        
+        return report;
+    }
+    
+    private RiskSummaryStats getRiskSummaryStats(Long projectId) {
+        // Implementation for risk summary statistics
+        String query = """
+            SELECT 
+                COUNT(r),
+                AVG(r.residualRiskScore),
+                SUM(CASE WHEN r.residualRiskScore >= 20 THEN 1 ELSE 0 END),
+                SUM(CASE WHEN r.residualRiskScore >= 15 AND r.residualRiskScore < 20 THEN 1 ELSE 0 END),
+                SUM(CASE WHEN r.residualRiskScore < 15 THEN 1 ELSE 0 END)
+            FROM RiskRegister r
+            WHERE (:projectId IS NULL OR r.project.id = :projectId)
+            AND r.status != com.company.risk.entity.RiskRegister$RiskStatus.CLOSED
+            """;
+        
+        Object[] result = (Object[]) em.createQuery(query)
+                .setParameter("projectId", projectId)
+                .getSingleResult();
+        
+        RiskSummaryStats stats = new RiskSummaryStats();
+        stats.totalRisks = ((Long) result[0]).intValue();
+        stats.averageRiskScore = (Double) result[1];
+        stats.criticalRisks = ((Long) result[2]).intValue();
+        stats.highRisks = ((Long) result[3]).intValue();
+        stats.mediumLowRisks = ((Long) result[4]).intValue();
+        
+        return stats;
+    }
+    
+    private Integer getRiskAppetiteThreshold(RiskRegister.RiskCategory category) {
+        // Risk appetite thresholds by category
+        return switch (category) {
+            case STRATEGIC -> 16;
+            case FINANCIAL -> 18;
+            case OPERATIONAL -> 15;
+            case COMPLIANCE -> 12;
+            case CYBER_SECURITY -> 10;
+            case REPUTATIONAL -> 14;
+            default -> 15;
+        };
+    }
+    
+    public enum ReportFormat {
+        PDF, EXCEL, CSV
+    }
+}
+
+// ===== ADVANCED REST CONTROLLERS =====
+
+// EnhancedRiskManagementResource.java
+@Path("/api/v2/risks")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
+@Tag(name = "Risk Management", description = "Advanced Risk Management Operations")
+public class EnhancedRiskManagementResource {
+    
+    @Inject
+    RiskManagementService riskService;
+    
+    @Inject
+    RiskAnalyticsService analyticsService;
+    
+    @Inject
+    WorkflowService workflowService;
+    
+    @Inject
+    RiskReportingService reportingService;
+    
+    @GET
+    @Path("/dashboard")
+    @Operation(summary = "Get executive risk dashboard")
+    public Response getExecutiveDashboard(@QueryParam("projectId") Long projectId) {
+        RiskDashboardData dashboard = reportingService.generateExecutiveDashboard(projectId);
+        return Response.ok(dashboard).build();
+    }
+    
+    @GET
+    @Path("/heatmap")
+    @Operation(summary = "Generate risk heatmap")
+    public Response getRiskHeatmap(@QueryParam("projectId") Long projectId,
+                                 @QueryParam("asOfDate") @DefaultValue("#{T(java.time.LocalDate).now()}") LocalDate asOfDate) {
+        RiskHeatmapData heatmap = analyticsService.generateRiskHeatmap(projectId, asOfDate);
+        return Response.ok(heatmap).build();
+    }
+    
+    @GET
+    @Path("/trends")
+    @Operation(summary = "Get risk trend analysis")
+    public Response getRiskTrends(@QueryParam("projectId") Long projectId,
+                                @QueryParam("months") @DefaultValue("12") int months) {
+        List<RiskTrendData> trends = analyticsService.calculateRiskTrends(projectId, months);
+        return Response.ok(trends).build();
+    }
+    
+    @GET
+    @Path("/portfolio-analysis")
+    @Operation(summary = "Get risk portfolio analysis")
+    public Response getPortfolioAnalysis(@QueryParam("projectId") Long projectId) {
+        RiskPortfolioAnalysis analysis = analyticsService.analyzeRiskPortfolio(projectId);
+        return Response.ok(analysis).build();
+    }
+    
+    @POST
+    @Path("/{riskId}/workflow")
+    @Operation(summary = "Initiate risk workflow")
+    public Response initiateWorkflow(@PathParam("riskId") Long riskId,
+                                   @QueryParam("type") RiskWorkflow.WorkflowType workflowType,
+                                   @Context SecurityContext securityContext) {
+        // In real implementation, get user ID from security context
+        Long initiatorId = getCurrentUserId(securityContext);
+        
+        RiskWorkflow workflow = workflowService.initiateWorkflow(riskId, workflowType, initiatorId);
+        return Response.status(Response.Status.CREATED).entity(workflow).build();
+    }
+    
+    @POST
+    @Path("/{riskId}/escalate")
+    @Operation(summary = "Escalate risk")
+    public Response escalateRisk(@PathParam("riskId") Long riskId,
+                               @Valid EscalationRequest request,
+                               @Context SecurityContext securityContext) {
+        Long userId = getCurrentUserId(securityContext);
+        RiskEscalation escalation = riskService.escalateRisk(riskId, request, userId);
+        return Response.status(Response.Status.CREATED).entity(escalation).build();
+    }
+    
+    @GET
+    @Path("/reports/register")
+    @Operation(summary = "Generate risk register report")
+    @Produces({"application/pdf", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv"})
+    public Response generateRiskRegisterReport(@QueryParam("projectId") Long projectId,
+                                             @QueryParam("format") @DefaultValue("PDF") RiskReportingService.ReportFormat format) {
+        byte[] reportData = reportingService.generateRiskRegisterReport(projectId, format);
+        
+        String contentType = switch (format) {
+            case PDF -> "application/pdf";
+            case EXCEL -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case CSV -> "text/csv";
+        };
+        
+        return Response.ok(reportData, contentType)
+                .header("Content-Disposition", "attachment; filename=risk-register." + format.name().toLowerCase())
+                .build();
+    }
+    
+    @GET
+    @Path("/reports/compliance")
+    @Operation(summary = "Generate compliance report")
+    public Response generateComplianceReport(@QueryParam("requirement") RiskRegister.RegulatoryRequirement requirement,
+                                           @QueryParam("fromDate") LocalDate fromDate,
+                                           @QueryParam("toDate") LocalDate toDate) {
+        ComplianceReport report = reportingService.generateComplianceReport(requirement, fromDate, toDate);
+        return Response.ok(report).build();
+    }
+    
+    private Long getCurrentUserId(SecurityContext securityContext) {
+        // In real implementation, extract from JWT or security context
+        return 1L; // Placeholder
+    }
+}
+
+// KRIManagementResource.java - Key Risk Indicators
+@Path("/api/v2/kris")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
+public class KRIManagementResource {
+    
+    @Inject
+    KRIService kriService;
+    
+    @Inject
+    RiskAnalyticsService analyticsService;
+    
+    @GET
+    @Path("/risk/{riskId}")
+    public Response getKRIsForRisk(@PathParam("riskId") Long riskId) {
+        List<KeyRiskIndicator> kris = kriService.getKRIsForRisk(riskId);
+        return Response.ok(kris).build();
+    }
+    
+    @POST
+    public Response createKRI(@Valid CreateKRIRequest request) {
+        KeyRiskIndicator kri = kriService.createKRI(request);
+        return Response.status(Response.Status.CREATED).entity(kri).build();
+    }
+    
+    @POST
+    @Path("/{kriId}/measurements")
+    public Response recordMeasurement(@PathParam("kriId") Long kriId,
+                                    @Valid KRIMeasurementRequest request) {
+        KRIMeasurement measurement = kriService.recordMeasurement(kriId, request);
+        return Response.status(Response.Status.CREATED).entity(measurement).build();
+    }
+    
+    @GET
+    @Path("/{kriId}/trends")
+    public Response getKRITrends(@PathParam("kriId") Long kriId,
+                               @QueryParam("months") @DefaultValue("12") int months) {
+        List<KRITrendData> trends = analyticsService.analyzeKRITrends(kriId, months);
+        return Response.ok(trends).build();
+    }
+    
+    @GET
+    @Path("/breaches")
+    public Response getKRIBreaches(@QueryParam("days") @DefaultValue("30") int days) {
+        List<KRIMeasurement> breaches = kriService.getRecentBreaches(days);
+        return Response.ok(breaches).build();
+    }
+}
+
+// WorkflowManagementResource.java
+@Path("/api/v2/workflows")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
+public class WorkflowManagementResource {
+    
+    @Inject
+    WorkflowService workflowService;
+    
+    @GET
+    @Path("/pending")
+    public Response getPendingWorkflows(@Context SecurityContext securityContext) {
+        Long userId = getCurrentUserId(securityContext);
+        List<RiskWorkflow> workflows = workflowService.getPendingWorkflowsForUser(userId);
+        return Response.ok(workflows).build();
+    }
+    
+    @POST
+    @Path("/{workflowId}/steps/{stepId}/process")
+    public Response processWorkflowStep(@PathParam("workflowId") Long workflowId,
+                                      @PathParam("stepId") Long stepId,
+                                      @Valid ProcessStepRequest request,
+                                      @Context SecurityContext securityContext) {
+        Long userId = getCurrentUserId(securityContext);
+        boolean success = workflowService.processWorkflowStep(workflowId, stepId, 
+                                                             request.decision, request.comments, userId);
+        return success ? Response.ok().build() : Response.status(Response.Status.BAD_REQUEST).build();
+    }
+    
+    private Long getCurrentUserId(SecurityContext securityContext) {
+        return 1L; // Placeholder
+    }
+}
+
+// ===== DATA TRANSFER OBJECTS =====
+
+// Advanced DTOs for analytics and reporting
+public class RiskHeatmapData {
+    public Map<RiskCoordinate, Integer> data;
+    public LocalDate generatedDate = LocalDate.now();
+}
+
+public class RiskCoordinate {
+    public RiskRegister.RiskProbability probability;
+    public RiskRegister.RiskImpact impact;
+    
+    public RiskCoordinate(RiskRegister.RiskProbability probability, RiskRegister.RiskImpact impact) {
+        this.probability = probability;
+        this.impact = impact;
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof RiskCoordinate)) return false;
+        RiskCoordinate that = (RiskCoordinate) o;
+        return probability == that.probability && impact == that.impact;
+    }
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(probability, impact);
+    }
+}
+
+public class RiskTrendData {
+    public LocalDate date;
+    public Double averageScore;
+    public Integer riskCount;
+    
+    public RiskTrendData(LocalDate date, Double averageScore, Integer riskCount) {
+        this.date = date;
+        this.averageScore = averageScore;
+        this.riskCount = riskCount;
+    }
+}
+
+public class RiskPortfolioAnalysis {
+    public Integer totalRisks;
+    public Double averageInherentRisk;
+    public Double averageResidualRisk;
+    public Double mitigationEffectiveness;
+    public Map<RiskRegister.RiskCategory, CategoryAnalysis> categoryAnalysis;
+    public List<RiskConcentration> concentrationRisks;
+    public RiskMaturityAssessment maturityAssessment;
+    
+    public RiskPortfolioAnalysis(List<RiskRegister> risks) {
+        this.totalRisks = risks.size();
+        this.averageInherentRisk = risks.stream()
+                .filter(r -> r.inherentRiskScore != null)
+                .mapToInt(r -> r.inherentRiskScore)
+                .average().orElse(0.0);
+        this.averageResidualRisk = risks.stream()
+                .filter(r -> r.residualRiskScore != null)
+                .mapToInt(r -> r.residualRiskScore)
+                .average().orElse(0.0);
+        this.mitigationEffectiveness = calculateOverallMitigationEffectiveness(risks);
+        this.categoryAnalysis = analyzeCategoriesLive(risks);
+        this.concentrationRisks = identifyConcentrationRisks(risks);
+        this.maturityAssessment = assessRiskMaturity(risks);
+    }
+    
+    private Double calculateOverallMitigationEffectiveness(List<RiskRegister> risks) {
+        return risks.stream()
+                .filter(r -> r.inherentRiskScore != null && r.residualRiskScore != null && r.inherentRiskScore > 0)
+                .mapToDouble(r -> 1.0 - (double) r.residualRiskScore / r.inherentRiskScore)
+                .average().orElse(0.0) * 100;
+    }
+    
+    private Map<RiskRegister.RiskCategory, CategoryAnalysis> analyzeCategoriesLive(List<RiskRegister> risks) {
+        return risks.stream()
+                .collect(Collectors.groupingBy(
+                    r -> r.category,
+                    Collectors.collectingAndThen(
+                        Collectors.toList(),
+                        categoryRisks -> new CategoryAnalysis(categoryRisks)
+                    )
+                ));
+    }
+    
+    private List<RiskConcentration> identifyConcentrationRisks(List<RiskRegister> risks) {
+        // Identify areas of high risk concentration
+        return risks.stream()
+                .collect(Collectors.groupingBy(r -> r.category))
+                .entrySet().stream()
+                .filter(entry -> entry.getValue().size() > 5) // Threshold for concentration
+                .map(entry -> new RiskConcentration(entry.getKey(), entry.getValue().size()))
+                .collect(Collectors.toList());
+    }
+    
+    private RiskMaturityAssessment assessRiskMaturity(List<RiskRegister> risks) {
+        // Assess overall risk management maturity based on various factors
+        int documentationScore = assessDocumentationMaturity(risks);
+        int mitigationScore = assessMitigationMaturity(risks);
+        int monitoringScore = assessMonitoringMaturity(risks);
+        
+        return new RiskMaturityAssessment(documentationScore, mitigationScore, monitoringScore);
+    }
+    
+    private int assessDocumentationMaturity(List<RiskRegister> risks) {
+        // Score based on completeness of risk documentation
+        return (int) (risks.stream()
+                .mapToDouble(r -> {
+                    int score = 0;
+                    if (r.description != null && !r.description.isEmpty()) score += 25;
+                    if (r.mitigationStrategy != null && !r.mitigationStrategy.isEmpty()) score += 25;
+                    if (r.contingencyPlan != null && !r.contingencyPlan.isEmpty()) score += 25;
+                    if (r.owner != null) score += 25;
+                    return score;
+                })
+                .average().orElse(0.0));
+    }
+    
+    private int assessMitigationMaturity(List<RiskRegister> risks) {
+        // Score based on mitigation action completeness and effectiveness
+        return (int) (risks.stream()
+                .filter(r -> r.mitigationActions != null && !r.mitigationActions.isEmpty())
+                .count() * 100.0 / risks.size());
+    }
+    
+    private int assessMonitoringMaturity(List<RiskRegister> risks) {
+        // Score based on KRI implementation and monitoring
+        return (int) (risks.stream()
+                .filter(r -> r.keyRiskIndicators != null && !r.keyRiskIndicators.isEmpty())
+                .count() * 100.0 / risks.size());
+    }
+}
+
+// Supporting classes for portfolio analysis
+public class CategoryAnalysis {
+    public Integer riskCount;
+    public Double averageScore;
+    public RiskRegister.RiskLevel highestLevel;
+    
+    public CategoryAnalysis(List<RiskRegister> risks) {
+        this.riskCount = risks.size();
+        this.averageScore = risks.stream()
+                .filter(r -> r.residualRiskScore != null)
+                .mapToInt(r -> r.residualRiskScore)
+                .average().orElse(0.0);
+        this.highestLevel = risks.stream()
+                .map(RiskRegister::getRiskLevel)
+                .max(Comparator.comparingInt(Enum::ordinal))
+                .orElse(RiskRegister.RiskLevel.VERY_LOW);
+    }
+}
+
+public class RiskConcentration {
+    public RiskRegister.RiskCategory category;
+    public Integer riskCount;
+    
+    public RiskConcentration(RiskRegister.RiskCategory category, Integer riskCount) {
+        this.category = category;
+        this.riskCount = riskCount;
+    }
+}
+
+public class RiskMaturityAssessment {
+    public Integer documentationScore;
+    public Integer mitigationScore;
+    public Integer monitoringScore;
+    public Integer overallScore;
+    public String maturityLevel;
+    
+    public Risk

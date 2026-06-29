@@ -1,0 +1,28 @@
+class Subject {
+  final String kind;
+  final String name;
+  final String? namespace;
+  final String? apiGroup;
+  Subject({
+    required this.kind,
+    required this.name,
+    this.namespace,
+    this.apiGroup,
+  });
+  factory Subject.fromJson(Map<String, dynamic> json) {
+    return Subject(
+      kind: json['kind'],
+      name: json['name'],
+      namespace: json['namespace'],
+      apiGroup: json['apiGroup'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'kind': kind,
+      'name': name,
+      if (namespace != null) 'namespace': namespace,
+      if (apiGroup != null) 'apiGroup': apiGroup,
+    };
+  }
+}

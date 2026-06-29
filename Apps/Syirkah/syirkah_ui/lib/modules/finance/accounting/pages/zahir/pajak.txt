@@ -1,0 +1,24 @@
+.
+No Tax
+0 %
+Aktif
+
+PPN
+Pajak Pertambahan Nilai
+11 %
+Aktif
+
+PPh 23-4
+PPh Pasal 23 Non NPWP
+-4 %
+Aktif
+
+PPh 23-2
+PPh Pasal 23 NPWP
+-2 %
+Aktif
+
+PPh 4.2
+PPh Pasal 4 Ayat 2
+-1 %
+Aktif

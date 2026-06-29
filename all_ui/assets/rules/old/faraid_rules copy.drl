@@ -1,0 +1,333 @@
+package com.estate.faraid
+
+global Map shares;
+global Map reasons;
+global List executionLog;
+global Double remainingShare;
+global Double totalEstate;
+global String calculationMethod;
+
+// ============================================================================
+//  FIXED SHARE RULES (QUR’AN 4:11, 4:12)
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// SPOUSE
+// ---------------------------------------------------------------------------
+
+// Husband share
+rule "Husband Share"
+salience 200
+agenda-group "fixed-shares"
+when
+    $d: FamilyMember(relationName == "deceased", genderName == "female")
+    $h: FamilyMember(relationName == "spouse", genderName == "male", isDeceased == false)
+    $child: FamilyMember(relationName in ("son","daughter"), isDeceased == false) from collect(...)
+then
+    shares.put($h.id, 0.25);
+    reasons.put($h.id, "Suami mendapat 1/4 (ada anak) - QS 4:12");
+    executionLog.add("Husband gets 1/4 due to children");
+end
+
+rule "Husband No Child"
+salience 200
+agenda-group "fixed-shares"
+when
+    $d: FamilyMember(relationName == "deceased", genderName == "female")
+    $h: FamilyMember(relationName == "spouse", genderName == "male", isDeceased == false)
+    not FamilyMember(relationName in ("son","daughter"), isDeceased == false)
+then
+    shares.put($h.id, 0.5);
+    reasons.put($h.id, "Suami mendapat 1/2 (tanpa anak) - QS 4:12");
+    executionLog.add("Husband gets 1/2 because no children");
+end
+
+// Wife share
+rule "Wife With Children"
+salience 200
+agenda-group "fixed-shares"
+when
+    $d: FamilyMember(relationName == "deceased", genderName == "male")
+    $w: FamilyMember(relationName == "spouse", genderName == "female", isDeceased == false)
+    FamilyMember(relationName in ("son","daughter"), isDeceased == false)
+then
+    shares.put($w.id, 0.125);
+    reasons.put($w.id, "Istri mendapat 1/8 (ada anak) - QS 4:12");
+    executionLog.add("Wife gets 1/8 due to children");
+end
+
+rule "Wife Without Children"
+salience 200
+agenda-group "fixed-shares"
+when
+    $d: FamilyMember(relationName == "deceased", genderName == "male")
+    $w: FamilyMember(relationName == "spouse", genderName == "female", isDeceased == false)
+    not FamilyMember(relationName in ("son","daughter"), isDeceased == false)
+then
+    shares.put($w.id, 0.25);
+    reasons.put($w.id, "Istri mendapat 1/4 (tanpa anak) - QS 4:12");
+    executionLog.add("Wife gets 1/4 due to no children");
+end
+
+
+// ---------------------------------------------------------------------------
+// MOTHER
+// ---------------------------------------------------------------------------
+rule "Mother With Children or Siblings"
+salience 190
+agenda-group "fixed-shares"
+when
+    $m: FamilyMember(relationName == "mother", isDeceased == false)
+    (
+        exists FamilyMember(relationName in ("son","daughter"), isDeceased == false)
+        or exists (FamilyMember(relationName in ("brother","sister"), isDeceased == false))
+    )
+then
+    shares.put($m.id, 1.0/6.0);
+    reasons.put($m.id, "Ibu mendapat 1/6 (ada anak atau saudara ≥ 2) - QS 4:11");
+    executionLog.add("Mother gets 1/6 due to children/siblings");
+end
+
+rule "Mother No Children No Siblings"
+salience 190
+agenda-group "fixed-shares"
+when
+    $m: FamilyMember(relationName == "mother", isDeceased == false)
+    not FamilyMember(relationName in ("son","daughter"), isDeceased == false)
+    not FamilyMember(relationName in ("brother","sister"), isDeceased == false)
+then
+    shares.put($m.id, 1.0/3.0);
+    reasons.put($m.id, "Ibu mendapat 1/3 (tanpa anak dan saudara) - QS 4:11");
+    executionLog.add("Mother gets 1/3 (no children or siblings)");
+end
+
+
+// ---------------------------------------------------------------------------
+// FATHER
+// ---------------------------------------------------------------------------
+rule "Father With Children"
+salience 180
+agenda-group "fixed-shares"
+when
+    $f: FamilyMember(relationName == "father", isDeceased == false)
+    FamilyMember(relationName in ("son","daughter"), isDeceased == false)
+then
+    shares.put($f.id, 1.0/6.0);
+    reasons.put($f.id, "Ayah mendapat 1/6 (ada anak) - QS 4:11");
+    executionLog.add("Father gets fixed 1/6");
+end
+
+
+// ---------------------------------------------------------------------------
+// DAUGHTERS (NO SONS)
+// ---------------------------------------------------------------------------
+rule "Single Daughter Only"
+    salience 170
+    agenda-group "fixed-shares"
+    no-loop true
+when
+    $d1: FamilyMember(relationName == "daughter", isDeceased == false)
+    not exists FamilyMember(relationName == "son", isDeceased == false)
+    not exists ( FamilyMember(relationName == "daughter", isDeceased == false) and eval($d1.id != this.id) )
+then
+    shares.put($d1.id, 0.5);
+    reasons.put($d1.id, "Anak perempuan tunggal mendapat 1/2 - QS 4:11");
+    executionLog.add("Single daughter gets 1/2");
+end
+
+
+rule "Multiple Daughters Only"
+    salience 170
+    agenda-group "fixed-shares"
+    no-loop true
+when
+    $daughters: List(size >= 2) from collect(FamilyMember(relationName=="daughter", isDeceased==false))
+    not exists FamilyMember(relationName == "son", isDeceased == false)
+then
+    double shareEach = (2.0/3.0) / $daughters.size();
+    for(Object x: $daughters) { ... }
+    executionLog.add("Multiple daughters share 2/3 equally");
+end
+
+
+
+// ============================================================================
+//  RESIDUAL (ASABAH)
+// ============================================================================
+
+rule "Calculate Remaining Share"
+    salience 50
+    agenda-group "residual-calculation"
+    no-loop true
+when
+    FamilyMember(relationName == "deceased")
+then
+    Double totalTmp = 0.0;
+
+    for (Object v : shares.values()) {
+        Object val = v;
+
+        if (val instanceof String) {
+            try {
+                val = Double.parseDouble((String) val);
+            } catch (Exception e) {
+                continue;
+            }
+        }
+
+        if (val instanceof Number) {
+            totalTmp = totalTmp + ((Number) val).doubleValue();
+        }
+    }
+
+    remainingShare = 1.0 - totalTmp;
+    executionLog.add("Remaining share = " + remainingShare.toString());
+end
+
+
+
+
+
+// ---------------------------------------------------------------------------
+// Children as residuaries (sons:daughters = 2:1)
+// ---------------------------------------------------------------------------
+rule "Children Residual"
+salience 90
+agenda-group "residual-distribution"
+when
+    $sons: List(size >= 0) from collect(FamilyMember(relationName=="son", isDeceased==false))
+    $daughters: List(size >= 0) from collect(FamilyMember(relationName=="daughter", isDeceased==false))
+    eval($sons.size() + $daughters.size() > 0)
+    eval(remainingShare > 0.0000001)
+
+then
+    int units = ($sons.size()*2) + $daughters.size();
+    double unitValue = remainingShare / units;
+
+    for(Object s: $sons) {
+        FamilyMember x = (FamilyMember)s;
+        shares.put(x.id, (shares.containsKey(x.id)? shares.get(x.id) : 0) + unitValue*2);
+        reasons.put(x.id, "Asabah: anak laki-laki mendapat 2 bagian");
+    }
+    for(Object d: $daughters) {
+        FamilyMember x = (FamilyMember)d;
+        shares.put(x.id, (shares.containsKey(x.id)? shares.get(x.id) : 0) + unitValue);
+        reasons.put(x.id, "Asabah: anak perempuan mendapat 1 bagian");
+    }
+
+    remainingShare = 0.0;
+    executionLog.add("Residual given to children in 2:1 ratio");
+end
+
+
+// ---------------------------------------------------------------------------
+// Father takes all residue (if no children)
+// ---------------------------------------------------------------------------
+rule "Father Takes Residual"
+salience 80
+agenda-group "residual-distribution"
+when
+    $f: FamilyMember(relationName=="father", isDeceased==false)
+    not FamilyMember(relationName in ("son","daughter"), isDeceased==false)
+    eval(remainingShare > 0)
+then
+    shares.put($f.id, (shares.containsKey($f.id)? shares.get($f.id):0)+remainingShare);
+    reasons.put($f.id, "Ayah mengambil sisa sebagai asabah");
+    remainingShare = 0.0;
+    executionLog.add("Father receives residual");
+end
+
+
+// ============================================================================
+//  VALIDATION - AWL & RADD
+// ============================================================================
+
+rule "Apply Awl"
+    salience 60
+    agenda-group "validation"
+    no-loop true
+when
+    $x: FamilyMember(relationName == "deceased")
+then
+    var total = 0.0;
+    for (Object v : shares.values()) {
+        var val = v;
+        if (val is String) {
+            var p = double.tryParse(val);
+            if (p != null) val = p;
+        }
+        if (val is num) total = total + (val as num).toDouble();
+    }
+    if (total > 1.000001) {
+        // compute factor and adjust
+        for (Object k : shares.keySet()) {
+            var old = shares.get(k);
+            var o = old;
+            if (o is String) {
+                var p = double.tryParse(o);
+                if (p != null) o = p;
+            }
+            if (o is num) {
+                var adj = (o as num).toDouble() / total;
+                shares.put(k, adj);
+                reasons.put(k, "Dikenakan 'awl (pengurangan proporsional)");
+            }
+        }
+        executionLog.add("Applied AWL (total > 1)");
+    }
+end
+
+
+
+rule "Apply Radd"
+    salience 60
+    agenda-group "validation"
+    no-loop true
+when
+    $x: FamilyMember(relationName == "deceased")
+    eval(remainingShare > 0.000001)
+then
+    var total = 0.0;
+    for (Object v : shares.values()) {
+        var val = v;
+        if (val is String) {
+            var p = double.tryParse(val);
+            if (p != null) val = p;
+        }
+        if (val is num) total = total + (val as num).toDouble();
+    }
+    if (total > 0) {
+        for (Object k : shares.keySet()) {
+            var base = shares.get(k);
+            var b = base;
+            if (b is String) {
+                var p = double.tryParse(b);
+                if (p != null) b = p;
+            }
+            if (b is num) {
+                var addition = ( (b as num).toDouble() / total ) * remainingShare;
+                shares.put(k, (b as num).toDouble() + addition);
+                reasons.put(k, "Dikenakan radd (penambahan proporsional)");
+            }
+        }
+        executionLog.add("Applied RADD (no residuaries)");
+        remainingShare = 0.0;
+    }
+end
+
+
+
+
+// ============================================================================
+// COMPLETION
+// ============================================================================
+rule "Finish"
+salience 1
+agenda-group "completion"
+no-loop true
+when
+    $x: FamilyMember(relationName=="deceased")
+then
+    executionLog.add("Faraid calculation completed.");
+end
+

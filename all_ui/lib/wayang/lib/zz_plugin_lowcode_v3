@@ -1,0 +1,455 @@
+
+
+// ==================== PLUGIN DEFINITION UPLOADER ====================
+
+
+// ==================== LOW-CODE PLUGIN IMPLEMENTATION ====================
+
+// ==================== LOW-CODE NODE EXECUTOR ====================
+
+
+// ==================== EXAMPLE USAGE ====================
+
+
+// Required stub classes
+
+
+
+
+
+
+// ==================== LOW-CODE PLUGIN BUILDER SYSTEM ====================
+// Visual plugin builder that generates plugin definitions without coding
+
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// ==================== PLUGIN DEFINITION MODELS ====================
+
+class PluginDefinition {
+  final String id;
+  final String name;
+  final String version;
+  final String description;
+  final String author;
+  final String category;
+  final List<String> tags;
+  final List<NodeDefinition> nodes;
+  final Map<String, dynamic> settings;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+
+  PluginDefinition({
+    required this.id,
+    required this.name,
+    required this.version,
+    required this.description,
+    required this.author,
+    required this.category,
+    this.tags = const [],
+    this.nodes = const [],
+    this.settings = const {},
+    required this.createdAt,
+    this.updatedAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'version': version,
+        'description': description,
+        'author': author,
+        'category': category,
+        'tags': tags,
+        'nodes': nodes.map((n) => n.toJson()).toList(),
+        'settings': settings,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt?.toIso8601String(),
+      };
+
+  factory PluginDefinition.fromJson(Map<String, dynamic> json) => PluginDefinition(
+        id: json['id'],
+        name: json['name'],
+        version: json['version'],
+        description: json['description'],
+        author: json['author'],
+        category: json['category'],
+        tags: List<String>.from(json['tags'] ?? []),
+        nodes: (json['nodes'] as List).map((n) => NodeDefinition.fromJson(n)).toList(),
+        settings: json['settings'] ?? {},
+        createdAt: DateTime.parse(json['createdAt']),
+        updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
+      );
+
+  PluginDefinition copyWith({
+    String? name,
+    String? version,
+    String? description,
+    String? author,
+    String? category,
+    List<String>? tags,
+    List<NodeDefinition>? nodes,
+    Map<String, dynamic>? settings,
+    DateTime? updatedAt,
+  }) {
+    return PluginDefinition(
+      id: id,
+      name: name ?? this.name,
+      version: version ?? this.version,
+      description: description ?? this.description,
+      author: author ?? this.author,
+      category: category ?? this.category,
+      tags: tags ?? this.tags,
+      nodes: nodes ?? this.nodes,
+      settings: settings ?? this.settings,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
+class NodeDefinition {
+  final String id;
+  final String name;
+  final String type;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final List<PortDefinition> inputs;
+  final List<PortDefinition> outputs;
+  final List<ConfigFieldDefinition> configFields;
+  final List<String> requiredSecrets;
+  final ActionDefinition action;
+  final Map<String, dynamic> metadata;
+
+  NodeDefinition({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.description,
+    required this.icon,
+    required this.color,
+    this.inputs = const [],
+    this.outputs = const [],
+    this.configFields = const [],
+    this.requiredSecrets = const [],
+    required this.action,
+    this.metadata = const {},
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'type': type,
+        'description': description,
+        'icon': icon.codePoint,
+        'color': color.value,
+        'inputs': inputs.map((i) => i.toJson()).toList(),
+        'outputs': outputs.map((o) => o.toJson()).toList(),
+        'configFields': configFields.map((c) => c.toJson()).toList(),
+        'requiredSecrets': requiredSecrets,
+        'action': action.toJson(),
+        'metadata': metadata,
+      };
+
+  factory NodeDefinition.fromJson(Map<String, dynamic> json) => NodeDefinition(
+        id: json['id'],
+        name: json['name'],
+        type: json['type'],
+        description: json['description'],
+        icon: IconData(json['icon'], fontFamily: 'MaterialIcons'),
+        color: Color(json['color']),
+        inputs: (json['inputs'] as List).map((i) => PortDefinition.fromJson(i)).toList(),
+        outputs: (json['outputs'] as List).map((o) => PortDefinition.fromJson(o)).toList(),
+        configFields: (json['configFields'] as List).map((c) => ConfigFieldDefinition.fromJson(c)).toList(),
+        requiredSecrets: List<String>.from(json['requiredSecrets'] ?? []),
+        action: ActionDefinition.fromJson(json['action']),
+        metadata: json['metadata'] ?? {},
+      );
+}
+
+class PortDefinition {
+  final String id;
+  final String name;
+  final String description;
+  final String dataType;
+  final bool required;
+  final dynamic defaultValue;
+  final Map<String, dynamic>? validation;
+
+  PortDefinition({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.dataType,
+    this.required = true,
+    this.defaultValue,
+    this.validation,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'dataType': dataType,
+        'required': required,
+        'defaultValue': defaultValue,
+        'validation': validation,
+      };
+
+  factory PortDefinition.fromJson(Map<String, dynamic> json) => PortDefinition(
+        id: json['id'],
+        name: json['name'],
+        description: json['description'],
+        dataType: json['dataType'],
+        required: json['required'] ?? true,
+        defaultValue: json['defaultValue'],
+        validation: json['validation'],
+      );
+}
+
+class ConfigFieldDefinition {
+  final String key;
+  final String label;
+  final String description;
+  final String fieldType;
+  final bool required;
+  final dynamic defaultValue;
+  final List<dynamic>? options;
+  final Map<String, dynamic>? validation;
+
+  ConfigFieldDefinition({
+    required this.key,
+    required this.label,
+    required this.description,
+    required this.fieldType,
+    this.required = false,
+    this.defaultValue,
+    this.options,
+    this.validation,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        'label': label,
+        'description': description,
+        'fieldType': fieldType,
+        'required': required,
+        'defaultValue': defaultValue,
+        'options': options,
+        'validation': validation,
+      };
+
+  factory ConfigFieldDefinition.fromJson(Map<String, dynamic> json) => ConfigFieldDefinition(
+        key: json['key'],
+        label: json['label'],
+        description: json['description'],
+        fieldType: json['fieldType'],
+        required: json['required'] ?? false,
+        defaultValue: json['defaultValue'],
+        options: json['options'],
+        validation: json['validation'],
+      );
+}
+
+// ==================== ACTION DEFINITIONS ====================
+
+abstract class ActionDefinition {
+  final String type;
+
+  ActionDefinition(this.type);
+
+  Map<String, dynamic> toJson();
+
+  factory ActionDefinition.fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    switch (type) {
+      case 'http_request':
+        return HttpRequestAction.fromJson(json);
+      case 'transform':
+        return TransformAction.fromJson(json);
+      case 'script':
+        return ScriptAction.fromJson(json);
+      case 'template':
+        return TemplateAction.fromJson(json);
+      case 'workflow':
+        return WorkflowAction.fromJson(json);
+      default:
+        throw Exception('Unknown action type: $type');
+    }
+  }
+}
+
+class HttpRequestAction extends ActionDefinition {
+  final String method;
+  final String urlTemplate;
+  final Map<String, String> headers;
+  final String? bodyTemplate;
+  final String? authType;
+  final Map<String, dynamic>? authConfig;
+  final Map<String, dynamic>? responseMapping;
+
+  HttpRequestAction({
+    required this.method,
+    required this.urlTemplate,
+    this.headers = const {},
+    this.bodyTemplate,
+    this.authType,
+    this.authConfig,
+    this.responseMapping,
+  }) : super('http_request');
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'method': method,
+        'urlTemplate': urlTemplate,
+        'headers': headers,
+        'bodyTemplate': bodyTemplate,
+        'authType': authType,
+        'authConfig': authConfig,
+        'responseMapping': responseMapping,
+      };
+
+  factory HttpRequestAction.fromJson(Map<String, dynamic> json) => HttpRequestAction(
+        method: json['method'],
+        urlTemplate: json['urlTemplate'],
+        headers: Map<String, String>.from(json['headers'] ?? {}),
+        bodyTemplate: json['bodyTemplate'],
+        authType: json['authType'],
+        authConfig: json['authConfig'],
+        responseMapping: json['responseMapping'],
+      );
+}
+
+class TransformAction extends ActionDefinition {
+  final List<TransformRule> rules;
+  final String outputFormat;
+
+  TransformAction({
+    required this.rules,
+    this.outputFormat = 'json',
+  }) : super('transform');
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'rules': rules.map((r) => r.toJson()).toList(),
+        'outputFormat': outputFormat,
+      };
+
+  factory TransformAction.fromJson(Map<String, dynamic> json) => TransformAction(
+        rules: (json['rules'] as List).map((r) => TransformRule.fromJson(r)).toList(),
+        outputFormat: json['outputFormat'] ?? 'json',
+      );
+}
+
+class TransformRule {
+  final String sourceField;
+  final String targetField;
+  final String? transformType;
+  final Map<String, dynamic>? transformConfig;
+
+  TransformRule({
+    required this.sourceField,
+    required this.targetField,
+    this.transformType,
+    this.transformConfig,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'sourceField': sourceField,
+        'targetField': targetField,
+        'transformType': transformType,
+        'transformConfig': transformConfig,
+      };
+
+  factory TransformRule.fromJson(Map<String, dynamic> json) => TransformRule(
+        sourceField: json['sourceField'],
+        targetField: json['targetField'],
+        transformType: json['transformType'],
+        transformConfig: json['transformConfig'],
+      );
+}
+
+class ScriptAction extends ActionDefinition {
+  final String language;
+  final String code;
+  final Map<String, dynamic>? environment;
+
+  ScriptAction({
+    required this.language,
+    required this.code,
+    this.environment,
+  }) : super('script');
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'language': language,
+        'code': code,
+        'environment': environment,
+      };
+
+  factory ScriptAction.fromJson(Map<String, dynamic> json) => ScriptAction(
+        language: json['language'],
+        code: json['code'],
+        environment: json['environment'],
+      );
+}
+
+class TemplateAction extends ActionDefinition {
+  final String template;
+  final String templateEngine;
+  final Map<String, dynamic>? context;
+
+  TemplateAction({
+    required this.template,
+    this.templateEngine = 'mustache',
+    this.context,
+  }) : super('template');
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'template': template,
+        'templateEngine': templateEngine,
+        'context': context,
+      };
+
+  factory TemplateAction.fromJson(Map<String, dynamic> json) => TemplateAction(
+        template: json['template'],
+        templateEngine: json['templateEngine'] ?? 'mustache',
+        context: json['context'],
+      );
+}
+
+class WorkflowAction extends ActionDefinition {
+  final String workflowId;
+  final Map<String, String> inputMapping;
+  final Map<String, String> outputMapping;
+
+  WorkflowAction({
+    required this.workflowId,
+    this.inputMapping = const {},
+    this.outputMapping = const {},
+  }) : super('workflow');
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'workflowId': workflowId,
+        'inputMapping': inputMapping,
+        'outputMapping': outputMapping,
+      };
+
+  factory WorkflowAction.fromJson(Map<String, dynamic> json) => WorkflowAction(
+        workflowId: json['workflowId'],
+        inputMapping: Map<String, String>.from(json['inputMapping'] ?? {}),
+        outputMapping: Map<String, String>.from(json['outputMapping'] ?? {}),
+      );
+}
+
+// ==================== LOW-CODE PLUGIN BUILDER UI ====================

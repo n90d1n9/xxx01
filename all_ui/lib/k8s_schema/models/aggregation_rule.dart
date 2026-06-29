@@ -1,0 +1,2 @@
+
+class AggregationRule {final List<LabelSelector>? clusterRoleSelectors; AggregationRule({this.clusterRoleSelectors}); factory AggregationRule.fromJson(Map<String, dynamic> json) {return AggregationRule(clusterRoleSelectors: json['clusterRoleSelectors'] != null ? (json['clusterRoleSelectors'] as List).map((e) => LabelSelector.fromJson(e)).toList() : null);} Map<String, dynamic> toJson() {return {if (clusterRoleSelectors != null) 'clusterRoleSelectors' : clusterRoleSelectors!.map((e) => e.toJson()).toList()};}}

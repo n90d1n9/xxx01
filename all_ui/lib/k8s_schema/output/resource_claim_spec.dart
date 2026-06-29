@@ -1,0 +1,29 @@
+import 'resource_claim_parameters_reference.dart';
+
+class ResourceClaimSpec {
+  final String resourceClassName;
+  final ResourceClaimParametersReference? parametersRef;
+  final String? allocationMode;
+  ResourceClaimSpec({
+    required this.resourceClassName,
+    this.parametersRef,
+    this.allocationMode,
+  });
+  factory ResourceClaimSpec.fromJson(Map<String, dynamic> json) {
+    return ResourceClaimSpec(
+      resourceClassName: json['resourceClassName'],
+      parametersRef:
+          json['parametersRef'] != null
+              ? ResourceClaimParametersReference.fromJson(json['parametersRef'])
+              : null,
+      allocationMode: json['allocationMode'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'resourceClassName': resourceClassName,
+      if (parametersRef != null) 'parametersRef': parametersRef!.toJson(),
+      if (allocationMode != null) 'allocationMode': allocationMode,
+    };
+  }
+}

@@ -1,0 +1,230 @@
+class RetailOverview extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('RETAIL - OVERVIEW'),
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Last Month',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8.0),
+                            Text(
+                              '\$4,758,565',
+                              style: TextStyle(
+                                fontSize: 24.0,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8.0),
+                            Text(
+                              'Sales',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8.0),
+                            Row(
+                              children: [
+                                Text('Y-1'),
+                                SizedBox(width: 8.0),
+                                Text('\$4,053,682'),
+                                SizedBox(width: 16.0),
+                                Icon(Icons.arrow_upward, color: Colors.green),
+                                SizedBox(width: 8.0),
+                                Text('17.39%'),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 16.0),
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Last Quarter',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8.0),
+                            Text(
+                              '\$2,547,497',
+                              style: TextStyle(
+                                fontSize: 24.0,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8.0),
+                            Text(
+                              'Margin',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8.0),
+                            Row(
+                              children: [
+                                Text('Y-1'),
+                                SizedBox(width: 8.0),
+                                Text('\$710'),
+                                SizedBox(width: 16.0),
+                                Icon(Icons.arrow_upward, color: Colors.green),
+                                SizedBox(width: 8.0),
+                                Text('3,296.66%'),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 16.0),
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Margin rate',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8.0),
+                            Text(
+                              '53.5%',
+                              style: TextStyle(
+                                fontSize: 24.0,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8.0),
+                            Row(
+                              children: [
+                                Text('Y-1'),
+                                SizedBox(width: 8.0),
+                                Text('1.9%'),
+                                SizedBox(width: 16.0),
+                                Icon(Icons.arrow_upward, color: Colors.green),
+                                SizedBox(width: 8.0),
+                                Text('2,793.5pts'),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 16.0),
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '# Orders',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8.0),
+                            Text(
+                              '20,554',
+                              style: TextStyle(
+                                fontSize: 24.0,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8.0),
+                            Row(
+                              children: [
+                                Text('Y-1'),
+                                SizedBox(width: 8.0),
+                                Text('72,000'),
+                                SizedBox(width: 16.0),
+                                Icon(Icons.arrow_downward, color: Colors.red),
+                                SizedBox(width: 8.0),
+                                Text('-72.59%'),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 16.0),
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Basket size',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8.0),
+                            Text(
+                              '\$232',
+                              style: TextStyle(
+                                fontSize: 24.0,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8.0),
+                            Row(
+                              children: [
+                                Text('Y-1'),
+                                SizedBox(width: 8.0),
+                                Text('\$7,000'),
+                                SizedBox(width: 16.0),
+                                Icon(Icons.arrow_downward, color: Colors.red),
+                                SizedBox(width: 8.0),
+                                Text('-99.69%'),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 16.0),
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,

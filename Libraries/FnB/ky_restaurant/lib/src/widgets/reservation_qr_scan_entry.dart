@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/reservation_qr_session_controller.dart';
+import '../models/reservation_qr_scan_entry_presentation.dart';
 import '../models/reservation_qr_scan_workflow.dart';
+import '../services/reservation_qr_scan_entry_presenter.dart';
 import 'restaurant_section_header.dart';
 import 'restaurant_section_surface.dart';
 
@@ -16,6 +18,7 @@ class RestaurantReservationQrScanEntry extends StatefulWidget {
     this.submitLabel = 'Resolve scan',
     this.enabled = true,
     this.autofocus = false,
+    this.presenter = const RestaurantReservationQrScanEntryPresenter(),
     this.onChanged,
     this.onSubmitted,
     this.onClear,
@@ -28,6 +31,7 @@ class RestaurantReservationQrScanEntry extends StatefulWidget {
   final String submitLabel;
   final bool enabled;
   final bool autofocus;
+  final RestaurantReservationQrScanEntryPresenter presenter;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final VoidCallback? onClear;
@@ -41,8 +45,6 @@ class RestaurantReservationQrScanEntry extends StatefulWidget {
 class _RestaurantReservationQrScanEntryState
     extends State<RestaurantReservationQrScanEntry> {
   late final TextEditingController _controller;
-
-  bool get _hasValue => _controller.text.trim().isNotEmpty;
 
   @override
   void initState() {
@@ -70,7 +72,7 @@ class _RestaurantReservationQrScanEntryState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final canSubmit = widget.enabled && _hasValue && widget.onSubmitted != null;
+    final presentation = _presentationFor(_controller.text);
 
     return Semantics(
       container: true,
@@ -98,10 +100,11 @@ class _RestaurantReservationQrScanEntryState
               onSubmitted: widget.enabled ? _submitValue : null,
               decoration: InputDecoration(
                 hintText: widget.hintText,
+                helperText: presentation.helperText,
                 prefixIcon: const Icon(Icons.link_rounded),
-                suffixIcon: _hasValue
+                suffixIcon: presentation.hasValue
                     ? IconButton(
-                        tooltip: 'Clear scan value',
+                        tooltip: presentation.clearTooltip,
                         icon: const Icon(Icons.close_rounded),
                         onPressed: widget.enabled ? _clearValue : null,
                       )
@@ -126,22 +129,25 @@ class _RestaurantReservationQrScanEntryState
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                onPressed: canSubmit
-                    ? () => _submitValue(_controller.text)
-                    : null,
-                icon: const Icon(Icons.verified_outlined, size: 18),
-                label: Text(widget.submitLabel),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  textStyle: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              child: Tooltip(
+                message: presentation.submitTooltip ?? widget.submitLabel,
+                child: FilledButton.icon(
+                  onPressed: presentation.canSubmit
+                      ? () => _submitValue(_controller.text)
+                      : null,
+                  icon: const Icon(Icons.verified_outlined, size: 18),
+                  label: Text(widget.submitLabel),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    textStyle: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
               ),
@@ -158,9 +164,9 @@ class _RestaurantReservationQrScanEntryState
   }
 
   void _submitValue(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) return;
-    widget.onSubmitted?.call(trimmed);
+    final presentation = _presentationFor(value);
+    if (!presentation.canSubmit) return;
+    widget.onSubmitted?.call(presentation.normalizedValue);
   }
 
   void _clearValue() {
@@ -173,6 +179,14 @@ class _RestaurantReservationQrScanEntryState
     _controller.value = TextEditingValue(
       text: value,
       selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
+
+  RestaurantReservationQrScanEntryPresentation _presentationFor(String value) {
+    return widget.presenter.build(
+      value: value,
+      enabled: widget.enabled,
+      hasSubmitHandler: widget.onSubmitted != null,
     );
   }
 }
@@ -190,6 +204,7 @@ class RestaurantReservationQrScanControllerEntry extends StatelessWidget {
     this.includeDismiss = true,
     this.enabled = true,
     this.autofocus = false,
+    this.presenter = const RestaurantReservationQrScanEntryPresenter(),
     this.onScanResolved,
     this.onClear,
   });
@@ -203,6 +218,7 @@ class RestaurantReservationQrScanControllerEntry extends StatelessWidget {
   final bool includeDismiss;
   final bool enabled;
   final bool autofocus;
+  final RestaurantReservationQrScanEntryPresenter presenter;
   final ValueChanged<RestaurantReservationQrScanWorkflow>? onScanResolved;
   final VoidCallback? onClear;
 
@@ -216,6 +232,7 @@ class RestaurantReservationQrScanControllerEntry extends StatelessWidget {
       submitLabel: submitLabel,
       enabled: enabled,
       autofocus: autofocus,
+      presenter: presenter,
       onSubmitted: _resolveScan,
       onClear: onClear,
     );

@@ -1,0 +1,28 @@
+class EndpointPort {
+  final String? name;
+  final int port;
+  final String? protocol;
+  final String? appProtocol;
+  EndpointPort({
+    this.name,
+    required this.port,
+    this.protocol,
+    this.appProtocol,
+  });
+  factory EndpointPort.fromJson(Map<String, dynamic> json) {
+    return EndpointPort(
+      name: json['name'],
+      port: json['port'],
+      protocol: json['protocol'],
+      appProtocol: json['appProtocol'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (name != null) 'name': name,
+      'port': port,
+      if (protocol != null) 'protocol': protocol,
+      if (appProtocol != null) 'appProtocol': appProtocol,
+    };
+  }
+}

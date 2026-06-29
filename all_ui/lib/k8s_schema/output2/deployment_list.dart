@@ -1,0 +1,33 @@
+import 'list_meta.dart';
+import 'deployment.dart';
+
+class DeploymentList {
+  final String apiVersion;
+  final String kind;
+  final ListMeta? metadata;
+  final List<Deployment> items;
+  DeploymentList({
+    this.apiVersion = 'apps/v1',
+    this.kind = 'DeploymentList',
+    this.metadata,
+    required this.items,
+  });
+  factory DeploymentList.fromJson(Map<String, dynamic> json) {
+    return DeploymentList(
+      apiVersion: json['apiVersion'] ?? 'apps/v1',
+      kind: json['kind'] ?? 'DeploymentList',
+      metadata:
+          json['metadata'] != null ? ListMeta.fromJson(json['metadata']) : null,
+      items:
+          (json['items'] as List).map((e) => Deployment.fromJson(e)).toList(),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      if (metadata != null) 'metadata': metadata!.toJson(),
+      'items': items.map((e) => e.toJson()).toList(),
+    };
+  }
+}

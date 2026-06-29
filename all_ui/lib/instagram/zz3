@@ -1,0 +1,97 @@
+// COMPLETE FINAL IMPLEMENTATION - Continuing from your code
+// Add this after your existing code
+
+// ==================== COLLECTION DETAIL SCREEN - COMPLETE ====================
+
+// ==================== COLLECTION CARD - COMPLETE ====================
+class CollectionCard extends StatelessWidget {
+  final EventCollection collection;
+  final VoidCallback onTap;
+
+  const CollectionCard({
+    super.key,
+    required this.collection,
+    required this.onTap,
+  });
+
+  
+
+  Color _getStatusColor(EventStatus status) {
+    switch (status) {
+      case EventStatus.upcoming:
+        return Colors.orange;
+      case EventStatus.ongoing:
+        return Colors.green;
+      case EventStatus.completed:
+        return Colors.blue;
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+}
+
+// ==================== MEDIA ITEM WIDGET - COMPLETE ====================
+
+
+// ==================== PHOTO PLAYER SCREEN - COMPLETE ====================
+
+
+// ==================== SLIDESHOW SCREEN - COMPLETE ====================
+
+
+// ==================== FAVORITES SCREEN - COMPLETE ====================
+
+
+// ==================== PROFILE SCREEN - COMPLETE ====================
+ LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+          ),
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close, color: Colors.white, size: 28),
+            ),
+            const Spacer(),
+            Text(
+              '${_currentIndex + 1} of ${widget.media.length}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              onPressed: () => _sharePhoto(),
+              icon: const Icon(Icons.share, color: Colors.white, size: 24),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    final currentPhoto = widget.media[_currentIndex];
+
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom: MediaQuery.of(context).padding.bottom + 16,
+          top: 16,
+        ),
+        decoration: BoxDecoration(
+          gradient:

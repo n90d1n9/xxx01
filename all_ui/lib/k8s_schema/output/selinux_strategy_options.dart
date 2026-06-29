@@ -1,0 +1,22 @@
+import 'selinux_options.dart';
+
+class SELinuxStrategyOptions {
+  final String rule;
+  final SELinuxOptions? seLinuxOptions;
+  SELinuxStrategyOptions({required this.rule, this.seLinuxOptions});
+  factory SELinuxStrategyOptions.fromJson(Map<String, dynamic> json) {
+    return SELinuxStrategyOptions(
+      rule: json['rule'],
+      seLinuxOptions:
+          json['seLinuxOptions'] != null
+              ? SELinuxOptions.fromJson(json['seLinuxOptions'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'rule': rule,
+      if (seLinuxOptions != null) 'seLinuxOptions': seLinuxOptions!.toJson(),
+    };
+  }
+}

@@ -1,0 +1,1751 @@
+
+
+
+
+
+
+class ContentTypeSchema {
+
+
+
+
+
+  /// Generate OpenAPI 3.0 specification
+  Map<String, dynamic> toOpenAPISpec() {
+    final className = _toPascalCase(tableName);
+    
+    return {
+      'openapi': '3.0.0',
+      'info': {
+        'title': '$name API',
+        'description': description ?? 'API for $name',
+        'version': version.toString(),
+      },
+      'paths': {
+        '/$tableName': {
+          'get': {
+            'summary': 'List all $name',
+            'parameters': [
+              {'name': 'page', 'in': 'query', 'schema': {'type': 'integer', 'default': 0}},
+              {'name': 'size', 'in': 'query', 'schema': {'type': 'integer', 'default': 20}},
+            ],
+            'responses': {
+              '200': {
+                'description': 'Success',
+                'content': {
+                  'application/json': {
+                    'schema': {
+                      'type': 'array',
+                      'items': {'\$ref': '#/components/schemas/$className'}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          'post': {
+            'summary': 'Create $name',
+            'requestBody': {
+              'content': {
+                'application/json': {
+                  'schema': {'\$ref': '#/components/schemas/$className'}
+                }
+              }
+            },
+            'responses 
+
+
+
+/*  
+class ContentTypeSchema {
+  final String id;
+  final String name;
+  final String tableName;
+  final String? description;
+  final String icon;
+  final List<FieldSchema> fields;
+  final List<SchemaRelationship> relationships;
+  final ContentTypeSettings settings;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final int version;
+  final List<String>? tags; // For categorization
+  final Map<String, dynamic>? metadata;
+
+  const ContentTypeSchema({
+    required this.id,
+    required this.name,
+    required this.tableName,
+    this.description,
+    required this.icon,
+    required this.fields,
+    this.relationships = const [],
+    required this.settings,
+    required this.createdAt,
+    required this.updatedAt,
+    this.version = 1,
+    this.tags,
+    this.metadata,
+  });
+
+  String toCreateTableSQL() {
+    final buffer = StringBuffer();
+    buffer.writeln('CREATE TABLE $tableName (');
+    buffer.writeln('  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),');
+    
+    for (var field in fields) {
+      if (!field.isSystemField) {
+        buffer.writeln('  ${field.toSQLColumn()},');
+      }
+    }
+    
+    // Add foreign key relationships
+    for (var rel in relationships.where((r) => r.type == RelationType.manyToOne)) {
+      final fkField = '${rel.name}_id';
+      buffer.writeln('  $fkField UUID${rel.required ? ' NOT NULL' : ''},');
+    }
+    
+    buffer.writeln('  created_at TIMESTAMP DEFAULT NOW(),');
+    buffer.writeln('  updated_at TIMESTAMP DEFAULT NOW(),');
+    buffer.writeln('  created_by UUID,');
+    buffer.writeln('  updated_by UUID,');
+    buffer.writeln('  published BOOLEAN DEFAULT FALSE,');
+    buffer.writeln('  published_at TIMESTAMP');
+    buffer.writeln(');');
+    
+    // Add indexes
+    for (var field in fields.where((f) => f.constraints.indexed)) {
+      buffer.writeln('CREATE INDEX idx_${tableName}_${field.name} ON $tableName(${field.name});');
+    }
+    
+    // Add foreign key constraints
+    for (var rel in relationships.where((r) => r.type == RelationType.manyToOne)) {
+      final fkField = '${rel.name}_id';
+      buffer.writeln('ALTER TABLE $tableName ADD CONSTRAINT fk_${tableName}_${rel.name}');
+      buffer.writeln('  FOREIGN KEY ($fkField) REFERENCES ${rel.targetSchemaId}(id)');
+      buffer.writeln('  ON DELETE ${rel.onDelete} ON UPDATE ${rel.onUpdate};');
+    }
+    
+    // Add junction tables for many-to-many
+    for (var rel in relationships.where((r) => r.type == RelationType.manyToMany)) {
+      final junctionTable = rel.junctionTable ?? '${tableName}_${rel.targetSchemaId}';
+      buffer.writeln();
+      buffer.writeln('CREATE TABLE $junctionTable (');
+      buffer.writeln('  ${tableName}_id UUID NOT NULL,');
+      buffer.writeln('  ${rel.targetSchemaId}_id UUID NOT NULL,');
+      buffer.writeln('  created_at TIMESTAMP DEFAULT NOW(),');
+      buffer.writeln('  PRIMARY KEY (${tableName}_id, ${rel.targetSchemaId}_id),');
+      buffer.writeln('  FOREIGN KEY (${tableName}_id) REFERENCES $tableName(id) ON DELETE CASCADE,');
+      buffer.writeln('  FOREIGN KEY (${rel.targetSchemaId}_id) REFERENCES ${rel.targetSchemaId}(id) ON DELETE CASCADE');
+      buffer.writeln(');');
+    }
+    
+    return buffer.toString();
+  }
+
+  /// Analyze schema health
+  SchemaHealthReport analyzeHealth() {
+    final issues = <SchemaIssue>[];
+    final recommendations = <SchemaRecommendation>[];
+    
+    // Check for missing indexes on foreign keys
+    for (var rel in relationships.where((r) => r.type == RelationType.manyToOne)) {
+      final fkField = '${rel.name}_id';
+      recommendations.add(SchemaRecommendation(
+        title: 'Add index on $fkField',
+        description: 'Foreign key columns benefit from indexes for join performance',
+        benefit: 'Improved query performance by 10-100x',
+        autoFixable: true,
+      ));
+    }
+    
+    // Check for text fields without length limits
+    for (var field in fields.where((f) => f.sqlType == SQLType.varchar)) {
+      if (field.widgetOptions?.maxLength == null || (field.widgetOptions?.maxLength ?? 0) > 500) {
+        issues.add(SchemaIssue(
+          severity: 'warning',
+          message: 'Field "${field.label}" has no length limit or very high limit',
+          fieldId: field.id,
+          fix: 'Consider adding maxLength validation',
+        ));
+      }
+    }
+    
+    // Check for unique constraints without indexes
+    for (var field in fields.where((f) => f.constraints.unique && !f.constraints.indexed)) {
+      recommendations.add(SchemaRecommendation(
+        title: 'Add index to unique field "${field.label}"',
+        description: 'Unique constraints are enforced faster with explicit indexes',
+        benefit: 'Better constraint checking performance',
+        autoFixable: true,
+      ));
+    }
+    
+    // Check for missing required validations
+    for (var field in fields.where((f) => !f.constraints.nullable && f.validation == null)) {
+      issues.add(SchemaIssue(
+        severity: 'info',
+        message: 'Required field "${field.label}" has no validation rules',
+        fieldId: field.id,
+        fix: 'Add validation rules for better user experience',
+      ));
+    }
+    
+    // Calculate health score
+    final errorCount = issues.where((i) => i.severity == 'error').length;
+    final warningCount = issues.where((i) => i.severity == 'warning').length;
+    final healthScore = 100 - (errorCount * 20) - (warningCount * 5);
+    
+    return SchemaHealthReport(
+      issues: issues,
+      recommendations: recommendations,
+      healthScore: healthScore.clamp(0, 100).toDouble(),
+    );
+  }
+
+  String toQuarkusEntity() {
+    final className = _toPascalCase(tableName);
+    final buffer = StringBuffer();
+    
+    buffer.writeln('package com.example.entity;');
+    buffer.writeln();
+    buffer.writeln('import io.quarkus.hibernate.orm.panache.PanacheEntityBase;');
+    buffer.writeln('import javax.persistence.*;');
+    buffer.writeln('import java.time.*;');
+    buffer.writeln('import java.util.UUID;');
+    if (relationships.isNotEmpty) {
+      buffer.writeln('import java.util.List;');
+      buffer.writeln('import java.util.Set;');
+    }
+    buffer.writeln();
+    buffer.writeln('@Entity');
+    buffer.writeln('@Table(name = "$tableName")');
+    buffer.writeln('public class $className extends PanacheEntityBase {');
+    buffer.writeln();
+    buffer.writeln('    @Id');
+    buffer.writeln('    @GeneratedValue');
+    buffer.writeln('    public UUID id;');
+    buffer.writeln();
+    
+    for (var field in fields) {
+      if (field.isComputed) {
+        buffer.writeln('    @Formula("${field.computeExpression}")');
+      }
+      if (field.constraints.unique) {
+        buffer.writeln('    @Column(unique = true, nullable = ${field.constraints.nullable})');
+      } else if (!field.constraints.nullable) {
+        buffer.writeln('    @Column(nullable = false)');
+      }
+      buffer.writeln('    public ${field.toJavaType()} ${_toCamelCase(field.name)};');
+      buffer.writeln();
+    }
+    
+    // Add relationships
+    for (var rel in relationships) {
+      switch (rel.type) {
+        case RelationType.oneToOne:
+          buffer.writeln('    @OneToOne');
+          buffer.writeln('    public ${_toPascalCase(rel.targetSchemaId)} ${_toCamelCase(rel.name)};');
+          break;
+        case RelationType.oneToMany:
+          buffer.writeln('    @OneToMany(mappedBy = "${_toCamelCase(tableName)}")');
+          buffer.writeln('    public List<${_toPascalCase(rel.targetSchemaId)}> ${_toCamelCase(rel.name)};');
+          break;
+        case RelationType.manyToOne:
+          buffer.writeln('    @ManyToOne');
+          buffer.writeln('    @JoinColumn(name = "${rel.name}_id")');
+          buffer.writeln('    public ${_toPascalCase(rel.targetSchemaId)} ${_toCamelCase(rel.name)};');
+          break;
+        case RelationType.manyToMany:
+          buffer.writeln('    @ManyToMany');
+          buffer.writeln('    @JoinTable(name = "${rel.junctionTable ?? '${tableName}_${rel.targetSchemaId}'}")');
+          buffer.writeln('    public Set<${_toPascalCase(rel.targetSchemaId)}> ${_toCamelCase(rel.name)};');
+          break;
+      }
+      buffer.writeln();
+    }
+    
+    buffer.writeln('    @Column(name = "created_at")');
+    buffer.writeln('    public LocalDateTime createdAt;');
+    buffer.writeln();
+    buffer.writeln('    @Column(name = "updated_at")');
+    buffer.writeln('    public LocalDateTime updatedAt;');
+    buffer.writeln();
+    buffer.writeln('    public Boolean published = false;');
+    buffer.writeln();
+    buffer.writeln('    @Column(name = "published_at")');
+    buffer.writeln('    public LocalDateTime publishedAt;');
+    buffer.writeln('}');
+    
+    return buffer.toString();
+  }
+
+  String toQuarkusResource() {
+    final className = _toPascalCase(tableName);
+    final buffer = StringBuffer();
+    
+    buffer.writeln('package com.example.resource;');
+    buffer.writeln();
+    buffer.writeln('import com.example.entity.$className;');
+    buffer.writeln('import javax.transaction.Transactional;');
+    buffer.writeln('import javax.ws.rs.*;');
+    buffer.writeln('import javax.ws.rs.core.MediaType;');
+    buffer.writeln('import javax.ws.rs.core.Response;');
+    buffer.writeln('import java.time.LocalDateTime;');
+    buffer.writeln('import java.util.List;');
+    buffer.writeln('import java.util.UUID;');
+    buffer.writeln();
+    buffer.writeln('@Path("/$tableName")');
+    buffer.writeln('@Produces(MediaType.APPLICATION_JSON)');
+    buffer.writeln('@Consumes(MediaType.APPLICATION_JSON)');
+    buffer.writeln('public class ${className}Resource {');
+    buffer.writeln();
+    buffer.writeln('    @GET');
+    buffer.writeln('    public List<$className> list(');
+    buffer.writeln('        @QueryParam("page") @DefaultValue("0") int page,');
+    buffer.writeln('        @QueryParam("size") @DefaultValue("20") int size) {');
+    buffer.writeln('        return $className.findAll().page(page, size).list();');
+    buffer.writeln('    }');
+    buffer.writeln();
+    buffer.writeln('    @GET');
+    buffer.writeln('    @Path("/{id}")');
+    buffer.writeln('    public $className get(@PathParam("id") String id) {');
+    buffer.writeln('        $className entity = $className.findById(UUID.fromString(id));');
+    buffer.writeln('        if (entity == null) throw new NotFoundException();');
+    buffer.writeln('        return entity;');
+    buffer.writeln('    }');
+    buffer.writeln();
+    buffer.writeln('    @POST');
+    buffer.writeln('    @Transactional');
+    buffer.writeln('    public Response create($className entity) {');
+    buffer.writeln('        entity.createdAt = LocalDateTime.now();');
+    buffer.writeln('        entity.updatedAt = LocalDateTime.now();');
+    buffer.writeln('        entity.persist();');
+    buffer.writeln('        return Response.status(201).entity(entity).build();');
+    buffer.writeln('    }');
+    buffer.writeln();
+    buffer.writeln('    @PUT');
+    buffer.writeln('    @Path("/{id}")');
+    buffer.writeln('    @Transactional');
+    buffer.writeln('    public $className update(@PathParam("id") String id, $className updated) {');
+    buffer.writeln('        $className entity = $className.findById(UUID.fromString(id));');
+    buffer.writeln('        if (entity == null) throw new NotFoundException();');
+    
+    for (var field in fields) {
+      final camelName = _toCamelCase(field.name);
+      buffer.writeln('        entity.$camelName = updated.$camelName;');
+    }
+    
+    buffer.writeln('        entity.updatedAt = LocalDateTime.now();');
+    buffer.writeln('        return entity;');
+    buffer.writeln('    }');
+    buffer.writeln();
+    buffer.writeln('    @DELETE');
+    buffer.writeln('    @Path("/{id}")');
+    buffer.writeln('    @Transactional');
+    buffer.writeln('    public Response delete(@PathParam("id") String id) {');
+    buffer.writeln('        boolean deleted = $className.deleteById(UUID.fromString(id));');
+    buffer.writeln('        return deleted ? Response.noContent().build() : Response.status(404).build();');
+    buffer.writeln('    }');
+    buffer.writeln('}');
+    
+    return buffer.toString();
+  }
+
+  /// Generate OpenAPI 3.0 specification
+  Map<String, dynamic> toOpenAPISpec() {
+    final className = _toPascalCase(tableName);
+    
+    return {
+      'openapi': '3.0.0',
+      'info': {
+        'title': '$name API',
+        'description': description ?? 'API for $name',
+        'version': version.toString(),
+      },
+      'paths': {
+        '/$tableName': {
+          'get': {
+            'summary': 'List all $name',
+            'parameters': [
+              {'name': 'page', 'in': 'query', 'schema': {'type': 'integer', 'default': 0}},
+              {'name': 'size', 'in': 'query', 'schema': {'type': 'integer', 'default': 20}},
+            ],
+            'responses': {
+              '200': {
+                'description': 'Success',
+                'content': {
+                  'application/json': {
+                    'schema': {
+                      'type': 'array',
+                      'items': {'\$ref': '#/components/schemas/$className'}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          'post': {
+            'summary': 'Create $name',
+            'requestBody': {
+              'content': {
+                'application/json': {
+                  'schema': {'\$ref': '#/components/schemas/$className'}
+                }
+              }
+            },
+            'responses
+ */
+
+
+
+
+/* 
+          },
+          errorMessage: 'Invalid email format',
+        ),
+        widgetOptions: const WidgetOptions(
+          placeholder: 'user@example.com',
+          maxLength: 255,
+        ),
+        position: 0,
+      ),
+      FieldSchema(
+        id: 'f2',
+        name: 'username',
+        label: 'Username',
+        uiType: UIFieldType.textInput,
+        sqlType: SQLType.varchar,
+        constraints: const FieldConstraints(unique: true, nullable: false, indexed: true),
+        validation: const ValidationRules(minLength: 3, maxLength: 50),
+        position: 1,
+      ),
+      FieldSchema(
+        id: 'f3',
+        name: 'first_name',
+        label: 'First Name',
+        uiType: UIFieldType.textInput,
+        sqlType: SQLType.varchar,
+        constraints: const FieldConstraints(nullable: false),
+        position: 2,
+      ),
+      FieldSchema(
+        id: 'f4',
+        name: 'last_name',
+        label: 'Last Name',
+        uiType: UIFieldType.textInput,
+        sqlType: SQLType.varchar,
+        constraints: const FieldConstraints(nullable: false),
+        position: 3,
+      ),
+    ];
+  }
+ */
+
+
+
+
+
+class CMSRepository {
+  final Map<String, ContentTypeSchema> _contentTypes = {};
+  final Map<String, List<ContentEntry>> _entries = {};
+  int _idCounter = 1;
+
+  String _generateId() => 'id_${_idCounter++}_${DateTime.now().millisecondsSinceEpoch}';
+
+  Future<List<ContentTypeSchema>> getContentTypes() async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    return _contentTypes.values.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  Future<ContentTypeSchema?> getContentType(String id) async {
+    await Future.delayed(const Duration(milliseconds: 50));
+    return _contentTypes[id];
+  }
+
+  Future<ContentTypeSchema> createContentType(ContentTypeSchema contentType) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    _contentTypes[contentType.id] = contentType;
+    _entries[contentType.id] = [];
+    return contentType;
+  }
+
+  Future<ContentTypeSchema> updateContentType(ContentTypeSchema contentType) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    final updated = contentType.copyWith(
+      version: contentType.version + 1,
+      updatedAt: DateTime.now(),
+    );
+    _contentTypes[contentType.id] = updated;
+    return updated;
+  }
+
+  Future<void> deleteContentType(String id) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    _contentTypes.remove(id);
+    _entries.remove(id);
+  }
+
+  Future<List<ContentEntry>> getEntries(String contentTypeId) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    return _entries[contentTypeId] ?? [];
+  }
+
+  Future<ContentEntry> createEntry(ContentEntry entry) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    _entries[entry.contentType
+    
+    
+
+//----
+
+'relationships': schema.relationships.map((rel) => {
+        return {
+          'name': rel.name,
+          'targetModel': _toPascalCase(rel.targetSchemaId),
+          'relationType': _getRelationType(rel.type),
+          'isArray': rel.type == RelationType.oneToMany || rel.type == RelationType.manyToMany,
+          'isRequired': rel.required,
+        };
+      }).toList(),
+    };
+  }
+
+  static String _toPascalCase(String str) {
+    return str.split('_').map((word) => 
+      word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)
+    ).join('');
+  }
+
+  static String _toCamelCase(String str) {
+    final pascal = _toPascalCase(str);
+    return pascal.isEmpty ? '' : pascal[0].toLowerCase() + pascal.substring(1);
+  }
+
+  static String _getSQLTypeString(SQLType type) {
+    switch (type) {
+      case SQLType.varchar: return 'String';
+      case SQLType.text: return 'String';
+      case SQLType.integer: return 'Int';
+      case SQLType.bigint: return 'BigInt';
+      case SQLType.decimal: return 'Decimal';
+      case SQLType.boolean: return 'Boolean';
+      case SQLType.date: return 'DateTime';
+      case SQLType.timestamp: return 'DateTime';
+      case SQLType.time: return 'DateTime';
+      case SQLType.json: return 'Json';
+      case SQLType.jsonb: return 'Json';
+      case SQLType.uuid: return 'String';
+      case SQLType.bytea: return 'Bytes';
+    }
+  }
+
+  static String _getTypeScriptType(SQLType type) {
+    switch (type) {
+      case SQLType.varchar:
+      case SQLType.text:
+      case SQLType.uuid:
+        return 'string';
+      case SQLType.integer:
+      case SQLType.bigint:
+      case SQLType.decimal:
+        return 'number';
+      case SQLType.boolean:
+        return 'boolean';
+      case SQLType.date:
+      case SQLType.timestamp:
+      case SQLType.time:
+        return 'Date';
+      case SQLType.json:
+      case SQLType.jsonb:
+        return 'any';
+      case SQLType.bytea:
+        return 'Buffer';
+    }
+  }
+
+  static String _getDartType(SQLType type) {
+    switch (type) {
+      case SQLType.varchar:
+      case SQLType.text:
+      case SQLType.uuid:
+        return 'String';
+      case SQLType.integer:
+      case SQLType.bigint:
+        return 'int';
+      case SQLType.decimal:
+        return 'double';
+      case SQLType.boolean:
+        return 'bool';
+      case SQLType.date:
+      case SQLType.timestamp:
+      case SQLType.time:
+        return 'DateTime';
+      case SQLType.json:
+      case SQLType.jsonb:
+        return 'Map<String, dynamic>';
+      case SQLType.bytea:
+        return 'List<int>';
+    }
+  }
+
+  static String _getLaravelType(SQLType type) {
+    switch (type) {
+      case SQLType.varchar:
+        return 'string';
+      case SQLType.text:
+        return 'text';
+      case SQLType.integer:
+        return 'integer';
+      case SQLType.bigint:
+        return 'bigInteger';
+      case SQLType.decimal:
+        return 'decimal';
+      case SQLType.boolean:
+        return 'boolean';
+      case SQLType.date:
+        return 'date';
+      case SQLType.timestamp:
+        return 'timestamp';
+      case SQLType.time:
+        return 'time';
+      case SQLType.json:
+      case SQLType.jsonb:
+        return 'json';
+      case SQLType.uuid:
+        return 'uuid';
+      case SQLType.bytea:
+        return 'binary';
+    }
+  }
+
+  static bool _isCastable(SQLType type) {
+    return [SQLType.boolean, SQLType.date, SQLType.timestamp, SQLType.json, SQLType.jsonb].contains(type);
+  }
+
+  static String _getCastType(SQLType type) {
+    switch (type) {
+      case SQLType.boolean:
+        return 'boolean';
+      case SQLType.date:
+      case SQLType.timestamp:
+        return 'datetime';
+      case SQLType.json:
+      case SQLType.jsonb:
+        return 'array';
+      default:
+        return 'string';
+    }
+  }
+
+  static String _getValidationRules(FieldSchema field) {
+    final rules = <String>[];
+    
+    if (field.validation != null) {
+      if (field.validation!.minLength != null) {
+        rules.add('min:${field.validation!.minLength}');
+      }
+      if (field.validation!.maxLength != null) {
+        rules.add('max:${field.validation!.maxLength}');
+      }
+      if (field.validation!.pattern != null) {
+        rules.add('regex:${field.validation!.pattern}');
+      }
+    }
+    
+    if (field.sqlType == SQLType.integer || field.sqlType == SQLType.bigint) {
+      rules.add('integer');
+    }
+    
+    if (field.uiType == UIFieldType.textInput && field.sqlType == SQLType.varchar) {
+      rules.add('email');
+    }
+    
+    return rules.join('|');
+  }
+
+  static String _getJsonDecoder(SQLType type, String name) {
+    switch (type) {
+      case SQLType.date:
+      case SQLType.timestamp:
+        return "DateTime.parse(json['$name'] as String)";
+      case SQLType.json:
+      case SQLType.jsonb:
+        return "json['$name'] as Map<String, dynamic>?";
+      default:
+        return '';
+    }
+  }
+
+  static String _getJsonEncoder(SQLType type, String name) {
+    switch (type) {
+      case SQLType.date:
+      case SQLType.timestamp:
+        return "$name?.toIso8601String()";
+      default:
+        return '';
+    }
+  }
+
+  static String _getRelationType(RelationType type) {
+    switch (type) {
+      case RelationType.oneToOne:
+        return 'hasOne';
+      case RelationType.oneToMany:
+        return 'hasMany';
+      case RelationType.manyToOne:
+        return 'belongsTo';
+      case RelationType.manyToMany:
+        return 'belongsToMany';
+    }
+  }
+}
+
+
+//---
+
+
+// ============================================================================
+// SCHEMA IMPORT PAGE
+// ============================================================================
+
+class SchemaImportPage extends ConsumerStatefulWidget {
+  const SchemaImportPage({super.key});
+
+  @override
+  ConsumerState<SchemaImportPage> createState() => _SchemaImportPageState();
+}
+
+class _SchemaImportPageState extends ConsumerState<SchemaImportPage> {
+  ImportSource _selectedSource = ImportSource.sql;
+  final TextEditingController _contentController = TextEditingController();
+  List<ImportedSchema>? _importedSchemas;
+  bool _isLoading = false;
+  String? _error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Import Schema'),
+        actions: [
+          if (_importedSchemas != null && _importedSchemas!.isNotEmpty)
+            FilledButton.icon(
+              onPressed: _importAll,
+              icon: const Icon(Icons.download),
+              label: Text('Import ${_importedSchemas!.length} Schemas'),
+            ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Row(
+        children: [
+          // Left Panel - Source Selection
+          Container(
+            width: 250,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              border: Border(right: BorderSide(color: Colors.grey.shade200)),
+            ),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  'Import Source',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                _buildSourceOption(
+                  ImportSource.sql,
+                  'SQL DDL',
+                  'CREATE TABLE statements',
+                  Icons.storage,
+                  Colors.blue,
+                ),
+                _buildSourceOption(
+                  ImportSource.prisma,
+                  'Prisma Schema',
+                  'Prisma model definitions',
+                  Icons.code,
+                  Colors.indigo,
+                ),
+                _buildSourceOption(
+                  ImportSource.openapi,
+                  'OpenAPI/Swagger',
+                  'OpenAPI 3.0 specification',
+                  Icons.api,
+                  Colors.green,
+                ),
+                _buildSourceOption(
+                  ImportSource.graphql,
+                  'GraphQL',
+                  'GraphQL type definitions',
+                  Icons.grain,
+                  Colors.pink,
+                ),
+                _buildSourceOption(
+                  ImportSource.json,
+                  'JSON',
+                  'JSON schema definition',
+                  Icons.data_object,
+                  Colors.orange,
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info, size: 16, color: Colors.blue.shade700),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Quick Tip',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Paste your schema definition and click Parse to preview the imported structure.',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Right Panel - Content Input & Preview
+          Expanded(
+            child: Column(
+              children: [
+                // Input Area
+                Expanded(
+                  flex: _importedSchemas == null ? 1 : 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Paste ${_getSourceLabel()} Content',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                            const Spacer(),
+                            TextButton.icon(
+                              onPressed: _loadExample,
+                              icon: const Icon(Icons.file_copy, size: 16),
+                              label: const Text('Load Example'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: TextField(
+                            controller: _contentController,
+                            decoration: InputDecoration(
+                              hintText: _getPlaceholder(),
+                              border: const OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Colors.grey.shade900,
+                              hintStyle: TextStyle(color: Colors.grey.shade600),
+                            ),
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 13,
+                              color: Colors.greenAccent,
+                            ),
+                            maxLines: null,
+                            expands: true,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (_error != null)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.error, color: Colors.red.shade700),
+                                const SizedBox(width: 12),
+                                Expanded(child: Text(_error!)),
+                              ],
+                            ),
+                          ),
+                        if (_error != null) const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            FilledButton.icon(
+                              onPressed: _isLoading ? null : _parseContent,
+                              icon: _isLoading
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.play_arrow),
+                              label: Text(_isLoading ? 'Parsing...' : 'Parse Schema'),
+                            ),
+                            const SizedBox(width: 12),
+                            OutlinedButton.icon(
+                              onPressed: _clear,
+                              icon: const Icon(Icons.clear),
+                              label: const Text('Clear'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Preview Area
+                if (_importedSchemas != null && _importedSchemas!.isNotEmpty)
+                  Expanded(
+                    flex: 1,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border(top: BorderSide(color: Colors.grey.shade300, width: 2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.check_circle, color: Colors.green.shade700),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Found ${_importedSchemas!.length} schema${_importedSchemas!.length != 1 ? 's' : ''}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green.shade900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _importedSchemas!.length,
+                              itemBuilder: (context, index) =>
+                                  _buildSchemaPreview(_importedSchemas![index]),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSourceOption(
+    ImportSource source,
+    String title,
+    String description,
+    IconData icon,
+    Color color,
+  ) {
+    final isSelected = _selectedSource == source;
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      color: isSelected ? color.withOpacity(0.1) : null,
+      child: ListTile(
+        leading: Icon(icon, color: color),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontWeight: isSelected ? FontWeight.bold : null,
+          ),
+        ),
+        subtitle: Text(description, style: const TextStyle(fontSize: 11)),
+        selected: isSelected,
+        onTap: () => setState(() => _selectedSource = source),
+      ),
+    );
+  }
+
+  Widget _buildSchemaPreview(ImportedSchema schema) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ExpansionTile(
+        leading: const Icon(Icons.table_chart),
+        title: Text(schema.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text('${schema.fields.length} fields • ${schema.relationships.length} relations'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Fields:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                ...schema.fields.map((field) {
+                  
+                  
+                  
+
+//--
+
+
+// ============================================================================
+// GENERATED FILES DIALOG
+// ============================================================================
+
+class GeneratedFilesDialog extends StatefulWidget {
+  final Map<String, String> files;
+
+  const GeneratedFilesDialog({super.key, required this.files});
+
+  @override
+  State<GeneratedFilesDialog> createState() => _GeneratedFilesDialogState();
+}
+
+class _GeneratedFilesDialogState extends State<GeneratedFilesDialog> {
+  String? _selectedFile;
+  String _selectedContent = '';
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.files.isNotEmpty) {
+      _selectedFile = widget.files.keys.first;
+      _selectedContent = widget.files.values.first;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: 1000,
+        height: 700,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green.shade700, size: 32),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Code Generated Successfully!',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        '${widget.files.length} files generated',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  FilledButton.icon(
+                    onPressed: _downloadAll,
+                    icon: const Icon(Icons.download),
+                    label: const Text('Download All'),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Row(
+                children: [
+                  Container(
+                    width: 300,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      border: Border(right: BorderSide(color: Colors.grey.shade200)),
+                    ),
+                    child: ListView.builder(
+                      itemCount: widget.files.length,
+                      itemBuilder: (context, index) {
+                        final fileName = widget.files.keys.elementAt(index);
+                        final isSelected = fileName == _selectedFile;
+                        return ListTile(
+                          selected: isSelected,
+                          leading: Icon(
+                            _getFileIcon(fileName),
+                            color: isSelected ? Theme.of(context).colorScheme.primary : null,
+                          ),
+                          title: Text(
+                            fileName.split('/').last,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isSelected ? FontWeight.bold : null,
+                            ),
+                          ),
+                          subtitle: Text(
+                            fileName.split('/').sublist(0, fileName.split('/').length - 1).join('/'),
+                            style: const TextStyle(fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () {
+                            setState(() {
+                              _selectedFile = fileName;
+                              _selectedContent = widget.files[fileName]!;
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.insert_drive_file, size: 20, color: Colors.grey.shade600),
+                              const SizedBox(width: 8),
+                              Text(
+                                _selectedFile ?? '',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.copy, size: 20),
+                                onPressed: () {
+                                  Clipboard.setData(ClipboardData(text: _selectedContent));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Copied to clipboard')),
+                                  );
+                                },
+                                tooltip: 'Copy to clipboard',
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Container(
+                            color: Colors.grey.shade900,
+                            padding: const EdgeInsets.all(16),
+                            child: SingleChildScrollView(
+                              child: SelectableText(
+                                _selectedContent,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 13,
+                                  color: Colors.greenAccent,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    
+//--
+Future<ContentEntry> createEntry(ContentEntry entry) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    _entries[entry.contentTypeId] = [
+      ..._entries[entry.contentTypeId] ?? [],
+      entry,
+    ];
+    return entry;
+  }
+
+  Future<ContentEntry> updateEntry(ContentEntry entry) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    final entries = List<ContentEntry>.from(_entries[entry.contentTypeId] ?? []);
+    final idx = entries.indexWhere((e) => e.id == entry.id);
+    if (idx != -1) {
+      entries[idx] = entry.copyWith(version: entry.version + 1);
+      _entries[entry.contentTypeId] = entries;
+    }
+    return entry;
+  }
+
+  Future<void> deleteEntry(String contentTypeId, String entryId) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    _entries[contentTypeId] = (_entries[contentTypeId] ?? [])
+        .where((e) => e.id != entryId)
+        .toList();
+  }
+
+  String exportSchemaAsSQL(String contentTypeId) {
+    final contentType = _contentTypes[contentTypeId];
+    if (contentType == null) return '';
+    return contentType.toCreateTableSQL();
+  }
+
+  String exportSchemaAsJSON(String contentTypeId) {
+    final contentType = _contentTypes[contentTypeId];
+    if (contentType == null) return '';
+    return const JsonEncoder.withIndent('  ').convert(contentType.toJson());
+  }
+
+  String exportSchemaAsOpenAPI(String contentTypeId) {
+    final contentType = _contentTypes[contentTypeId];
+    if (contentType == null) return '';
+    return const JsonEncoder.withIndent('  ').convert(contentType.toOpenAPISpec());
+  }
+
+  SchemaHealthReport analyzeSchemaHealth(String contentTypeId) {
+    final contentType = _contentTypes[contentTypeId];
+    if (contentType == null) {
+      return const SchemaHealthReport(
+        issues: [],
+        recommendations: [],
+        healthScore: 0,
+      );
+    }
+    return contentType.analyzeHealth();
+  }
+
+  Map<String, String> generateQuarkusProject() {
+    final schemas = _contentTypes.values.toList();
+    final engine = CodeGenerationEngine();
+    return engine.generateQuarkusProject(schemas);
+  }
+
+  List<FieldSchema> suggestFields(String schemaName) {
+    return SmartFieldSuggestions.suggestFieldsForSchema(schemaName);
+  }
+}
+
+class ValidationService {
+  static String? validateField(FieldSchema field, dynamic value) {
+    if (!field.constraints.nullable && (value == null || value.toString().isEmpty)) {
+      return '${field.label} is required';
+    }
+
+    if (value == null || value.toString().isEmpty) return null;
+
+    final validation = field.validation;
+    if (validation == null) return null;
+
+    final strValue = value.toString();
+
+    if (validation.minLength != null && strValue.length < validation.minLength!) {
+      return validation.errorMessage ?? 'Minimum length is ${validation.minLength}';
+    }
+
+    if (validation.maxLength != null && strValue.length > validation.maxLength!) {
+      return validation.errorMessage ?? 'Maximum length is ${validation.maxLength}';
+    }
+
+    if (validation.pattern != null) {
+      final regex = RegExp(validation.pattern!);
+      if (!regex.hasMatch(strValue)) {
+        return validation.errorMessage ?? 'Invalid format';
+      }
+    }
+
+    if (field.sqlType == SQLType.integer || field.sqlType == SQLType.bigint || field.sqlType == SQLType.decimal) {
+      final numValue = num.tryParse(strValue);
+      if (numValue == null) return 'Must be a valid number';
+
+      if (validation.min != null && numValue < validation.min!) {
+        return validation.errorMessage ?? 'Minimum value is ${validation.min}';
+      }
+
+      if (validation.max != null && numValue > validation.max!) {
+        return validation.errorMessage ?? 'Maximum value is ${validation.max}';
+      }
+    }
+
+    if (validation.allowedValues != null && !validation.allowedValues!.contains(strValue)) {
+      return validation.errorMessage ?? 'Invalid value';
+    }
+
+    return null;
+  }
+}
+
+//-
+
+
+class _ContentTypeCard extends ConsumerWidget {
+  final ContentTypeSchema contentType;
+
+  const _ContentTypeCard({required this.contentType});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final health = ref.read(cmsRepositoryProvider).analyzeSchemaHealth(contentType.id);
+    
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _showHealthReport(context, ref, health),
+        child: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white,
+                    _getColorForIcon(contentType.icon).withOpacity(0.05),
+                  ],
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                _getColorForIcon(contentType.icon),
+                                _getColorForIcon(contentType.icon).withOpacity(0.7),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _getColorForIcon(contentType.icon).withOpacity(0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Icon(_getIconData(contentType.icon), color: Colors.white, size: 28),
+                        ),
+                        const Spacer(),
+                        PopupMenuButton(
+                          icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              child: const Row(
+                                children: [Icon(Icons.health_and_safety, size: 20), SizedBox(width: 12), Text('Health Report')],
+                              ),
+                              onTap: () => Future.delayed(Duration.zero, () => _showHealthReport(context, ref, health)),
+                            ),
+                            PopupMenuItem(
+                              child: const Row(
+                                children: [Icon(Icons.code, size: 20), SizedBox(width: 12), Text('View SQL')],
+                              ),
+                              onTap: () => Future.delayed(Duration.zero, () => _showCode(context, ref, 'SQL', ref.read(cmsRepositoryProvider).exportSchemaAsSQL(contentType.id))),
+                            ),
+                            PopupMenuItem(
+                              child: const Row(
+                                children: [Icon(Icons.api, size: 20), SizedBox(width: 12), Text('OpenAPI Spec')],
+                              ),
+                              onTap: () => Future.delayed(Duration.zero, () => _showCode(context, ref, 'OpenAPI', ref.read(cmsRepositoryProvider).exportSchemaAsOpenAPI(contentType.id))),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      contentType.name,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      contentType.description ?? 'No description',
+                      style: TextStyle(color: Colors.grey.shade600),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.layers, size: 16, color: Colors.grey.shade700),
+                              const SizedBox(width: 6),
+                              Text(
+                                '${contentType.fields.length} fields',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        _buildHealthBadge(health.healthScore),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                ),
+                child: Text(
+                  'v${contentType.version}',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHealthBadge(double score) {
+    Color color;
+    if (score >= 90) color = Colors.green;
+    else if (score >= 70) color = Colors.orange;
+    else color = Colors.red;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.favorite, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            '${score.toInt()}%',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getColorForIcon(String iconName) {
+    switch (iconName) {
+      case 'article': return const Color(0xFF6366F1);
+      case 'image': return const Color(0xFFEC4899);
+      case 'video': return const Color(0xFFF59E0B);
+      case 'person': return const Color(0xFF10B981);
+      case 'category': return const Color(0xFF8B5CF6);
+      case 'settings': return const Color(0xFF6B7280);
+      default: return const Color(0xFF3B82F6);
+    }
+  }
+
+  IconData _getIconData(String iconName) {
+    switch (iconName) {
+      case 'article': return Icons.article;
+      case 'image': return Icons.image;
+      case 'video': return Icons.video_library;
+      case 'person': return Icons.person;
+      case 'category': return Icons.category;
+      case 'settings': return Icons.settings;
+      default: return Icons.folder;
+    }
+  }
+
+  void _showHealthReport(BuildContext context, WidgetRef ref, SchemaHealthReport health) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.health_and_safety, color: health.healthScore >= 70 ? Colors.green : Colors.orange),
+            const SizedBox(width: 12),
+            const Text('Schema Health Report'),
+          ],
+        ),
+        content: SizedBox(
+          width: 500,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LinearProgressIndicator(
+                value: health.healthScore / 100,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation(
+                  health.healthScore >= 90 ? Colors.green : health.healthScore >= 70 ? Colors.orange : Colors.red,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Health Score: ${health.healthScore.toInt()}%',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 24),
+              if (health.issues.isNotEmpty) ...[
+                const Text('Issues:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                ...health.issues.map((issue) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            issue.severity == 'error' ? Icons.error : Icons.warning,
+                            size: 16,
+                            color: issue.severity == 'error' ? Colors.red : Colors.orange,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(issue.message)),
+                        ],
+                      ),
+                    )),
+                const SizedBox(height: 16),
+              ],
+              if (health.recommendations.isNotEmpty) ...[
+                const Text('Recommendations:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                ...health.recommendations.map((rec) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                            'responses': {
+              '201': {'description': 'Created'},
+            }
+          }
+        },
+        '/$tableName/{id}': {
+          'get': {
+            'summary': 'Get $name by ID',
+            'parameters': [
+              {'name': 'id', 'in': 'path', 'required': true, 'schema': {'type': 'string', 'format': 'uuid'}}
+            ],
+            'responses': {
+              '200': {
+                'description': 'Success',
+                'content': {
+                  'application/json': {
+                    'schema': {'\$ref': '#/components/schemas/$className'}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      'components': {
+        'schemas': {
+          className: {
+            'type': 'object',
+            'properties': {
+              'id': {'type': 'string', 'format': 'uuid'},
+              ...{
+                for (var field in fields)
+                  field.name: {
+                    'type': _sqlTypeToOpenAPIType(field.sqlType),
+                    if (field.description != null) 'description': field.description,
+                    if (!field.constraints.nullable) 'required': true,
+                  }
+              },
+            }
+          }
+        }
+      }
+    };
+  }
+
+  String _sqlTypeToOpenAPIType(SQLType type) {
+    switch (type) {
+      case SQLType.varchar:
+      case SQLType.text:
+        return 'string';
+      case SQLType.integer:
+      case SQLType.bigint:
+        return 'integer';
+      case SQLType.decimal:
+        return 'number';
+      case SQLType.boolean:
+        return 'boolean';
+      case SQLType.date:
+      case SQLType.timestamp:
+      case SQLType.time:
+        return 'string';
+      case SQLType.uuid:
+        return 'string';
+      default:
+        return 'string';
+    }
+  }
+
+  String _toPascalCase(String str) {
+    return str.split('_').map((word) => 
+      word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)
+    ).join('');
+  }
+
+  String _toCamelCase(String str) {
+    final pascal = _toPascalCase(str);
+    return pascal.isEmpty ? '' : pascal[0].toLowerCase() + pascal.substring(1);
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'tableName': tableName,
+        'description': description,
+        'icon': icon,
+        'fields': fields.map((f) => f.toJson()).toList(),
+        'relationships': relationships.map((r) => r.toJson()).toList(),
+        'settings': settings.toJson(),
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'version': version,
+        'tags': tags,
+        'metadata': metadata,
+      };
+
+  factory ContentTypeSchema.fromJson(Map<String, dynamic> json) => ContentTypeSchema(
+        id: json['id'],
+        name: json['name'],
+        tableName: json['tableName'],
+        description: json['description'],
+        icon: json['icon'],
+        fields: (json['fields'] as List).map((f) => FieldSchema.fromJson(f)).toList(),
+        relationships: json['relationships'] != null
+            ? (json['relationships'] as List).map((r) => SchemaRelationship(
+                  id: r['id'],
+                  name: r['name'],
+                  type: RelationType.values.firstWhere((e) => e.name == r['type']),
+                  sourceSchemaId: r['sourceSchemaId'],
+                  targetSchemaId: r['targetSchemaId'],
+                  junctionTable: r['junctionTable'],
+                  onDelete: r['onDelete'],
+                  onUpdate: r['onUpdate'],
+                  required: r['required'] ?? false,
+                )).toList()
+            : [],
+        settings: ContentTypeSettings.fromJson(json['settings']),
+        createdAt: DateTime.parse(json['createdAt']),
+        updatedAt: DateTime.parse(json['updatedAt']),
+        version: json['version'] ?? 1,
+        tags: json['tags']?.cast<String>(),
+        metadata: json['metadata'],
+      );
+
+  ContentTypeSchema copyWith({
+    String? id,
+    String? name,
+    String? tableName,
+    String? description,
+    String? icon,
+    List<FieldSchema>? fields,
+    List<SchemaRelationship>? relationships,
+    ContentTypeSettings? settings,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    int? version,
+    List<String>? tags,
+    Map<String, dynamic>? metadata,
+  }) {
+    return ContentTypeSchema(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      tableName: tableName ?? this.tableName,
+      description: description ?? this.description,
+      icon: icon ?? this.icon,
+      fields: fields ?? this.fields,
+      relationships: relationships ?? this.relationships,
+      settings: settings ?? this.settings,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      version: version ?? this.version,
+      tags: tags ?? this.tags,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+}
+
+//--
+
+
+// ============================================================================
+// SMART FIELD SUGGESTIONS
+// ============================================================================
+
+class SmartFieldSuggestions {
+  static List<FieldSchema> suggestFieldsForSchema(String schemaName) {
+    final normalizedName = schemaName.toLowerCase();
+    
+    if (normalizedName.contains('user') || normalizedName.contains('author')) {
+      return _getUserFields();
+    } else if (normalizedName.contains('product')) {
+      return _getProductFields();
+    } else if (normalizedName.contains('post') || normalizedName.contains('article') || normalizedName.contains('blog')) {
+      return _getPostFields();
+    } else if (normalizedName.contains('order')) {
+      return _getOrderFields();
+    } else if (normalizedName.contains('category')) {
+      return _getCategoryFields();
+    }
+    
+    return _getBasicFields();
+  }
+
+  static List<FieldSchema> _getUserFields() {
+    return [
+      FieldSchema(
+        id: 'f1',
+        name: 'email',
+        label: 'Email',
+        uiType: UIFieldType.textInput,
+        sqlType: SQLType.varchar,
+        constraints: const FieldConstraints(unique: true, nullable: false, indexed: true),
+        validation: const ValidationRules(
+          pattern: r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}
+          
+//-

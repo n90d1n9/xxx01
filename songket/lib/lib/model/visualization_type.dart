@@ -1,0 +1,30 @@
+enum VisualizationType {
+  // Basic
+  table,
+  line,
+  bar,
+  pie,
+  scatter,
+  area,
+  // Advanced
+  heatmap,
+  treemap,
+  sankey,
+  funnel,
+  gauge,
+  radar,
+  waterfall,
+  candlestick,
+  boxPlot,
+  histogram,
+  networkGraph,
+  geospatial,
+  timeline,
+  gantt,
+  // Custom
+  custom,
+  mixed,
+  interactive,
+  animated,
+  threeD,
+}

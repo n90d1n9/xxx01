@@ -1,0 +1,117 @@
+{
+    "title": "كيف حالك",
+    "home": "الرئيسية",
+
+    "dashboard": "لوحة التحكم",
+    "settings": "الإعدادات",
+    "about": "حول التطبيق",
+    "@about": {
+        "description": "حول التطبيق"
+    },
+    
+    "please_fill_field": "يرجى ملء الحقل",
+    "data_empty": "لا توجد بيانات",
+
+    "share": "مشاركة",
+    "search": "بحث",
+    "add": "إضافة",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+
+    "remove": "Remove",
+
+    "email": "البريد الإلكتروني",
+    "users": "المستخدمون",
+    "user_password": "كلمة المرور",
+    "password": "كلمة المرور",
+    "remember_me": "تذكرني",
+    
+    "dont_have_account":"ليس لديك حساب؟ ",
+    "sign_in": "تسجيل الدخول",
+    "sign_up": "إنشاء حساب",
+    "sign_out": "تسجيل الخروج",
+    "forgot_password": "نسيت كلمة المرور؟",
+    "want_sign_out": "هل أنت متأكد أنك تريد تسجيل الخروج؟",
+    "loginEmpty": "لا يمكن أن يكون البريد الإلكتروني فارغًا",
+    "loginValidEmail": "يرجى إدخال بريد إلكتروني صالح",
+    "loginTryEmail": "البريد الإلكتروني المقدم غير صالح. جرب بريدًا إلكترونيًا آخر",
+    "passwordConfirm": "لا يمكن أن تكون كلمة المرور فارغة",
+    "passwordMatch": "كلمة المرور غير متطابقة",
+    "passwordEmpty": "لا يمكن أن تكون كلمة المرور فارغة",
+    "passwordLength": "يجب أن تكون كلمة المرور 6 أحرف على الأقل",
+
+    "errorUsername": "اسم المستخدم أو كلمة المرور غير صحيحة",
+    "errorUnauthorized": "ليس لديك صلاحية",
+    "errorNetwork": "حدث خطأ في الشبكة، يرجى التحقق من الاتصال",
+    
+    "@asset":{
+        "name": "الاسم", 
+        "assetNumber": "رقم الأصل", 
+        "description": "الوصف", 
+        "type": "النوع", 
+        "category": "الفئة", 
+        "id": "المعرف", 
+        "createAt": "تاريخ الإنشاء", 
+        "updateAt": "تاريخ التحديث"  
+    },
+    "@image":{
+        "title": "العنوان", 
+        "description": "الوصف", 
+        "height": "الارتفاع", 
+        "width": "العرض", 
+        "taken": "تم الالتقاط", 
+        "uploaded": "تم الرفع", 
+        "type": "النوع", 
+        "storageType": "نوع التخزين", 
+        "path": "المسار", 
+        "ownerId": "معرف المالك", 
+        "referenceId": "معرف المرجع", 
+        "urlThumbnail": "رابط الصورة المصغرة", 
+        "urlMedium": "رابط الصورة المتوسطة", 
+        "urlHD": "رابط الصورة عالية الدقة", 
+        "id": "المعرف", 
+        "createAt": "تاريخ الإنشاء", 
+        "updateAt": "تاريخ التحديث"  
+    },
+    "@gallery":{
+        "name": "الاسم", 
+        "description": "الوصف", 
+        "images": "الصور", 
+        "id": "المعرف", 
+        "createAt": "تاريخ الإنشاء", 
+        "updateAt": "تاريخ التحديث"  
+    },
+    "@galleryItem":{
+        "image": "صورة", 
+        "gallery": "معرض", 
+        "id": "المعرف", 
+        "createAt": "تاريخ الإنشاء", 
+        "updateAt": "تاريخ التحديث"  
+    },
+    "@user":{
+        "username": "اسم المستخدم", 
+        "email": "البريد الإلكتروني", 
+        "password": "كلمة المرور", 
+        "phone": "الهاتف", 
+        "id": "المعرف", 
+        "createAt": "تاريخ الإنشاء", 
+        "updateAt": "تاريخ التحديث"  
+    },
+    "@person":{
+        "user": "المستخدم", 
+        "firstName": "الاسم الأول", 
+        "lastName": "اسم العائلة", 
+        "title": "اللقب", 
+        "nickname": "الاسم المستعار", 
+        "gender": "الجنس", 
+        "birthDate": "تاريخ الميلاد", 
+        "hasOtherField": "لديه حقل آخر", 
+        "address": "العنوان", 
+        "contact": "الاتصال", 
+        "socialMedia": "وسائل التواصل الاجتماعي", 
+        "id": "المعرف", 
+        "createAt": "تاريخ الإنشاء", 
+        "updateAt": "تاريخ التحديث"  
+    }
+    
+}

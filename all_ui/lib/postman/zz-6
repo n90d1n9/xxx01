@@ -1,0 +1,3256 @@
+// pubspec.yaml dependencies needed:
+// flutter_riverpod: ^2.4.9
+// riverpod_annotation: ^2.3.3
+// http: ^1.1.0
+// web_socket_channel: ^2.4.0
+// graphql_flutter: ^5.1.2
+// file_picker: ^6.1.1
+// shared_preferences: ^2.2.2
+// uuid: ^4.2.2
+// json_annotation: ^4.8.1
+// path_provider: ^2.1.1
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'dart:async';
+import 'package:uuid/uuid.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initHiveForFlutter();
+  runApp(const ProviderScope(child: ApiTesterApp()));
+}
+
+// ============================================================================
+// MODELS
+// ============================================================================
+
+enum RequestType { rest, websocket, graphql }
+
+enum HttpMethod { get, post, put, patch, delete, head, options }
+
+enum AuthType { none, bearer, basic, apiKey }
+
+class ApiRequest {
+  final String id;
+  final String name;
+  final RequestType type;
+  final HttpMethod method;
+  final String url;
+  final Map<String, String> headers;
+  final Map<String, String> queryParams;
+  final String body;
+  final String? collectionId;
+  final DateTime createdAt;
+  final AuthType authType;
+  final String? authToken;
+  final String? basicAuthUsername;
+  final String? basicAuthPassword;
+  final String? apiKeyHeader;
+  final String? apiKeyValue;
+  final int? timeout;
+  final bool followRedirects;
+
+  ApiRequest({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.method,
+    required this.url,
+    this.headers = const {},
+    this.queryParams = const {},
+    this.body = '',
+    this.collectionId,
+    DateTime? createdAt,
+    this.authType = AuthType.none,
+    this.authToken,
+    this.basicAuthUsername,
+    this.basicAuthPassword,
+    this.apiKeyHeader,
+    this.apiKeyValue,
+    this.timeout,
+    this.followRedirects = true,
+  }) : createdAt = createdAt ?? DateTime.now();
+
+  ApiRequest copyWith({
+    String? name,
+    RequestType? type,
+    HttpMethod? method,
+    String? url,
+    Map<String, String>? headers,
+    Map<String, String>? queryParams,
+    String? body,
+    String? collectionId,
+    AuthType? authType,
+    String? authToken,
+    String? basicAuthUsername,
+    String? basicAuthPassword,
+    String? apiKeyHeader,
+    String? apiKeyValue,
+    int? timeout,
+    bool? followRedirects,
+  }) {
+    return ApiRequest(
+      id: id,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      method: method ?? this.method,
+      url: url ?? this.url,
+      headers: headers ?? this.headers,
+      queryParams: queryParams ?? this.queryParams,
+      body: body ?? this.body,
+      collectionId: collectionId ?? this.collectionId,
+      createdAt: createdAt,
+      authType: authType ?? this.authType,
+      authToken: authToken ?? this.authToken,
+      basicAuthUsername: basicAuthUsername ?? this.basicAuthUsername,
+      basicAuthPassword: basicAuthPassword ?? this.basicAuthPassword,
+      apiKeyHeader: apiKeyHeader ?? this.apiKeyHeader,
+      apiKeyValue: apiKeyValue ?? this.apiKeyValue,
+      timeout: timeout ?? this.timeout,
+      followRedirects: followRedirects ?? this.followRedirects,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'type': type.name,
+        'method': method.name,
+        'url': url,
+        'headers': headers,
+        'queryParams': queryParams,
+        'body': body,
+        'collectionId': collectionId,
+        'createdAt': createdAt.toIso8601String(),
+        'authType': authType.name,
+        'authToken': authToken,
+        'basicAuthUsername': basicAuthUsername,
+        'basicAuthPassword': basicAuthPassword,
+        'apiKeyHeader': apiKeyHeader,
+        'apiKeyValue': apiKeyValue,
+        'timeout': timeout,
+        'followRedirects': followRedirects,
+      };
+
+  factory ApiRequest.fromJson(Map<String, dynamic> json) => ApiRequest(
+        id: json['id'],
+        name: json['name'],
+        type: RequestType.values.byName(json['type']),
+        method: HttpMethod.values.byName(json['method']),
+        url: json['url'],
+        headers: Map<String, String>.from(json['headers'] ?? {}),
+        queryParams: Map<String, String>.from(json['queryParams'] ?? {}),
+        body: json['body'] ?? '',
+        collectionId: json['collectionId'],
+        createdAt: DateTime.parse(json['createdAt']),
+        authType: AuthType.values.byName(json['authType'] ?? 'none'),
+        authToken: json['authToken'],
+        basicAuthUsername: json['basicAuthUsername'],
+        basicAuthPassword: json['basicAuthPassword'],
+        apiKeyHeader: json['apiKeyHeader'],
+        apiKeyValue: json['apiKeyValue'],
+        timeout: json['timeout'],
+        followRedirects: json['followRedirects'] ?? true,
+      );
+}
+
+class ApiResponse {
+  final int? statusCode;
+  final String? statusText;
+  final Map<String, String>? headers;
+  final String body;
+  final Duration duration;
+  final int? size;
+  final String? error;
+  final DateTime timestamp;
+
+  ApiResponse({
+    this.statusCode,
+    this.statusText,
+    this.headers,
+    required this.body,
+    required this.duration,
+    this.size,
+    this.error,
+    DateTime? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now();
+
+  bool get isSuccess => statusCode != null && statusCode! >= 200 && statusCode! < 300;
+}
+
+class Collection {
+  final String id;
+  final String name;
+  final String? description;
+  final List<String> requestIds;
+  final DateTime createdAt;
+
+  Collection({
+    required this.id,
+    required this.name,
+    this.description,
+    this.requestIds = const [],
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
+
+  Collection copyWith({
+    String? name,
+    String? description,
+    List<String>? requestIds,
+  }) {
+    return Collection(
+      id: id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      requestIds: requestIds ?? this.requestIds,
+      createdAt: createdAt,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'requestIds': requestIds,
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory Collection.fromJson(Map<String, dynamic> json) => Collection(
+        id: json['id'],
+        name: json['name'],
+        description: json['description'],
+        requestIds: List<String>.from(json['requestIds'] ?? []),
+        createdAt: DateTime.parse(json['createdAt']),
+      );
+}
+
+class Environment {
+  final String id;
+  final String name;
+  final Map<String, String> variables;
+  final bool isActive;
+
+  Environment({
+    required this.id,
+    required this.name,
+    this.variables = const {},
+    this.isActive = false,
+  });
+
+  Environment copyWith({
+    String? name,
+    Map<String, String>? variables,
+    bool? isActive,
+  }) {
+    return Environment(
+      id: id,
+      name: name ?? this.name,
+      variables: variables ?? this.variables,
+      isActive: isActive ?? this.isActive,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'variables': variables,
+        'isActive': isActive,
+      };
+
+  factory Environment.fromJson(Map<String, dynamic> json) => Environment(
+        id: json['id'],
+        name: json['name'],
+        variables: Map<String, String>.from(json['variables'] ?? {}),
+        isActive: json['isActive'] ?? false,
+      );
+}
+
+class WebSocketMessage {
+  final String content;
+  final DateTime timestamp;
+  final bool isSent;
+
+  WebSocketMessage({
+    required this.content,
+    required this.timestamp,
+    required this.isSent,
+  });
+}
+
+// ============================================================================
+// STATE PROVIDERS
+// ============================================================================
+
+final storageProvider = Provider<StorageService>((ref) => StorageService());
+
+final requestsProvider = StateNotifierProvider<RequestsNotifier, List<ApiRequest>>((ref) {
+  final notifier = RequestsNotifier(ref.read(storageProvider));
+  notifier.loadRequests();
+  return notifier;
+});
+
+class RequestsNotifier extends StateNotifier<List<ApiRequest>> {
+  final StorageService _storage;
+
+  RequestsNotifier(this._storage) : super([]);
+
+  Future<void> loadRequests() async {
+    state = await _storage.loadRequests();
+  }
+
+  Future<void> addRequest(ApiRequest request) async {
+    state = [...state, request];
+    await _storage.saveRequests(state);
+  }
+
+  Future<void> updateRequest(ApiRequest request) async {
+    state = [
+      for (final r in state)
+        if (r.id == request.id) request else r
+    ];
+    await _storage.saveRequests(state);
+  }
+
+  Future<void> deleteRequest(String id) async {
+    state = state.where((r) => r.id != id).toList();
+    await _storage.saveRequests(state);
+  }
+
+  Future<void> importRequests(List<ApiRequest> requests) async {
+    state = [...state, ...requests];
+    await _storage.saveRequests(state);
+  }
+}
+
+final collectionsProvider = StateNotifierProvider<CollectionsNotifier, List<Collection>>((ref) {
+  final notifier = CollectionsNotifier(ref.read(storageProvider));
+  notifier.loadCollections();
+  return notifier;
+});
+
+class CollectionsNotifier extends StateNotifier<List<Collection>> {
+  final StorageService _storage;
+
+  CollectionsNotifier(this._storage) : super([]);
+
+  Future<void> loadCollections() async {
+    state = await _storage.loadCollections();
+  }
+
+  Future<void> addCollection(Collection collection) async {
+    state = [...state, collection];
+    await _storage.saveCollections(state);
+  }
+
+  Future<void> updateCollection(Collection collection) async {
+    state = [
+      for (final c in state)
+        if (c.id == collection.id) collection else c
+    ];
+    await _storage.saveCollections(state);
+  }
+
+  Future<void> deleteCollection(String id) async {
+    state = state.where((c) => c.id != id).toList();
+    await _storage.saveCollections(state);
+  }
+
+  Future<void> addRequestToCollection(String collectionId, String requestId) async {
+    state = [
+      for (final c in state)
+        if (c.id == collectionId)
+          c.copyWith(requestIds: [...c.requestIds, requestId])
+        else
+          c
+    ];
+    await _storage.saveCollections(state);
+  }
+
+  Future<void> removeRequestFromCollection(String collectionId, String requestId) async {
+    state = [
+      for (final c in state)
+        if (c.id == collectionId)
+          c.copyWith(requestIds: c.requestIds.where((id) => id != requestId).toList())
+        else
+          c
+    ];
+    await _storage.saveCollections(state);
+  }
+}
+
+final currentRequestProvider = StateProvider<ApiRequest?>((ref) => null);
+
+final currentResponseProvider = StateProvider<ApiResponse?>((ref) => null);
+
+final environmentsProvider = StateNotifierProvider<EnvironmentsNotifier, List<Environment>>((ref) {
+  final notifier = EnvironmentsNotifier(ref.read(storageProvider));
+  notifier.loadEnvironments();
+  return notifier;
+});
+
+class EnvironmentsNotifier extends StateNotifier<List<Environment>> {
+  final StorageService _storage;
+
+  EnvironmentsNotifier(this._storage) : super([]);
+
+  Future<void> loadEnvironments() async {
+    state = await _storage.loadEnvironments();
+  }
+
+  Future<void> addEnvironment(Environment env) async {
+    state = [...state, env];
+    await _storage.saveEnvironments(state);
+  }
+
+  Future<void> updateEnvironment(Environment env) async {
+    state = [
+      for (final e in state)
+        if (e.id == env.id) env else e
+    ];
+    await _storage.saveEnvironments(state);
+  }
+
+  Future<void> deleteEnvironment(String id) async {
+    state = state.where((e) => e.id != id).toList();
+    await _storage.saveEnvironments(state);
+  }
+
+  Future<void> setActiveEnvironment(String id) async {
+    state = [
+      for (final e in state) e.copyWith(isActive: e.id == id)
+    ];
+    await _storage.saveEnvironments(state);
+  }
+}
+
+final activeEnvironmentProvider = Provider<Environment?>((ref) {
+  final environments = ref.watch(environmentsProvider);
+  return environments.firstWhere((e) => e.isActive, orElse: () => environments.firstOrNull ?? Environment(id: '', name: ''));
+});
+
+final webSocketChannelProvider = StateProvider<WebSocketChannel?>((ref) => null);
+
+final webSocketMessagesProvider = StateProvider<List<WebSocketMessage>>((ref) => []);
+
+final graphQLClientProvider = StateProvider<GraphQLClient?>((ref) => null);
+
+final requestHistoryProvider = StateProvider<List<ApiResponse>>((ref) => []);
+
+// ============================================================================
+// SERVICES
+// ============================================================================
+
+class StorageService {
+  static const String _requestsKey = 'api_requests';
+  static const String _collectionsKey = 'api_collections';
+  static const String _environmentsKey = 'api_environments';
+
+  Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
+
+  Future<List<ApiRequest>> loadRequests() async {
+    try {
+      final prefs = await _prefs;
+      final jsonString = prefs.getString(_requestsKey);
+      if (jsonString == null) return [];
+      final List<dynamic> jsonList = jsonDecode(jsonString);
+      return jsonList.map((json) => ApiRequest.fromJson(json)).toList();
+    } catch (e) {
+      print('Error loading requests: $e');
+      return [];
+    }
+  }
+
+  Future<void> saveRequests(List<ApiRequest> requests) async {
+    try {
+      final prefs = await _prefs;
+      final jsonList = requests.map((r) => r.toJson()).toList();
+      await prefs.setString(_requestsKey, jsonEncode(jsonList));
+    } catch (e) {
+      print('Error saving requests: $e');
+    }
+  }
+
+  Future<List<Collection>> loadCollections() async {
+    try {
+      final prefs = await _prefs;
+      final jsonString = prefs.getString(_collectionsKey);
+      if (jsonString == null) return [];
+      final List<dynamic> jsonList = jsonDecode(jsonString);
+      return jsonList.map((json) => Collection.fromJson(json)).toList();
+    } catch (e) {
+      print('Error loading collections: $e');
+      return [];
+    }
+  }
+
+  Future<void> saveCollections(List<Collection> collections) async {
+    try {
+      final prefs = await _prefs;
+      final jsonList = collections.map((c) => c.toJson()).toList();
+      await prefs.setString(_collectionsKey, jsonEncode(jsonList));
+    } catch (e) {
+      print('Error saving collections: $e');
+    }
+  }
+
+  Future<List<Environment>> loadEnvironments() async {
+    try {
+      final prefs = await _prefs;
+      final jsonString = prefs.getString(_environmentsKey);
+      if (jsonString == null) return [];
+      final List<dynamic> jsonList = jsonDecode(jsonString);
+      return jsonList.map((json) => Environment.fromJson(json)).toList();
+    } catch (e) {
+      print('Error loading environments: $e');
+      return [];
+    }
+  }
+
+  Future<void> saveEnvironments(List<Environment> environments) async {
+    try {
+      final prefs = await _prefs;
+      final jsonList = environments.map((e) => e.toJson()).toList();
+      await prefs.setString(_environmentsKey, jsonEncode(jsonList));
+    } catch (e) {
+      print('Error saving environments: $e');
+    }
+  }
+}
+
+class ApiService {
+  Future<ApiResponse> sendRestRequest(ApiRequest request, Environment? env) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      var url = _replaceVariables(request.url, env?.variables);
+      final uri = Uri.parse(url).replace(
+        queryParameters: request.queryParams.isEmpty ? null : request.queryParams,
+      );
+
+      final headers = Map<String, String>.from(request.headers);
+      
+      // Add authentication
+      _addAuthentication(request, headers);
+
+      http.Response response;
+      final timeout = Duration(seconds: request.timeout ?? 30);
+      
+      switch (request.method) {
+        case HttpMethod.get:
+          response = await http.get(uri, headers: headers).timeout(timeout);
+          break;
+        case HttpMethod.post:
+          response = await http.post(uri, headers: headers, body: _replaceVariables(request.body, env?.variables)).timeout(timeout);
+          break;
+        case HttpMethod.put:
+          response = await http.put(uri, headers: headers, body: _replaceVariables(request.body, env?.variables)).timeout(timeout);
+          break;
+        case HttpMethod.patch:
+          response = await http.patch(uri, headers: headers, body: _replaceVariables(request.body, env?.variables)).timeout(timeout);
+          break;
+        case HttpMethod.delete:
+          response = await http.delete(uri, headers: headers, body: _replaceVariables(request.body, env?.variables)).timeout(timeout);
+          break;
+        case HttpMethod.head:
+          response = await http.head(uri, headers: headers).timeout(timeout);
+          break;
+        case HttpMethod.options:
+          final client = http.Client();
+          final req = http.Request('OPTIONS', uri)..headers.addAll(headers);
+          final streamedResponse = await client.send(req).timeout(timeout);
+          response = await http.Response.fromStream(streamedResponse);
+          break;
+      }
+
+      stopwatch.stop();
+      
+      return ApiResponse(
+        statusCode: response.statusCode,
+        statusText: response.reasonPhrase,
+        headers: response.headers,
+        body: _formatBody(response.body),
+        duration: stopwatch.elapsed,
+        size: response.bodyBytes.length,
+      );
+    } on TimeoutException {
+      stopwatch.stop();
+      return ApiResponse(
+        body: '',
+        duration: stopwatch.elapsed,
+        error: 'Request timeout',
+      );
+    } catch (e) {
+      stopwatch.stop();
+      return ApiResponse(
+        body: '',
+        duration: stopwatch.elapsed,
+        error: e.toString(),
+      );
+    }
+  }
+
+  void _addAuthentication(ApiRequest request, Map<String, String> headers) {
+    switch (request.authType) {
+      case AuthType.bearer:
+        if (request.authToken != null) {
+          headers['Authorization'] = 'Bearer ${request.authToken}';
+        }
+        break;
+      case AuthType.basic:
+        if (request.basicAuthUsername != null && request.basicAuthPassword != null) {
+          final credentials = base64Encode(
+            utf8.encode('${request.basicAuthUsername}:${request.basicAuthPassword}'),
+          );
+          headers['Authorization'] = 'Basic $credentials';
+        }
+        break;
+      case AuthType.apiKey:
+        if (request.apiKeyHeader != null && request.apiKeyValue != null) {
+          headers[request.apiKeyHeader!] = request.apiKeyValue!;
+        }
+        break;
+      case AuthType.none:
+        break;
+    }
+  }
+
+  String _replaceVariables(String text, Map<String, String>? variables) {
+    if (variables == null || variables.isEmpty) return text;
+    
+    var result = text;
+    variables.forEach((key, value) {
+      result = result.replaceAll('{{$key}}', value);
+      result = result.replaceAll('{$key}', value);
+    });
+    return result;
+  }
+
+  String _formatBody(String body) {
+    if (body.isEmpty) return body;
+    
+    try {
+      final decoded = jsonDecode(body);
+      return const JsonEncoder.withIndent('  ').convert(decoded);
+    } catch (e) {
+      return body;
+    }
+  }
+
+  Future<ApiResponse> sendGraphQLRequest(
+    ApiRequest request,
+    Environment? env,
+    String query,
+    Map<String, dynamic>? variables,
+  ) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      final url = _replaceVariables(request.url, env?.variables);
+      
+      final client = GraphQLClient(
+        link: HttpLink(url),
+        cache: GraphQLCache(),
+      );
+
+      final options = QueryOptions(
+        document: gql(query),
+        variables: variables ?? {},
+      );
+
+      final result = await client.query(options);
+      stopwatch.stop();
+
+      if (result.hasException) {
+        return ApiResponse(
+          body: '',
+          duration: stopwatch.elapsed,
+          error: result.exception.toString(),
+        );
+      }
+
+      return ApiResponse(
+        statusCode: 200,
+        body: const JsonEncoder.withIndent('  ').convert(result.data),
+        duration: stopwatch.elapsed,
+        size: jsonEncode(result.data).length,
+      );
+    } catch (e) {
+      stopwatch.stop();
+      return ApiResponse(
+        body: '',
+        duration: stopwatch.elapsed,
+        error: e.toString(),
+      );
+    }
+  }
+}
+
+class ImportService {
+  List<ApiRequest> importPostmanCollection(Map<String, dynamic> json) {
+    final requests = <ApiRequest>[];
+    final uuid = const Uuid();
+
+    // Handle Postman Collection v2.1
+    if (json['info'] != null && json['item'] != null) {
+      _processPostmanItems(json['item'], requests, uuid, null);
+    }
+
+    return requests;
+  }
+
+  void _processPostmanItems(
+    dynamic items,
+    List<ApiRequest> requests,
+    Uuid uuid,
+    String? collectionId,
+  ) {
+    if (items is List) {
+      for (final item in items) {
+        if (item['request'] != null) {
+          final request = item['request'];
+          
+          // Parse URL
+          String url;
+          if (request['url'] is String) {
+            url = request['url'];
+          } else if (request['url'] is Map) {
+            url = request['url']['raw'] ?? '';
+            if (url.isEmpty && request['url']['protocol'] != null) {
+              final protocol = request['url']['protocol'];
+              final host = (request['url']['host'] as List?)?.join('.') ?? '';
+              final path = (request['url']['path'] as List?)?.join('/') ?? '';
+              url = '$protocol://$host/$path';
+            }
+          } else {
+            url = '';
+          }
+
+          // Parse headers
+          final headers = <String, String>{};
+          if (request['header'] != null && request['header'] is List) {
+            for (final header in request['header']) {
+              if (header['key'] != null && header['value'] != null) {
+                headers[header['key']] = header['value'];
+              }
+            }
+          }
+
+          // Parse query parameters
+          final queryParams = <String, String>{};
+          if (request['url'] is Map && request['url']['query'] != null) {
+            for (final query in request['url']['query']) {
+              if (query['key'] != null && query['value'] != null) {
+                queryParams[query['key']] = query['value'];
+              }
+            }
+          }
+
+          // Parse body
+          String body = '';
+          if (request['body'] != null) {
+            if (request['body']['raw'] != null) {
+              body = request['body']['raw'];
+            } else if (request['body']['urlencoded'] != null) {
+              body = jsonEncode(request['body']['urlencoded']);
+            } else if (request['body']['formdata'] != null) {
+              body = jsonEncode(request['body']['formdata']);
+            }
+          }
+
+          // Parse method
+          final methodStr = request['method']?.toString().toLowerCase() ?? 'get';
+          final method = HttpMethod.values.firstWhere(
+            (m) => m.name.toLowerCase() == methodStr,
+            orElse: () => HttpMethod.get,
+          );
+
+          // Parse auth
+          AuthType authType = AuthType.none;
+          String? authToken;
+          String? basicUsername;
+          String? basicPassword;
+          
+          if (request['auth'] != null) {
+            final authData = request['auth'];
+            if (authData['type'] == 'bearer' && authData['bearer'] != null) {
+              authType = AuthType.bearer;
+              final bearerList = authData['bearer'] as List?;
+              authToken = bearerList?.firstWhere(
+                (item) => item['key'] == 'token',
+                orElse: () => {'value': ''},
+              )['value'];
+            } else if (authData['type'] == 'basic' && authData['basic'] != null) {
+              authType = AuthType.basic;
+              final basicList = authData['basic'] as List?;
+              basicUsername = basicList?.firstWhere(
+                (item) => item['key'] == 'username',
+                orElse: () => {'value': ''},
+              )['value'];
+              basicPassword = basicList?.firstWhere(
+                (item) => item['key'] == 'password',
+                orElse: () => {'value': ''},
+              )['value'];
+            }
+          }
+
+          requests.add(ApiRequest(
+            id: uuid.v4(),
+            name: item['name'] ?? 'Imported Request',
+            type: RequestType.rest,
+            method: method,
+            url: url,
+            headers: headers,
+            queryParams: queryParams,
+            body: body,
+            collectionId: collectionId,
+            authType: authType,
+            authToken: authToken,
+            basicAuthUsername: basicUsername,
+            basicAuthPassword: basicPassword,
+          ));
+        }
+
+        // Process nested items (folders)
+        if (item['item'] != null) {
+          _processPostmanItems(item['item'], requests, uuid, collectionId);
+        }
+      }
+    }
+  }
+
+  List<ApiRequest> importOpenApiSpec(Map<String, dynamic> json) {
+    final requests = <ApiRequest>[];
+    final uuid = const Uuid();
+    
+    // Get base URL
+    final servers = json['servers'] as List?;
+    final baseUrl = servers?.isNotEmpty == true 
+        ? servers![0]['url'] 
+        : 'http://localhost';
+
+    final paths = json['paths'] as Map<String, dynamic>?;
+    if (paths != null) {
+      paths.forEach((path, methods) {
+        (methods as Map<String, dynamic>).forEach((method, details) {
+          if (['get', 'post', 'put', 'patch', 'delete', 'head', 'options'].contains(method.toLowerCase())) {
+            final httpMethod = HttpMethod.values.firstWhere(
+              (m) => m.name.toLowerCase() == method.toLowerCase(),
+              orElse: () => HttpMethod.get,
+            );
+
+            // Parse headers from parameters
+            final headers = <String, String>{'Content-Type': 'application/json'};
+            final queryParams = <String, String>{};
+            
+            if (details['parameters'] != null) {
+              for (final param in details['parameters']) {
+                if (param['in'] == 'header') {
+                  headers[param['name']] = param['example']?.toString() ?? '';
+                } else if (param['in'] == 'query') {
+                  queryParams[param['name']] = param['example']?.toString() ?? '';
+                }
+              }
+            }
+
+            // Parse request body
+            String body = '';
+            if (details['requestBody'] != null) {
+              final content = details['requestBody']['content'];
+              if (content != null && content['application/json'] != null) {
+                final schema = content['application/json']['schema'];
+                final example = content['application/json']['example'];
+                if (example != null) {
+                  body = jsonEncode(example);
+                } else if (schema != null && schema['example'] != null) {
+                  body = jsonEncode(schema['example']);
+                }
+              }
+            }
+
+            requests.add(ApiRequest(
+              id: uuid.v4(),
+              name: details['summary'] ?? details['operationId'] ?? '$method $path',
+              type: RequestType.rest,
+              method: httpMethod,
+              url: '$baseUrl$path',
+              headers: headers,
+              queryParams: queryParams,
+              body: body,
+            ));
+          }
+        });
+      });
+    }
+
+    return requests;
+  }
+
+  List<ApiRequest> importSwaggerSpec(Map<String, dynamic> json) {
+    final requests = <ApiRequest>[];
+    final uuid = const Uuid();
+    
+    // Swagger 2.0
+    final schemes = json['schemes'] as List? ?? ['http'];
+    final host = json['host'] ?? 'localhost';
+    final basePath = json['basePath'] ?? '';
+    final baseUrl = '${schemes.first}://$host$basePath';
+
+    final paths = json['paths'] as Map<String, dynamic>?;
+    if (paths != null) {
+      paths.forEach((path, methods) {
+        (methods as Map<String, dynamic>).forEach((method, details) {
+          if (['get', 'post', 'put', 'patch', 'delete', 'head', 'options'].contains(method.toLowerCase())) {
+            final httpMethod = HttpMethod.values.firstWhere(
+              (m) => m.name.toLowerCase() == method.toLowerCase(),
+              orElse: () => HttpMethod.get,
+            );
+
+            final headers = <String, String>{};
+            final queryParams = <String, String>{};
+            
+            if (details['parameters'] != null) {
+              for (final param in details['parameters']) {
+                if (param['in'] == 'header') {
+                  headers[param['name']] = param['default']?.toString() ?? '';
+                } else if (param['in'] == 'query') {
+                  queryParams[param['name']] = param['default']?.toString() ?? '';
+                }
+              }
+            }
+
+            requests.add(ApiRequest(
+              id: uuid.v4(),
+              name: details['summary'] ?? details['operationId'] ?? '$method $path',
+              type: RequestType.rest,
+              method: httpMethod,
+              url: '$baseUrl$path',
+              headers: headers,
+              queryParams: queryParams,
+            ));
+          }
+        });
+      });
+    }
+
+    return requests;
+  }
+}
+
+class WebSocketService {
+  StreamSubscription? _subscription;
+
+  WebSocketChannel connect(String url) {
+    final channel = WebSocketChannel.connect(Uri.parse(url));
+    return channel;
+  }
+
+  void listen(
+    WebSocketChannel channel,
+    Function(String) onMessage,
+    Function(dynamic) onError,
+  ) {
+    _subscription = channel.stream.listen(
+      (message) => onMessage(message.toString()),
+      onError: onError,
+      onDone: () => print('WebSocket closed'),
+    );
+  }
+
+  void send(WebSocketChannel channel, String message) {
+    channel.sink.add(message);
+  }
+
+  void disconnect(WebSocketChannel? channel) {
+    _subscription?.cancel();
+    channel?.sink.close();
+  }
+}
+
+// ============================================================================
+// UI COMPONENTS
+// ============================================================================
+
+class ApiTesterApp extends StatelessWidget {
+  const ApiTesterApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'API Tester Pro',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+        cardTheme: CardTheme(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+        cardTheme: CardTheme(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      themeMode: ThemeMode.system,
+      home: const MainScreen(),
+    );
+  }
+}
+
+class MainScreen extends ConsumerStatefulWidget {
+  const MainScreen({super.key});
+
+  @override
+  ConsumerState<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends ConsumerState<MainScreen> {
+  int _selectedIndex = 0;
+  bool _isDrawerOpen = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Row(
+          children: [
+            Icon(Icons.api, size: 28),
+            SizedBox(width: 8),
+            Text('API Tester Pro'),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.upload_file),
+            onPressed: _showImportDialog,
+            tooltip: 'Import Collection',
+          ),
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: () => setState(() => _selectedIndex = 2),
+            tooltip: 'History',
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () => _showEnvironmentDialog(),
+            tooltip: 'Environments',
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Row(
+        children: [
+          if (_isDrawerOpen) ...[
+            SizedBox(
+              width: 280,
+              child: _buildSidebar(),
+            ),
+            const VerticalDivider(thickness: 1, width: 1),
+          ],
+          Expanded(
+            child: Column(
+              children: [
+                _buildTopBar(),
+                const Divider(height: 1),
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    TabBar(
+                      controller: _tabController,
+                      tabs: const [
+                        Tab(text: 'Body'),
+                        Tab(text: 'Headers'),
+                        Tab(text: 'Query'),
+                        Tab(text: 'Auth'),
+                      ],
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildBodyTab(),
+                          _buildHeadersTab(),
+                          _buildQueryParamsTab(),
+                          _buildAuthTab(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (response != null) ...[
+                const VerticalDivider(width: 1),
+                Expanded(child: _buildResponseViewer(response)),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRequestConfig() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 120,
+                child: DropdownButtonFormField<HttpMethod>(
+                  value: widget.request.method,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  onChanged: (method) {
+                    if (method != null) {
+                      ref.read(currentRequestProvider.notifier).state =
+                          widget.request.copyWith(method: method);
+                    }
+                  },
+                  items: HttpMethod.values.map((method) {
+                    return DropdownMenuItem(
+                      value: method,
+                      child: Text(
+                        method.name.toUpperCase(),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextField(
+                  controller: _urlController,
+                  decoration: const InputDecoration(
+                    hintText: 'Enter request URL',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  onChanged: (value) => _updateRequest(),
+                ),
+              ),
+              const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: _isLoading ? null : _sendRequest,
+                icon: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send),
+                label: const Text('Send'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.save),
+                onPressed: _updateRequest,
+                tooltip: 'Save',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBodyTab() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            children: [
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'json', label: Text('JSON')),
+                  ButtonSegment(value: 'text', label: Text('Text')),
+                  ButtonSegment(value: 'xml', label: Text('XML')),
+                ],
+                selected: {'json'},
+                onSelectionChanged: (Set<String> selected) {},
+              ),
+              const Spacer(),
+              TextButton.icon(
+                icon: const Icon(Icons.code, size: 18),
+                label: const Text('Format'),
+                onPressed: _formatBody,
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              controller: _bodyController,
+              decoration: const InputDecoration(
+                hintText: 'Request body (JSON, XML, plain text, etc.)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: null,
+              expands: true,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+              onChanged: (value) => _updateRequest(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeadersTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        ..._headers.asMap().entries.map((entry) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: entry.value.key.text.isNotEmpty,
+                  onChanged: (bool? value) {
+                    setState(() {});
+                  },
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: entry.value.key,
+                    decoration: const InputDecoration(
+                      labelText: 'Header Name',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onChanged: (value) => _updateRequest(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: entry.value.value,
+                    decoration: const InputDecoration(
+                      labelText: 'Value',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onChanged: (value) => _updateRequest(),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () {
+                    setState(() {
+                      entry.value.key.dispose();
+                      entry.value.value.dispose();
+                      _headers.removeAt(entry.key);
+                    });
+                    _updateRequest();
+                  },
+                ),
+              ],
+            ),
+          );
+        }),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () {
+            setState(() {
+              _headers.add(MapEntry(
+                TextEditingController(),
+                TextEditingController(),
+              ));
+            });
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('Add Header'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQueryParamsTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        ..._queryParams.asMap().entries.map((entry) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: entry.value.key.text.isNotEmpty,
+                  onChanged: (bool? value) {
+                    setState(() {});
+                  },
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: entry.value.key,
+                    decoration: const InputDecoration(
+                      labelText: 'Parameter Name',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onChanged: (value) => _updateRequest(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: entry.value.value,
+                    decoration: const InputDecoration(
+                      labelText: 'Value',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onChanged: (value) => _updateRequest(),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () {
+                    setState(() {
+                      entry.value.key.dispose();
+                      entry.value.value.dispose();
+                      _queryParams.removeAt(entry.key);
+                    });
+                    _updateRequest();
+                  },
+                ),
+              ],
+            ),
+          );
+        }),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () {
+            setState(() {
+              _queryParams.add(MapEntry(
+                TextEditingController(),
+                TextEditingController(),
+              ));
+            });
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('Add Parameter'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAuthTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        DropdownButtonFormField<AuthType>(
+          value: _authType,
+          decoration: const InputDecoration(
+            labelText: 'Authentication Type',
+            border: OutlineInputBorder(),
+          ),
+          items: AuthType.values.map((type) {
+            return DropdownMenuItem(
+              value: type,
+              child: Text(_getAuthTypeName(type)),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => _authType = value);
+              _updateRequest();
+            }
+          },
+        ),
+        const SizedBox(height: 16),
+        if (_authType == AuthType.bearer) ...[
+          TextField(
+            controller: _authTokenController,
+            decoration: const InputDecoration(
+              labelText: 'Bearer Token',
+              border: OutlineInputBorder(),
+              hintText: 'Enter your bearer token',
+            ),
+            onChanged: (value) => _updateRequest(),
+          ),
+        ] else if (_authType == AuthType.basic) ...[
+          TextField(
+            controller: _basicUsernameController,
+            decoration: const InputDecoration(
+              labelText: 'Username',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (value) => _updateRequest(),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _basicPasswordController,
+            decoration: const InputDecoration(
+              labelText: 'Password',
+              border: OutlineInputBorder(),
+            ),
+            obscureText: true,
+            onChanged: (value) => _updateRequest(),
+          ),
+        ] else if (_authType == AuthType.apiKey) ...[
+          TextField(
+            controller: _apiKeyHeaderController,
+            decoration: const InputDecoration(
+              labelText: 'Header Name',
+              border: OutlineInputBorder(),
+              hintText: 'e.g., X-API-Key',
+            ),
+            onChanged: (value) => _updateRequest(),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _apiKeyValueController,
+            decoration: const InputDecoration(
+              labelText: 'API Key',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (value) => _updateRequest(),
+          ),
+        ] else ...[
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32.0),
+              child: Text('No authentication required'),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  String _getAuthTypeName(AuthType type) {
+    switch (type) {
+      case AuthType.none:
+        return 'No Auth';
+      case AuthType.bearer:
+        return 'Bearer Token';
+      case AuthType.basic:
+        return 'Basic Auth';
+      case AuthType.apiKey:
+        return 'API Key';
+    }
+  }
+
+  Widget _buildResponseViewer(ApiResponse response) {
+    return Container(
+      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Response',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const Spacer(),
+                    if (response.statusCode != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(response.statusCode!),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          '${response.statusCode} ${response.statusText ?? ""}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 16),
+                    Chip(
+                      avatar: const Icon(Icons.timer, size: 16),
+                      label: Text('${response.duration.inMilliseconds}ms'),
+                    ),
+                    if (response.size != null) ...[
+                      const SizedBox(width: 8),
+                      Chip(
+                        avatar: const Icon(Icons.data_usage, size: 16),
+                        label: Text('${(response.size! / 1024).toStringAsFixed(2)} KB'),
+                      ),
+                    ],
+                  ],
+                ),
+                if (response.headers != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '${response.headers!.length} headers',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          if (response.error != null)
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Error',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: SelectableText(
+                          response.error!,
+                          style: const TextStyle(fontFamily: 'monospace'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: DefaultTabController(
+                length: 2,
+                child: Column(
+                  children: [
+                    const TabBar(
+                      tabs: [
+                        Tab(text: 'Body'),
+                        Tab(text: 'Headers'),
+                      ],
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          SingleChildScrollView(
+                            padding: const EdgeInsets.all(16),
+                            child: SelectableText(
+                              response.body.isEmpty ? '(empty response)' : response.body,
+                              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                            ),
+                          ),
+                          if (response.headers != null)
+                            ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: response.headers!.length,
+                              itemBuilder: (context, index) {
+                                final entry = response.headers!.entries.elementAt(index);
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          entry.key,
+                                          style: const TextStyle(fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        flex: 2,
+                                        child: SelectableText(entry.value),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            )
+                          else
+                            const Center(child: Text('No headers')),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Color _getStatusColor(int statusCode) {
+    if (statusCode >= 200 && statusCode < 300) return Colors.green;
+    if (statusCode >= 300 && statusCode < 400) return Colors.orange;
+    if (statusCode >= 400 && statusCode < 500) return Colors.red;
+    if (statusCode >= 500) return Colors.purple;
+    return Colors.grey;
+  }
+
+  void _formatBody() {
+    try {
+      final decoded = jsonDecode(_bodyController.text);
+      _bodyController.text = const JsonEncoder.withIndent('  ').convert(decoded);
+      _updateRequest();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid JSON')),
+      );
+    }
+  }
+
+  void _updateRequest() {
+    final headers = <String, String>{};
+    for (final pair in _headers) {
+      if (pair.key.text.isNotEmpty) {
+        headers[pair.key.text] = pair.value.text;
+      }
+    }
+
+    final queryParams = <String, String>{};
+    for (final pair in _queryParams) {
+      if (pair.key.text.isNotEmpty) {
+        queryParams[pair.key.text] = pair.value.text;
+      }
+    }
+
+    final updatedRequest = widget.request.copyWith(
+      url: _urlController.text,
+      body: _bodyController.text,
+      headers: headers,
+      queryParams: queryParams,
+      authType: _authType,
+      authToken: _authTokenController.text.isEmpty ? null : _authTokenController.text,
+      basicAuthUsername: _basicUsernameController.text.isEmpty ? null : _basicUsernameController.text,
+      basicAuthPassword: _basicPasswordController.text.isEmpty ? null : _basicPasswordController.text,
+      apiKeyHeader: _apiKeyHeaderController.text.isEmpty ? null : _apiKeyHeaderController.text,
+      apiKeyValue: _apiKeyValueController.text.isEmpty ? null : _apiKeyValueController.text,
+    );
+
+    ref.read(requestsProvider.notifier).updateRequest(updatedRequest);
+    ref.read(currentRequestProvider.notifier).state = updatedRequest;
+  }
+
+  Future<void> _sendRequest() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final activeEnv = ref.read(activeEnvironmentProvider);
+      final apiService = ApiService();
+      
+      final response = await apiService.sendRestRequest(
+        widget.request,
+        activeEnv,
+      );
+
+      ref.read(currentResponseProvider.notifier).state = response;
+      
+      // Add to history
+      final history = ref.read(requestHistoryProvider);
+      ref.read(requestHistoryProvider.notifier).state = [response, ...history];
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+}
+
+class WebSocketPanel extends ConsumerStatefulWidget {
+  final ApiRequest request;
+
+  const WebSocketPanel({super.key, required this.request});
+
+  @override
+  ConsumerState<WebSocketPanel> createState() => _WebSocketPanelState();
+}
+
+class _WebSocketPanelState extends ConsumerState<WebSocketPanel> {
+  final _messageController = TextEditingController();
+  final _scrollController = ScrollController();
+  bool _isConnected = false;
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    _disconnect();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final messages = ref.watch(webSocketMessagesProvider);
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.request.url,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _isConnected ? _disconnect : _connect,
+                icon: Icon(_isConnected ? Icons.close : Icons.cable),
+                label: Text(_isConnected ? 'Disconnect' : 'Connect'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isConnected ? Colors.red : Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(16),
+            itemCount: messages.length,
+            itemBuilder: (context, index) {
+              final message = messages[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Align(
+                  alignment: message.isSent ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.7,
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: message.isSent
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.surfaceVariant,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SelectableText(
+                          message.content,
+                          style: TextStyle(
+                            color: message.isSent ? Colors.white : null,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatTime(message.timestamp),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: message.isSent
+                                ? Colors.white.withOpacity(0.7)
+                                : Theme.of(context).textTheme.bodySmall?.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const Divider(height: 1),
+        Container(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _messageController,
+                  decoration: const InputDecoration(
+                    hintText: 'Type a message...',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: null,
+                  enabled: _isConnected,
+                  onSubmitted: _isConnected ? (_) => _sendMessage() : null,
+                ),
+              ),
+              const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: _isConnected ? _sendMessage : null,
+                icon: const Icon(Icons.send),
+                label: const Text('Send'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _connect() {
+    try {
+      final wsService = WebSocketService();
+      final channel = wsService.connect(widget.request.url);
+      
+      ref.read(webSocketChannelProvider.notifier).state = channel;
+      
+      wsService.listen(
+        channel,
+        (message) {
+          final messages = ref.read(webSocketMessagesProvider);
+          ref.read(webSocketMessagesProvider.notifier).state = [
+            ...messages,
+            WebSocketMessage(
+              content: message,
+              timestamp: DateTime.now(),
+              isSent: false,
+            ),
+          ];
+          _scrollToBottom();
+        },
+        (error) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('WebSocket error: $error')),
+          );
+          _disconnect();
+        },
+      );
+
+      setState(() => _isConnected = true);
+      ref.read(webSocketMessagesProvider.notifier).state = [];
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('WebSocket connected')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Connection failed: $e')),
+      );
+    }
+  }
+
+  void _disconnect() {
+    final channel = ref.read(webSocketChannelProvider);
+    if (channel != null) {
+      WebSocketService().disconnect(channel);
+      ref.read(webSocketChannelProvider.notifier).state = null;
+    }
+    setState(() => _isConnected = false);
+  }
+
+  void _sendMessage() {
+    if (_messageController.text.isEmpty) return;
+
+    final channel = ref.read(webSocketChannelProvider);
+    if (channel != null) {
+      WebSocketService().send(channel, _messageController.text);
+      
+      final messages = ref.read(webSocketMessagesProvider);
+      ref.read(webSocketMessagesProvider.notifier).state = [
+        ...messages,
+        WebSocketMessage(
+          content: _messageController.text,
+          timestamp: DateTime.now(),
+          isSent: true,
+        ),
+      ];
+      
+      _messageController.clear();
+      _scrollToBottom();
+    }
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  String _formatTime(DateTime time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
+  }
+}
+
+class GraphQLPanel extends ConsumerStatefulWidget {
+  final ApiRequest request;
+
+  const GraphQLPanel({super.key, required this.request});
+
+  @override
+  ConsumerState<GraphQLPanel> createState() => _GraphQLPanelState();
+}
+
+class _GraphQLPanelState extends ConsumerState<GraphQLPanel> {
+  final _queryController = TextEditingController();
+  final _variablesController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    _variablesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final response = ref.watch(currentResponseProvider);
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: TextEditingController(text: widget.request.url),
+                  decoration: const InputDecoration(
+                    labelText: 'GraphQL Endpoint',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) {
+                    final updated = widget.request.copyWith(url: value);
+                    ref.read(requestsProvider.notifier).updateRequest(updated);
+                    ref.read(currentRequestProvider.notifier).state = updated;
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: _isLoading ? null : _executeQuery,
+                icon: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.play_arrow),
+                label: const Text('Execute'),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: TextField(
+                          controller: _queryController,
+                          decoration: const InputDecoration(
+                            labelText: 'Query',
+                            border: OutlineInputBorder(),
+                            hintText: 'query { ... }',
+                          ),
+                          maxLines: null,
+                          expands: true,
+                          style: const TextStyle(fontFamily: 'monospace'),
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: TextField(
+                          controller: _variablesController,
+                          decoration: const InputDecoration(
+                            labelText: 'Variables (JSON)',
+                            border: OutlineInputBorder(),
+                            hintText: '{ "key": "value" }',
+                          ),
+                          maxLines: null,
+                          expands: true,
+                          style: const TextStyle(fontFamily: 'monospace'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (response != null) ...[
+                const VerticalDivider(width: 1),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Response',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 16),
+                        if (response.error != null)
+                          Expanded(
+                            child: SelectableText(
+                              'Error: ${response.error}',
+                              style: TextStyle(color: Theme.of(context).colorScheme.error),
+                            ),
+                          )
+                        else
+                          Expanded(
+                            child: SingleChildScrollView(
+                              child: SelectableText(
+                                response.body,
+                                style: const TextStyle(fontFamily: 'monospace'),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _executeQuery() async {
+    if (_queryController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a query')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      Map<String, dynamic>? variables;
+      if (_variablesController.text.isNotEmpty) {
+        variables = jsonDecode(_variablesController.text);
+      }
+
+      final activeEnv = ref.read(activeEnvironmentProvider);
+      final apiService = ApiService();
+      
+      final response = await apiService.sendGraphQLRequest(
+        widget.request,
+        activeEnv,
+        _queryController.text,
+        variables,
+      );
+
+      ref.read(currentResponseProvider.notifier).state = response;
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+}
+
+class EnvironmentDialog extends ConsumerStatefulWidget {
+  const EnvironmentDialog({super.key});
+
+  @override
+  ConsumerState<EnvironmentDialog> createState() => _EnvironmentDialogState();
+}
+
+class _EnvironmentDialogState extends ConsumerState<EnvironmentDialog> {
+  final _nameController = TextEditingController();
+  final List<MapEntry<TextEditingController, TextEditingController>> _variables = [];
+  String? _selectedEnvId;
+
+  @override
+  void initState() {
+    super.initState();
+    _variables.add(MapEntry(TextEditingController(), TextEditingController()));
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    for (final pair in _variables) {
+      pair.key.dispose();
+      pair.value.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final environments = ref.watch(environmentsProvider);
+    final activeEnv = ref.watch(activeEnvironmentProvider);
+
+    return AlertDialog(
+      title: const Text('Environment Management'),
+      content: SizedBox(
+        width: 700,
+        height: 600,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 200,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Environments',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: environments.isEmpty
+                        ? const Center(child: Text('No environments'))
+                        : ListView.builder(
+                            itemCount: environments.length,
+                            itemBuilder: (context, index) {
+                              final env = environments[index];
+                              final isActive = activeEnv?.id == env.id;
+                              return ListTile(
+                                selected: _selectedEnvId == env.id,
+                                leading: Icon(
+                                  isActive ? Icons.check_circle : Icons.circle_outlined,
+                                  color: isActive ? Colors.green : null,
+                                ),
+                                title: Text(env.name),
+                                subtitle: Text('${env.variables.length} variables'),
+                                onTap: () {
+                                  setState(() {
+                                    _selectedEnvId = env.id;
+                                    _loadEnvironment(env);
+                                  });
+                                },
+                                trailing: PopupMenuButton(
+                                  itemBuilder: (context) => [
+                                    PopupMenuItem(
+                                      child: const Text('Set Active'),
+                                      onTap: () {
+                                        ref.read(environmentsProvider.notifier)
+                                            .setActiveEnvironment(env.id);
+                                      },
+                                    ),
+                                    PopupMenuItem(
+                                      child: const Text('Delete'),
+                                      onTap: () {
+                                        ref.read(environmentsProvider.notifier)
+                                            .deleteEnvironment(env.id);
+                                        setState(() {
+                                          if (_selectedEnvId == env.id) {
+                                            _selectedEnvId = null;
+                                            _clearForm();
+                                          }
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _selectedEnvId = null;
+                        _clearForm();
+                      });
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('New Environment'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(40),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const VerticalDivider(width: 32),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _selectedEnvId == null ? 'New Environment' : 'Edit Environment',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Environment Name',
+                      border: OutlineInputBorder(),
+                      hintText: 'e.g., Production, Development',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Variables',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _variables.length,
+                      itemBuilder: (context, index) {
+                        final pair = _variables[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: pair.key,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Variable Name',
+                                    border: OutlineInputBorder(),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: pair.value,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Value',
+                                    border: OutlineInputBorder(),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: () {
+                                  setState(() {
+                                    pair.key.dispose();
+                                    pair.value.dispose();
+                                    _variables.removeAt(index);
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _variables.add(MapEntry(
+                          TextEditingController(),
+                          TextEditingController(),
+                        ));
+                      });
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Variable'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+        ElevatedButton(
+          onPressed: _saveEnvironment,
+          child: Text(_selectedEnvId == null ? 'Create' : 'Update'),
+        ),
+      ],
+    );
+  }
+
+  void _loadEnvironment(Environment env) {
+    _nameController.text = env.name;
+    
+    for (final pair in _variables) {
+      pair.key.dispose();
+      pair.value.dispose();
+    }
+    _variables.clear();
+
+    env.variables.forEach((key, value) {
+      _variables.add(MapEntry(
+        TextEditingController(text: key),
+        TextEditingController(text: value),
+      ));
+    });
+
+    if (_variables.isEmpty) {
+      _variables.add(MapEntry(TextEditingController(), TextEditingController()));
+    }
+  }
+
+  void _clearForm() {
+    _nameController.clear();
+    for (final pair in _variables) {
+      pair.key.dispose();
+      pair.value.dispose();
+    }
+    _variables.clear();
+    _variables.add(MapEntry(TextEditingController(), TextEditingController()));
+  }
+
+  void _saveEnvironment() {
+    if (_nameController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter an environment name')),
+      );
+      return;
+    }
+
+    final variables = <String, String>{};
+    for (final pair in _variables) {
+      if (pair.key.text.isNotEmpty) {
+        variables[pair.key.text] = pair.value.text;
+      }
+    }
+
+    final env = Environment(
+      id: _selectedEnvId ?? const Uuid().v4(),
+      name: _nameController.text,
+      variables: variables,
+    );
+
+    if (_selectedEnvId == null) {
+      ref.read(environmentsProvider.notifier).addEnvironment(env);
+    } else {
+      ref.read(environmentsProvider.notifier).updateEnvironment(env);
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Environment ${_selectedEnvId == null ? "created" : "updated"}'),
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    setState(() {
+      _selectedEnvId = env.id;
+    });
+  }
+}
+                Expanded(child: _buildMainContent()),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidebar() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ElevatedButton.icon(
+                onPressed: _createNewRequest,
+                icon: const Icon(Icons.add),
+                label: const Text('New Request'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _createNewCollection,
+                icon: const Icon(Icons.create_new_folder),
+                label: const Text('New Collection'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: DefaultTabController(
+            length: 2,
+            child: Column(
+              children: [
+                const TabBar(
+                  tabs: [
+                    Tab(text: 'Collections', icon: Icon(Icons.folder, size: 18)),
+                    Tab(text: 'Requests', icon: Icon(Icons.list, size: 18)),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _buildCollectionsList(),
+                      _buildRequestsList(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTopBar() {
+    final activeEnv = ref.watch(activeEnvironmentProvider);
+    final currentRequest = ref.watch(currentRequestProvider);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(_isDrawerOpen ? Icons.menu_open : Icons.menu),
+            onPressed: () => setState(() => _isDrawerOpen = !_isDrawerOpen),
+            tooltip: _isDrawerOpen ? 'Hide Sidebar' : 'Show Sidebar',
+          ),
+          const SizedBox(width: 8),
+          if (activeEnv != null && activeEnv.name.isNotEmpty)
+            Chip(
+              avatar: const Icon(Icons.circle, size: 12, color: Colors.green),
+              label: Text(activeEnv.name),
+              onDeleted: () {
+                ref.read(environmentsProvider.notifier).setActiveEnvironment('');
+              },
+            ),
+          const Spacer(),
+          if (currentRequest != null)
+            Text(
+              currentRequest.name,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainContent() {
+    final currentRequest = ref.watch(currentRequestProvider);
+
+    if (currentRequest == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.api_outlined,
+              size: 80,
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Select or create a request to get started',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  ),
+            ),
+            const SizedBox(height: 32),
+            Wrap(
+              spacing: 16,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _createNewRequest,
+                  icon: const Icon(Icons.add),
+                  label: const Text('New Request'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _showImportDialog,
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text('Import'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (currentRequest.type == RequestType.websocket) {
+      return WebSocketPanel(request: currentRequest);
+    } else if (currentRequest.type == RequestType.graphql) {
+      return GraphQLPanel(request: currentRequest);
+    } else {
+      return RequestEditor(request: currentRequest);
+    }
+  }
+
+  Widget _buildCollectionsList() {
+    final collections = ref.watch(collectionsProvider);
+    final requests = ref.watch(requestsProvider);
+
+    if (collections.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text('No collections yet\nCreate one to organize your requests'),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: collections.length,
+      itemBuilder: (context, index) {
+        final collection = collections[index];
+        final collectionRequests = requests
+            .where((r) => collection.requestIds.contains(r.id))
+            .toList();
+
+        return ExpansionTile(
+          leading: const Icon(Icons.folder),
+          title: Text(collection.name),
+          subtitle: Text('${collectionRequests.length} requests'),
+          trailing: PopupMenuButton(
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                child: const ListTile(
+                  leading: Icon(Icons.edit),
+                  title: Text('Rename'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onTap: () => _renameCollection(collection),
+              ),
+              PopupMenuItem(
+                child: const ListTile(
+                  leading: Icon(Icons.delete, color: Colors.red),
+                  title: Text('Delete', style: TextStyle(color: Colors.red)),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onTap: () {
+                  ref.read(collectionsProvider.notifier).deleteCollection(collection.id);
+                },
+              ),
+            ],
+          ),
+          children: collectionRequests.map((request) {
+            return ListTile(
+              leading: _getMethodChip(request.method),
+              title: Text(request.name),
+              subtitle: Text(
+                request.url,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () {
+                ref.read(currentRequestProvider.notifier).state = request;
+              },
+              trailing: IconButton(
+                icon: const Icon(Icons.more_vert, size: 20),
+                onPressed: () => _showRequestMenu(request),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildRequestsList() {
+    final requests = ref.watch(requestsProvider);
+
+    if (requests.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text('No requests yet\nCreate your first API request'),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: requests.length,
+      itemBuilder: (context, index) {
+        final request = requests[index];
+        final isSelected = ref.watch(currentRequestProvider)?.id == request.id;
+
+        return ListTile(
+          selected: isSelected,
+          leading: _getMethodChip(request.method),
+          title: Text(request.name),
+          subtitle: Text(
+            request.url,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: PopupMenuButton(
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                child: const ListTile(
+                  leading: Icon(Icons.edit),
+                  title: Text('Rename'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onTap: () => _renameRequest(request),
+              ),
+              PopupMenuItem(
+                child: const ListTile(
+                  leading: Icon(Icons.copy),
+                  title: Text('Duplicate'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onTap: () => _duplicateRequest(request),
+              ),
+              PopupMenuItem(
+                child: const ListTile(
+                  leading: Icon(Icons.delete, color: Colors.red),
+                  title: Text('Delete', style: TextStyle(color: Colors.red)),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onTap: () {
+                  ref.read(requestsProvider.notifier).deleteRequest(request.id);
+                  if (isSelected) {
+                    ref.read(currentRequestProvider.notifier).state = null;
+                  }
+                },
+              ),
+            ],
+          ),
+          onTap: () {
+            ref.read(currentRequestProvider.notifier).state = request;
+            ref.read(currentResponseProvider.notifier).state = null;
+          },
+        );
+      },
+    );
+  }
+
+  Widget _getMethodChip(HttpMethod method) {
+    final colors = {
+      HttpMethod.get: Colors.green,
+      HttpMethod.post: Colors.blue,
+      HttpMethod.put: Colors.orange,
+      HttpMethod.patch: Colors.purple,
+      HttpMethod.delete: Colors.red,
+      HttpMethod.head: Colors.grey,
+      HttpMethod.options: Colors.teal,
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: colors[method],
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        method.name.toUpperCase(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  void _showRequestMenu(ApiRequest request) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.edit),
+            title: const Text('Rename'),
+            onTap: () {
+              Navigator.pop(context);
+              _renameRequest(request);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.copy),
+            title: const Text('Duplicate'),
+            onTap: () {
+              Navigator.pop(context);
+              _duplicateRequest(request);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete, color: Colors.red),
+            title: const Text('Delete', style: TextStyle(color: Colors.red)),
+            onTap: () {
+              Navigator.pop(context);
+              ref.read(requestsProvider.notifier).deleteRequest(request.id);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _createNewRequest() {
+    showDialog(
+      context: context,
+      builder: (context) => const CreateRequestDialog(),
+    );
+  }
+
+  void _createNewCollection() {
+    final nameController = TextEditingController();
+    final descController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('New Collection'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Collection Name',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: descController,
+              decoration: const InputDecoration(
+                labelText: 'Description (optional)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (nameController.text.isNotEmpty) {
+                final newCollection = Collection(
+                  id: const Uuid().v4(),
+                  name: nameController.text,
+                  description: descController.text.isEmpty ? null : descController.text,
+                );
+                ref.read(collectionsProvider.notifier).addCollection(newCollection);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _renameRequest(ApiRequest request) {
+    final nameController = TextEditingController(text: request.name);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename Request'),
+        content: TextField(
+          controller: nameController,
+          decoration: const InputDecoration(
+            labelText: 'Request Name',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (nameController.text.isNotEmpty) {
+                final updated = request.copyWith(name: nameController.text);
+                ref.read(requestsProvider.notifier).updateRequest(updated);
+                if (ref.read(currentRequestProvider)?.id == request.id) {
+                  ref.read(currentRequestProvider.notifier).state = updated;
+                }
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _duplicateRequest(ApiRequest request) {
+    final newRequest = ApiRequest(
+      id: const Uuid().v4(),
+      name: '${request.name} (Copy)',
+      type: request.type,
+      method: request.method,
+      url: request.url,
+      headers: Map.from(request.headers),
+      queryParams: Map.from(request.queryParams),
+      body: request.body,
+      authType: request.authType,
+      authToken: request.authToken,
+      basicAuthUsername: request.basicAuthUsername,
+      basicAuthPassword: request.basicAuthPassword,
+    );
+    ref.read(requestsProvider.notifier).addRequest(newRequest);
+  }
+
+  void _renameCollection(Collection collection) {
+    final nameController = TextEditingController(text: collection.name);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename Collection'),
+        content: TextField(
+          controller: nameController,
+          decoration: const InputDecoration(
+            labelText: 'Collection Name',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (nameController.text.isNotEmpty) {
+                final updated = collection.copyWith(name: nameController.text);
+                ref.read(collectionsProvider.notifier).updateCollection(updated);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showImportDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import Collection'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.post_add, color: Colors.orange),
+              title: const Text('Postman Collection'),
+              subtitle: const Text('v2.0 and v2.1 format'),
+              onTap: () {
+                Navigator.pop(context);
+                _importFile('postman');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.api, color: Colors.green),
+              title: const Text('OpenAPI Specification'),
+              subtitle: const Text('v3.0+ format'),
+              onTap: () {
+                Navigator.pop(context);
+                _importFile('openapi');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.description, color: Colors.blue),
+              title: const Text('Swagger Specification'),
+              subtitle: const Text('v2.0 format'),
+              onTap: () {
+                Navigator.pop(context);
+                _importFile('swagger');
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _importFile(String type) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json', 'yaml', 'yml'],
+    );
+
+    if (result != null && result.files.single.bytes != null) {
+      try {
+        final content = utf8.decode(result.files.single.bytes!);
+        final json = jsonDecode(content);
+        
+        final importService = ImportService();
+        List<ApiRequest> requests;
+        
+        switch (type) {
+          case 'postman':
+            requests = importService.importPostmanCollection(json);
+            break;
+          case 'openapi':
+            requests = importService.importOpenApiSpec(json);
+            break;
+          case 'swagger':
+            requests = importService.importSwaggerSpec(json);
+            break;
+          default:
+            requests = [];
+        }
+
+        ref.read(requestsProvider.notifier).importRequests(requests);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Successfully imported ${requests.length} requests'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Import failed: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _showEnvironmentDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => const EnvironmentDialog(),
+    );
+  }
+}
+
+class CreateRequestDialog extends ConsumerStatefulWidget {
+  const CreateRequestDialog({super.key});
+
+  @override
+  ConsumerState<CreateRequestDialog> createState() => _CreateRequestDialogState();
+}
+
+class _CreateRequestDialogState extends ConsumerState<CreateRequestDialog> {
+  final _nameController = TextEditingController(text: 'New Request');
+  final _urlController = TextEditingController(text: 'https://api.example.com');
+  RequestType _type = RequestType.rest;
+  HttpMethod _method = HttpMethod.get;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _urlController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Create New Request'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Request Name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<RequestType>(
+              value: _type,
+              decoration: const InputDecoration(
+                labelText: 'Request Type',
+                border: OutlineInputBorder(),
+              ),
+              items: RequestType.values.map((type) {
+                return DropdownMenuItem(
+                  value: type,
+                  child: Row(
+                    children: [
+                      Icon(_getRequestTypeIcon(type), size: 20),
+                      const SizedBox(width: 8),
+                      Text(type.name.toUpperCase()),
+                    ],
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _type = value);
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+            if (_type == RequestType.rest)
+              DropdownButtonFormField<HttpMethod>(
+                value: _method,
+                decoration: const InputDecoration(
+                  labelText: 'HTTP Method',
+                  border: OutlineInputBorder(),
+                ),
+                items: HttpMethod.values.map((method) {
+                  return DropdownMenuItem(
+                    value: method,
+                    child: Text(method.name.toUpperCase()),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _method = value);
+                  }
+                },
+              ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _urlController,
+              decoration: InputDecoration(
+                labelText: _type == RequestType.websocket ? 'WebSocket URL' : 'URL',
+                border: const OutlineInputBorder(),
+                hintText: _type == RequestType.websocket 
+                    ? 'wss://example.com/ws' 
+                    : 'https://api.example.com/endpoint',
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _createRequest,
+          child: const Text('Create'),
+        ),
+      ],
+    );
+  }
+
+  IconData _getRequestTypeIcon(RequestType type) {
+    switch (type) {
+      case RequestType.rest:
+        return Icons.http;
+      case RequestType.websocket:
+        return Icons.cable;
+      case RequestType.graphql:
+        return Icons.graphic_eq;
+    }
+  }
+
+  void _createRequest() {
+    if (_nameController.text.isEmpty || _urlController.text.isEmpty) {
+      return;
+    }
+
+    final newRequest = ApiRequest(
+      id: const Uuid().v4(),
+      name: _nameController.text,
+      type: _type,
+      method: _method,
+      url: _urlController.text,
+      headers: _type == RequestType.rest 
+          ? {'Content-Type': 'application/json'}
+          : {},
+    );
+
+    ref.read(requestsProvider.notifier).addRequest(newRequest);
+    ref.read(currentRequestProvider.notifier).state = newRequest;
+    Navigator.pop(context);
+  }
+}
+
+class RequestEditor extends ConsumerStatefulWidget {
+  final ApiRequest request;
+
+  const RequestEditor({super.key, required this.request});
+
+  @override
+  ConsumerState<RequestEditor> createState() => _RequestEditorState();
+}
+
+class _RequestEditorState extends ConsumerState<RequestEditor> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  late TextEditingController _nameController;
+  late TextEditingController _urlController;
+  late TextEditingController _bodyController;
+  late TextEditingController _authTokenController;
+  late TextEditingController _basicUsernameController;
+  late TextEditingController _basicPasswordController;
+  late TextEditingController _apiKeyHeaderController;
+  late TextEditingController _apiKeyValueController;
+  
+  final List<MapEntry<TextEditingController, TextEditingController>> _headers = [];
+  final List<MapEntry<TextEditingController, TextEditingController>> _queryParams = [];
+  
+  bool _isLoading = false;
+  AuthType _authType = AuthType.none;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 4, vsync: this);
+    _initializeControllers();
+  }
+
+  void _initializeControllers() {
+    _nameController = TextEditingController(text: widget.request.name);
+    _urlController = TextEditingController(text: widget.request.url);
+    _bodyController = TextEditingController(text: widget.request.body);
+    _authType = widget.request.authType;
+    _authTokenController = TextEditingController(text: widget.request.authToken);
+    _basicUsernameController = TextEditingController(text: widget.request.basicAuthUsername);
+    _basicPasswordController = TextEditingController(text: widget.request.basicAuthPassword);
+    _apiKeyHeaderController = TextEditingController(text: widget.request.apiKeyHeader);
+    _apiKeyValueController = TextEditingController(text: widget.request.apiKeyValue);
+
+    _headers.clear();
+    widget.request.headers.forEach((key, value) {
+      _headers.add(MapEntry(
+        TextEditingController(text: key),
+        TextEditingController(text: value),
+      ));
+    });
+    if (_headers.isEmpty) {
+      _headers.add(MapEntry(TextEditingController(), TextEditingController()));
+    }
+
+    _queryParams.clear();
+    widget.request.queryParams.forEach((key, value) {
+      _queryParams.add(MapEntry(
+        TextEditingController(text: key),
+        TextEditingController(text: value),
+      ));
+    });
+    if (_queryParams.isEmpty) {
+      _queryParams.add(MapEntry(TextEditingController(), TextEditingController()));
+    }
+  }
+
+  @override
+  void didUpdateWidget(RequestEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.request.id != widget.request.id) {
+      _disposeControllers();
+      _initializeControllers();
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _disposeControllers();
+    super.dispose();
+  }
+
+  void _disposeControllers() {
+    _nameController.dispose();
+    _urlController.dispose();
+    _bodyController.dispose();
+    _authTokenController.dispose();
+    _basicUsernameController.dispose();
+    _basicPasswordController.dispose();
+    _apiKeyHeaderController.dispose();
+    _apiKeyValueController.dispose();
+    for (final pair in _headers) {
+      pair.key.dispose();
+      pair.value.dispose();
+    }
+    for (final pair in _queryParams) {
+      pair.key.dispose();
+      pair.value.dispose();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final response = ref.watch(currentResponseProvider);
+
+    return Column(
+      children: [
+        _buildRequestConfig(),
+        const Divider(height: 1),

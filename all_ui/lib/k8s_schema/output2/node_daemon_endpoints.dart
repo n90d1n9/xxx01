@@ -1,0 +1,19 @@
+import 'daemon_endpoint.dart';
+
+class NodeDaemonEndpoints {
+  final DaemonEndpoint? kubeletEndpoint;
+  NodeDaemonEndpoints({this.kubeletEndpoint});
+  factory NodeDaemonEndpoints.fromJson(Map<String, dynamic> json) {
+    return NodeDaemonEndpoints(
+      kubeletEndpoint:
+          json['kubeletEndpoint'] != null
+              ? DaemonEndpoint.fromJson(json['kubeletEndpoint'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (kubeletEndpoint != null) 'kubeletEndpoint': kubeletEndpoint!.toJson(),
+    };
+  }
+}

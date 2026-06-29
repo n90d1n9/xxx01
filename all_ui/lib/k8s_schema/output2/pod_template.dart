@@ -1,0 +1,34 @@
+import 'object_meta.dart';
+import 'pod_template_spec.dart';
+
+class PodTemplate {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final PodTemplateSpec? template;
+  PodTemplate({
+    this.apiVersion = 'v1',
+    this.kind = 'PodTemplate',
+    required this.metadata,
+    this.template,
+  });
+  factory PodTemplate.fromJson(Map<String, dynamic> json) {
+    return PodTemplate(
+      apiVersion: json['apiVersion'] ?? 'v1',
+      kind: json['kind'] ?? 'PodTemplate',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      template:
+          json['template'] != null
+              ? PodTemplateSpec.fromJson(json['template'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      if (template != null) 'template': template!.toJson(),
+    };
+  }
+}

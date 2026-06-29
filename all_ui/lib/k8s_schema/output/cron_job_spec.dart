@@ -1,0 +1,49 @@
+import 'job_template_spec.dart';
+
+class CronJobSpec {
+  final String schedule;
+  final String? timeZone;
+  final int? startingDeadlineSeconds;
+  final String? concurrencyPolicy;
+  final bool? suspend;
+  final JobTemplateSpec jobTemplate;
+  final int? successfulJobsHistoryLimit;
+  final int? failedJobsHistoryLimit;
+  CronJobSpec({
+    required this.schedule,
+    this.timeZone,
+    this.startingDeadlineSeconds,
+    this.concurrencyPolicy,
+    this.suspend,
+    required this.jobTemplate,
+    this.successfulJobsHistoryLimit,
+    this.failedJobsHistoryLimit,
+  });
+  factory CronJobSpec.fromJson(Map<String, dynamic> json) {
+    return CronJobSpec(
+      schedule: json['schedule'],
+      timeZone: json['timeZone'],
+      startingDeadlineSeconds: json['startingDeadlineSeconds'],
+      concurrencyPolicy: json['concurrencyPolicy'],
+      suspend: json['suspend'],
+      jobTemplate: JobTemplateSpec.fromJson(json['jobTemplate']),
+      successfulJobsHistoryLimit: json['successfulJobsHistoryLimit'],
+      failedJobsHistoryLimit: json['failedJobsHistoryLimit'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'schedule': schedule,
+      if (timeZone != null) 'timeZone': timeZone,
+      if (startingDeadlineSeconds != null)
+        'startingDeadlineSeconds': startingDeadlineSeconds,
+      if (concurrencyPolicy != null) 'concurrencyPolicy': concurrencyPolicy,
+      if (suspend != null) 'suspend': suspend,
+      'jobTemplate': jobTemplate.toJson(),
+      if (successfulJobsHistoryLimit != null)
+        'successfulJobsHistoryLimit': successfulJobsHistoryLimit,
+      if (failedJobsHistoryLimit != null)
+        'failedJobsHistoryLimit': failedJobsHistoryLimit,
+    };
+  }
+}

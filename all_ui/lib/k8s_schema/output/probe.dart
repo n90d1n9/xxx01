@@ -1,0 +1,55 @@
+import 'exec_action.dart';
+import 'httpget_action.dart';
+import 'tcpsocket_action.dart';
+
+class Probe {
+  final ExecAction? exec;
+  final HTTPGetAction? httpGet;
+  final TCPSocketAction? tcpSocket;
+  final int? initialDelaySeconds;
+  final int? timeoutSeconds;
+  final int? periodSeconds;
+  final int? successThreshold;
+  final int? failureThreshold;
+  Probe({
+    this.exec,
+    this.httpGet,
+    this.tcpSocket,
+    this.initialDelaySeconds,
+    this.timeoutSeconds,
+    this.periodSeconds,
+    this.successThreshold,
+    this.failureThreshold,
+  });
+  factory Probe.fromJson(Map<String, dynamic> json) {
+    return Probe(
+      exec: json['exec'] != null ? ExecAction.fromJson(json['exec']) : null,
+      httpGet:
+          json['httpGet'] != null
+              ? HTTPGetAction.fromJson(json['httpGet'])
+              : null,
+      tcpSocket:
+          json['tcpSocket'] != null
+              ? TCPSocketAction.fromJson(json['tcpSocket'])
+              : null,
+      initialDelaySeconds: json['initialDelaySeconds'],
+      timeoutSeconds: json['timeoutSeconds'],
+      periodSeconds: json['periodSeconds'],
+      successThreshold: json['successThreshold'],
+      failureThreshold: json['failureThreshold'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (exec != null) 'exec': exec!.toJson(),
+      if (httpGet != null) 'httpGet': httpGet!.toJson(),
+      if (tcpSocket != null) 'tcpSocket': tcpSocket!.toJson(),
+      if (initialDelaySeconds != null)
+        'initialDelaySeconds': initialDelaySeconds,
+      if (timeoutSeconds != null) 'timeoutSeconds': timeoutSeconds,
+      if (periodSeconds != null) 'periodSeconds': periodSeconds,
+      if (successThreshold != null) 'successThreshold': successThreshold,
+      if (failureThreshold != null) 'failureThreshold': failureThreshold,
+    };
+  }
+}

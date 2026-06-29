@@ -1,0 +1,3123 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:convert';
+
+// ==================== State Management ====================
+
+/// Main builder state provider
+final builderStateProvider = StateNotifierProvider<BuilderStateNotifier, BuilderState>((ref) {
+  return BuilderStateNotifier();
+});
+
+class BuilderState {
+  final WebsiteDocument? website;
+  final Page? currentPage;
+  final Section? selectedSection;
+  final Component? selectedComponent;
+  final bool isPreviewMode;
+  final Map<String, dynamic> clipboard;
+  final List<BuilderAction> history;
+  final int historyIndex;
+
+  BuilderState({
+    this.website,
+    this.currentPage,
+    this.selectedSection,
+    this.selectedComponent,
+    this.isPreviewMode = false,
+    this.clipboard = const {},
+    this.history = const [],
+    this.historyIndex = -1,
+  });
+
+  BuilderState copyWith({
+    WebsiteDocument? website,
+    Page? currentPage,
+    Section? selectedSection,
+    Component? selectedComponent,
+    bool? isPreviewMode,
+    Map<String, dynamic>? clipboard,
+    List<BuilderAction>? history,
+    int? historyIndex,
+  }) {
+    return BuilderState(
+      website: website ?? this.website,
+      currentPage: currentPage ?? this.currentPage,
+      selectedSection: selectedSection ?? this.selectedSection,
+      selectedComponent: selectedComponent ?? this.selectedComponent,
+      isPreviewMode: isPreviewMode ?? this.isPreviewMode,
+      clipboard: clipboard ?? this.clipboard,
+      history: history ?? this.history,
+      historyIndex: historyIndex ?? this.historyIndex,
+    );
+  }
+}
+
+class BuilderStateNotifier extends StateNotifier<BuilderState> {
+  BuilderStateNotifier() : super(BuilderState()) {
+    _initializeNewProject();
+  }
+
+  void _initializeNewProject() {
+    final website = WebsiteDocument(
+      id: 'website-${DateTime.now().millisecondsSinceEpoch}',
+      version: '1.0.0',
+      metadata: WebsiteMetadata(
+        name: 'New Website',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+      pages: [
+        Page(
+          id: 'page-home',
+          name: 'Home',
+          path: '/',
+          sections: [],
+        ),
+      ],
+    );
+
+    state = state.copyWith(
+      website: website,
+      currentPage: website.pages.first,
+    );
+  }
+
+  void selectSection(Section section) {
+    state = state.copyWith(
+      selectedSection: section,
+      selectedComponent: null,
+    );
+  }
+
+  void selectComponent(Component component) {
+    state = state.copyWith(selectedComponent: component);
+  }
+
+  void addSection(Section section) {
+    if (state.currentPage == null) return;
+
+    final updatedPage = _updatePage(
+      state.currentPage!,
+      (page) => page.copyWith(
+        sections: [...page.sections, section],
+      ),
+    );
+
+    _updateCurrentPage(updatedPage);
+  }
+
+  void addComponent(Component component, {Section? targetSection}) {
+    final section = targetSection ?? state.selectedSection;
+    if (section == null) return;
+
+    final updatedSection = section.copyWith(
+      components: [...section.components, component],
+    );
+
+    _updateSection(section.id, updatedSection);
+  }
+
+  void updateComponent(String componentId, Component updated) {
+    if (state.currentPage == null) return;
+
+    final updatedPage = _updateComponentInPage(
+      state.currentPage!,
+      componentId,
+      updated,
+    );
+
+    _updateCurrentPage(updatedPage);
+  }
+
+  void deleteComponent(String componentId) {
+    if (state.currentPage == null) return;
+
+    final updatedPage = _deleteComponentFromPage(
+      state.currentPage!,
+      componentId,
+    );
+
+    _updateCurrentPage(updatedPage);
+    state = state.copyWith(selectedComponent: null);
+  }
+
+  void moveComponent(String componentId, int newIndex, {String? newSectionId}) {
+    // Implementation for drag-and-drop reordering
+    if (state.currentPage == null) return;
+
+    // Find the component and remove it
+    Component? movedComponent;
+    final updatedPage = _removeComponentFromPage(
+      state.currentPage!,
+      componentId,
+      (component) => movedComponent = component,
+    );
+
+    if (movedComponent == null) return;
+
+    // Add to new position
+    final finalPage = _insertComponentInPage(
+      updatedPage,
+      movedComponent!,
+      newIndex,
+      newSectionId,
+    );
+
+    _updateCurrentPage(finalPage);
+  }
+
+  void togglePreviewMode() {
+    state = state.copyWith(isPreviewMode: !state.isPreviewMode);
+  }
+
+  void _updateCurrentPage(Page page) {
+    if (state.website == null) return;
+
+    final pages = state.website!.pages.map((p) {
+      return p.id == page.id ? page : p;
+    }).toList();
+
+    final updatedWebsite = state.website!.copyWith(pages: pages);
+
+    state = state.copyWith(
+      website: updatedWebsite,
+      currentPage: page,
+    );
+  }
+
+  void _updateSection(String sectionId, Section updated) {
+    if (state.currentPage == null) return;
+
+    final updatedPage = _updatePage(
+      state.currentPage!,
+      (page) => page.copyWith(
+        sections: page.sections.map((s) {
+          return s.id == sectionId ? updated : s;
+        }).toList(),
+      ),
+    );
+
+    _updateCurrentPage(updatedPage);
+  }
+
+  Page _updatePage(Page page, Page Function(Page) updater) {
+    return updater(page);
+  }
+
+  Page _updateComponentInPage(Page page, String componentId, Component updated) {
+    return page.copyWith(
+      sections: page.sections.map((section) {
+        return section.copyWith(
+          components: _updateComponentInList(
+            section.components,
+            componentId,
+            updated,
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  List<Component> _updateComponentInList(
+    List<Component> components,
+    String componentId,
+    Component updated,
+  ) {
+    return components.map((component) {
+      if (component.id == componentId) {
+        return updated;
+      } else if (component.children != null) {
+        return component.copyWith(
+          children: _updateComponentInList(
+            component.children!,
+            componentId,
+            updated,
+          ),
+        );
+      }
+      return component;
+    }).toList();
+  }
+
+  Page _deleteComponentFromPage(Page page, String componentId) {
+    return page.copyWith(
+      sections: page.sections.map((section) {
+        return section.copyWith(
+          components: _removeComponentFromList(section.components, componentId),
+        );
+      }).toList(),
+    );
+  }
+
+  List<Component> _removeComponentFromList(
+    List<Component> components,
+    String componentId,
+  ) {
+    return components.where((c) => c.id != componentId).map((component) {
+      if (component.children != null) {
+        return component.copyWith(
+          children: _removeComponentFromList(component.children!, componentId),
+        );
+      }
+      return component;
+    }).toList();
+  }
+
+  Page _removeComponentFromPage(
+    Page page,
+    String componentId,
+    void Function(Component) onFound,
+  ) {
+    return page.copyWith(
+      sections: page.sections.map((section) {
+        return section.copyWith(
+          components: _findAndRemoveComponent(
+            section.components,
+            componentId,
+            onFound,
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  List<Component> _findAndRemoveComponent(
+    List<Component> components,
+    String componentId,
+    void Function(Component) onFound,
+  ) {
+    final result = <Component>[];
+    for (final component in components) {
+      if (component.id == componentId) {
+        onFound(component);
+      } else {
+        if (component.children != null) {
+          result.add(component.copyWith(
+            children: _findAndRemoveComponent(
+              component.children!,
+              componentId,
+              onFound,
+            ),
+          ));
+        } else {
+          result.add(component);
+        }
+      }
+    }
+    return result;
+  }
+
+  Page _insertComponentInPage(
+    Page page,
+    Component component,
+    int index,
+    String? sectionId,
+  ) {
+    return page.copyWith(
+      sections: page.sections.map((section) {
+        if (sectionId == null || section.id == sectionId) {
+          final components = [...section.components];
+          components.insert(index.clamp(0, components.length), component);
+          return section.copyWith(components: components);
+        }
+        return section;
+      }).toList(),
+    );
+  }
+}
+
+class BuilderAction {
+  final String type;
+  final Map<String, dynamic> data;
+  final DateTime timestamp;
+
+  BuilderAction({
+    required this.type,
+    required this.data,
+    required this.timestamp,
+  });
+}
+
+// ==================== Main Visual Builder ====================
+
+class VisualWebsiteBuilder extends ConsumerStatefulWidget {
+  const VisualWebsiteBuilder({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<VisualWebsiteBuilder> createState() => _VisualWebsiteBuilderState();
+}
+
+class _VisualWebsiteBuilderState extends ConsumerState<VisualWebsiteBuilder> {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(left: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FontSizeField extends StatelessWidget {
+  final String? value;
+  final ValueChanged<String> onChanged;
+
+  const _FontSizeField({
+    this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          const Expanded(
+            flex: 2,
+            child: Text('Size', style: TextStyle(fontSize: 13)),
+          ),
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: TextEditingController(text: value ?? '16'),
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                suffixText: 'px',
+              ),
+              onChanged: (value) => onChanged('${value}px'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FontWeightField extends StatelessWidget {
+  final String? value;
+  final ValueChanged<String> onChanged;
+
+  const _FontWeightField({
+    this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          const Expanded(
+            flex: 2,
+            child: Text('Weight', style: TextStyle(fontSize: 13)),
+          ),
+          Expanded(
+            flex: 3,
+            child: DropdownButtonFormField<String>(
+              value: value ?? 'normal',
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              ),
+              items: const [
+                DropdownMenuItem(value: '100', child: Text('Thin')),
+                DropdownMenuItem(value: '300', child: Text('Light')),
+                DropdownMenuItem(value: 'normal', child: Text('Normal')),
+                DropdownMenuItem(value: '500', child: Text('Medium')),
+                DropdownMenuItem(value: '600', child: Text('Semibold')),
+                DropdownMenuItem(value: 'bold', child: Text('Bold')),
+                DropdownMenuItem(value: '800', child: Text('Extra Bold')),
+              ],
+              onChanged: (value) => onChanged(value ?? 'normal'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== Helper Classes ====================
+
+class BuilderProject {
+  final String name;
+  final List<Page> pages;
+
+  BuilderProject({
+    required this.name,
+    required this.pages,
+  });
+}
+
+class ComponentData {
+  final String id;
+  final String type;
+
+  ComponentData({
+    required this.id,
+    required this.type,
+  });
+}
+
+class SectionData {
+  final String id;
+  final String type;
+  final List<ComponentData> components;
+
+  SectionData({
+    required this.id,
+    required this.type,
+    required this.components,
+  });
+}
+
+// ==================== Extension Methods ====================
+
+extension ComponentCopyWith on Component {
+  Component copyWith({
+    String? id,
+    String? type,
+    String? name,
+    Map<String, dynamic>? props,
+    Styles? styles,
+    List<Component>? children,
+    List<Event>? events,
+    Responsive? responsive,
+    Animation? animation,
+    List<Condition>? conditions,
+    Map<String, dynamic>? data,
+    String? dataSource,
+  }) {
+    return Component(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      name: name ?? this.name,
+      props: props ?? this.props,
+      styles: styles ?? this.styles,
+      children: children ?? this.children,
+      events: events ?? this.events,
+      responsive: responsive ?? this.responsive,
+      animation: animation ?? this.animation,
+      conditions: conditions ?? this.conditions,
+      data: data ?? this.data,
+      dataSource: dataSource ?? this.dataSource,
+    );
+  }
+}
+
+extension SectionCopyWith on Section {
+  Section copyWith({
+    String? id,
+    String? type,
+    String? name,
+    Layout? layout,
+    List<Component>? components,
+    Styles? styles,
+    Responsive? responsive,
+    Map<String, dynamic>? data,
+    List<Condition>? conditions,
+  }) {
+    return Section(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      name: name ?? this.name,
+      layout: layout ?? this.layout,
+      components: components ?? this.components,
+      styles: styles ?? this.styles,
+      responsive: responsive ?? this.responsive,
+      data: data ?? this.data,
+      conditions: conditions ?? this.conditions,
+    );
+  }
+}
+
+extension PageCopyWith on Page {
+  Page copyWith({
+    String? id,
+    String? name,
+    String? path,
+    PageMetadata? metadata,
+    List<Section>? sections,
+    PageStyles? styles,
+    Map<String, dynamic>? data,
+  }) {
+    return Page(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      path: path ?? this.path,
+      metadata: metadata ?? this.metadata,
+      sections: sections ?? this.sections,
+      styles: styles ?? this.styles,
+      data: data ?? this.data,
+    );
+  }
+}
+
+extension WebsiteDocumentCopyWith on WebsiteDocument {
+  WebsiteDocument copyWith({
+    String? id,
+    String? version,
+    WebsiteMetadata? metadata,
+    List<Page>? pages,
+    GlobalStyles? globalStyles,
+    Map<String, ComponentDefinition>? customComponents,
+    Map<String, dynamic>? assets,
+    Map<String, dynamic>? variables,
+  }) {
+    return WebsiteDocument(
+      id: id ?? this.id,
+      version: version ?? this.version,
+      metadata: metadata ?? this.metadata,
+      pages: pages ?? this.pages,
+      globalStyles: globalStyles ?? this.globalStyles,
+      customComponents: customComponents ?? this.customComponents,
+      assets: assets ?? this.assets,
+      variables: variables ?? this.variables,
+    );
+  }
+}
+
+extension DimensionsCopyWith on Dimensions {
+  Dimensions copyWith({
+    String? width,
+    String? height,
+    String? minWidth,
+    String? minHeight,
+    String? maxWidth,
+    String? maxHeight,
+    String? aspectRatio,
+  }) {
+    return Dimensions(
+      width: width ?? this.width,
+      height: height ?? this.height,
+      minWidth: minWidth ?? this.minWidth,
+      minHeight: minHeight ?? this.minHeight,
+      maxWidth: maxWidth ?? this.maxWidth,
+      maxHeight: maxHeight ?? this.maxHeight,
+      aspectRatio: aspectRatio ?? this.aspectRatio,
+    );
+  }
+}
+
+extension StylesCopyWith on Styles {
+  Styles copyWith({
+    Dimensions? dimensions,
+    Spacing? margin,
+    Spacing? padding,
+    Background? background,
+    Border? border,
+    Typography? typography,
+    Shadow? shadow,
+    Transform? transform,
+    String? display,
+    String? position,
+    Positioning? positioning,
+    String? overflow,
+    String? cursor,
+    String? opacity,
+    String? zIndex,
+    Transition? transition,
+    Filter? filter,
+    Map<String, dynamic>? customCss,
+  }) {
+    return Styles(
+      dimensions: dimensions ?? this.dimensions,
+      margin: margin ?? this.margin,
+      padding: padding ?? this.padding,
+      background: background ?? this.background,
+      border: border ?? this.border,
+      typography: typography ?? this.typography,
+      shadow: shadow ?? this.shadow,
+      transform: transform ?? this.transform,
+      display: display ?? this.display,
+      position: position ?? this.position,
+      positioning: positioning ?? this.positioning,
+      overflow: overflow ?? this.overflow,
+      cursor: cursor ?? this.cursor,
+      opacity: opacity ?? this.opacity,
+      zIndex: zIndex ?? this.zIndex,
+      transition: transition ?? this.transition,
+      filter: filter ?? this.filter,
+      customCss: customCss ?? this.customCss,
+    );
+  }
+}
+
+extension BorderCopyWith on Border {
+  Border copyWith({
+    String? width,
+    String? style,
+    String? color,
+    BorderRadius? radius,
+    BorderSides? sides,
+  }) {
+    return Border(
+      width: width ?? this.width,
+      style: style ?? this.style,
+      color: color ?? this.color,
+      radius: radius ?? this.radius,
+      sides: sides ?? this.sides,
+    );
+  }
+}
+
+extension TypographyCopyWith on Typography {
+  Typography copyWith({
+    String? fontFamily,
+    String? fontSize,
+    String? fontWeight,
+    String? fontStyle,
+    String? lineHeight,
+    String? letterSpacing,
+    String? textAlign,
+    String? textDecoration,
+    String? textTransform,
+    String? color,
+    TextShadow? textShadow,
+    String? wordSpacing,
+    String? whiteSpace,
+  }) {
+    return Typography(
+      fontFamily: fontFamily ?? this.fontFamily,
+      fontSize: fontSize ?? this.fontSize,
+      fontWeight: fontWeight ?? this.fontWeight,
+      fontStyle: fontStyle ?? this.fontStyle,
+      lineHeight: lineHeight ?? this.lineHeight,
+      letterSpacing: letterSpacing ?? this.letterSpacing,
+      textAlign: textAlign ?? this.textAlign,
+      textDecoration: textDecoration ?? this.textDecoration,
+      textTransform: textTransform ?? this.textTransform,
+      color: color ?? this.color,
+      textShadow: textShadow ?? this.textShadow,
+      wordSpacing: wordSpacing ?? this.wordSpacing,
+      whiteSpace: whiteSpace ?? this.whiteSpace,
+    );
+  }
+}
+
+// ==================== Templates System ====================
+
+class TemplateLibrary {
+  static List<Template> get templates => [
+        Template(
+          id: 'landing-1',
+          name: 'Modern Landing Page',
+          description: 'Clean and modern landing page with hero section',
+          category: 'Landing Pages',
+          thumbnail: 'assets/templates/landing-1.png',
+          sections: [
+            _heroSection(),
+            _featuresSection(),
+            _ctaSection(),
+          ],
+        ),
+        Template(
+          id: 'portfolio-1',
+          name: 'Portfolio',
+          description: 'Showcase your work with style',
+          category: 'Portfolio',
+          thumbnail: 'assets/templates/portfolio-1.png',
+          sections: [
+            _portfolioHero(),
+            _portfolioGrid(),
+            _contactSection(),
+          ],
+        ),
+        Template(
+          id: 'business-1',
+          name: 'Business Website',
+          description: 'Professional business website template',
+          category: 'Business',
+          thumbnail: 'assets/templates/business-1.png',
+          sections: [
+            _businessHero(),
+            _servicesSection(),
+            _testimonialSection(),
+          ],
+        ),
+      ];
+
+  static Section _heroSection() {
+    return Section(
+      id: 'hero-${DateTime.now().millisecondsSinceEpoch}',
+      type: 'hero',
+      layout: Layout(
+        type: 'flex',
+        direction: 'column',
+        alignment: 'center',
+        padding: Spacing(all: '64px'),
+      ),
+      components: [
+        Component(
+          id: 'hero-title',
+          type: 'text',
+          props: {
+            'content': 'Welcome to Your Website',
+            'tag': 'h1',
+          },
+          styles: Styles(
+            typography: Typography(
+              fontSize: '48px',
+              fontWeight: 'bold',
+              textAlign: 'center',
+              color: '#1F2937',
+            ),
+            margin: Spacing(bottom: '16px'),
+          ),
+        ),
+        Component(
+          id: 'hero-subtitle',
+          type: 'text',
+          props: {
+            'content': 'Create something amazing today',
+            'tag': 'p',
+          },
+          styles: Styles(
+            typography: Typography(
+              fontSize: '20px',
+              textAlign: 'center',
+              color: '#6B7280',
+            ),
+            margin: Spacing(bottom: '32px'),
+          ),
+        ),
+        Component(
+          id: 'hero-button',
+          type: 'button',
+          props: {
+            'text': 'Get Started',
+            'variant': 'contained',
+          },
+          styles: Styles(
+            background: Background(color: '#4F46E5'),
+            padding: Spacing(all: '16px 32px'),
+            border: Border(
+              radius: BorderRadius(all: '8px'),
+            ),
+          ),
+        ),
+      ],
+      styles: Styles(
+        background: Background(
+          gradient: Gradient(
+            type: 'linear',
+            stops: [
+              GradientStop(color: '#EEF2FF', position: '0%'),
+              GradientStop(color: '#FFFFFF', position: '100%'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Section _featuresSection() {
+    return Section(
+      id: 'features-${DateTime.now().millisecondsSinceEpoch}',
+      type: 'content',
+      layout: Layout(
+        type: 'grid',
+        columns: 3,
+        gap: '24px',
+        padding: Spacing(all: '64px'),
+      ),
+      components: [
+        _featureCard('Fast', Icons.speed, 'Lightning fast performance'),
+        _featureCard('Secure', Icons.security, 'Bank-level security'),
+        _featureCard('Reliable', Icons.verified, '99.9% uptime guarantee'),
+      ],
+    );
+  }
+
+  static Component _featureCard(String title, IconData icon, String description) {
+    return Component(
+      id: 'feature-${DateTime.now().millisecondsSinceEpoch}',
+      type: 'container',
+      children: [
+        Component(
+          id: 'feature-icon',
+          type: 'icon',
+          props: {'name': icon.toString(), 'size': 48},
+          styles: Styles(
+            margin: Spacing(bottom: '16px'),
+          ),
+        ),
+        Component(
+          id: 'feature-title',
+          type: 'text',
+          props: {'content': title, 'tag': 'h3'},
+          styles: Styles(
+            typography: Typography(
+              fontSize: '20px',
+              fontWeight: 'bold',
+            ),
+            margin: Spacing(bottom: '8px'),
+          ),
+        ),
+        Component(
+          id: 'feature-desc',
+          type: 'text',
+          props: {'content': description, 'tag': 'p'},
+          styles: Styles(
+            typography: Typography(
+              color: '#6B7280',
+            ),
+          ),
+        ),
+      ],
+      styles: Styles(
+        padding: Spacing(all: '24px'),
+        background: Background(color: '#FFFFFF'),
+        border: Border(
+          width: '1px',
+          color: '#E5E7EB',
+          radius: BorderRadius(all: '12px'),
+        ),
+        shadow: Shadow(
+          boxShadow: [
+            ShadowLayer(
+              offsetX: '0',
+              offsetY: '4px',
+              blur: '12px',
+              color: 'rgba(0,0,0,0.05)',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Section _ctaSection() {
+    return Section(
+      id: 'cta-${DateTime.now().millisecondsSinceEpoch}',
+      type: 'content',
+      layout: Layout(
+        type: 'flex',
+        direction: 'column',
+        alignment: 'center',
+        padding: Spacing(all: '64px'),
+      ),
+      components: [
+        Component(
+          id: 'cta-title',
+          type: 'text',
+          props: {
+            'content': 'Ready to get started?',
+            'tag': 'h2',
+          },
+          styles: Styles(
+            typography: Typography(
+              fontSize: '36px',
+              fontWeight: 'bold',
+              textAlign: 'center',
+              color: '#FFFFFF',
+            ),
+            margin: Spacing(bottom: '24px'),
+          ),
+        ),
+        Component(
+          id: 'cta-button',
+          type: 'button',
+          props: {
+            'text': 'Sign Up Now',
+            'variant': 'contained',
+          },
+          styles: Styles(
+            background: Background(color: '#FFFFFF'),
+            padding: Spacing(all: '16px 32px'),
+            border: Border(radius: BorderRadius(all: '8px')),
+          ),
+        ),
+      ],
+      styles: Styles(
+        background: Background(
+          gradient: Gradient(
+            type: 'linear',
+            stops: [
+              GradientStop(color: '#667eea', position: '0%'),
+              GradientStop(color: '#764ba2', position: '100%'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Section _portfolioHero() {
+    return Section(
+      id: 'portfolio-hero-${DateTime.now().millisecondsSinceEpoch}',
+      type: 'hero',
+      layout: Layout(
+        type: 'flex',
+        direction: 'column',
+        alignment: 'center',
+        padding: Spacing(all: '96px'),
+      ),
+      components: [
+        Component(
+          id: 'portfolio-name',
+          type: 'text',
+          props: {'content': 'John Doe', 'tag': 'h1'},
+          styles: Styles(
+            typography: Typography(
+              fontSize: '56px',
+              fontWeight: 'bold',
+            ),
+          ),
+        ),
+        Component(
+          id: 'portfolio-role',
+          type: 'text',
+          props: {'content': 'Creative Designer', 'tag': 'p'},
+          styles: Styles(
+            typography: Typography(
+              fontSize: '24px',
+              color: '#6B7280',
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static Section _portfolioGrid() {
+    return Section(
+      id: 'portfolio-grid-${DateTime.now().millisecondsSinceEpoch}',
+      type: 'content',
+      layout: Layout(
+        type: 'grid',
+        columns: 2,
+        gap: '32px',
+        padding: Spacing(all: '64px'),
+      ),
+      components: [
+        _portfolioItem('Project 1'),
+        _portfolioItem('Project 2'),
+        _portfolioItem('Project 3'),
+        _portfolioItem('Project 4'),
+      ],
+    );
+  }
+
+  static Component _portfolioItem(String title) {
+    return Component(
+      id: 'portfolio-item-${DateTime.now().millisecondsSinceEpoch}',
+      type: 'container',
+      children: [
+        Component(
+          id: 'portfolio-image',
+          type: 'image',
+          props: {
+            'src': 'https://via.placeholder.com/600x400',
+            'alt': title,
+          },
+        ),
+        Component(
+          id: 'portfolio-title',
+          type: 'text',
+          props: {'content': title, 'tag': 'h3'},
+          styles: Styles(
+            typography: Typography(
+              fontSize: '24px',
+              fontWeight: 'bold',
+            ),
+            margin: Spacing(top: '16px'),
+          ),
+        ),
+      ],
+      styles: Styles(
+        border: Border(radius: BorderRadius(all: '12px')),
+        overflow: 'hidden',
+      ),
+    );
+  }
+
+  static Section _businessHero() {
+    return Section(
+      id: 'business-hero-${DateTime.now().millisecondsSinceEpoch}',
+      type: 'hero',
+      layout: Layout(
+        type: 'flex',
+        direction: 'row',
+        alignment: 'center',
+        padding: Spacing(all: '64px'),
+      ),
+      components: [
+        Component(
+          id: 'business-content',
+          type: 'container',
+          children: [
+            Component(
+              id: 'business-title',
+              type: 'text',
+              props: {
+                'content': 'Grow Your Business',
+                'tag': 'h1',
+              },
+              styles: Styles(
+                typography: Typography(
+                  fontSize: '48px',
+                  fontWeight: 'bold',
+                ),
+              ),
+            ),
+            Component(
+              id: 'business-desc',
+              type: 'text',
+              props: {
+                'content': 'We help businesses succeed in the digital age',
+                'tag': 'p',
+              },
+              styles: Styles(
+                typography: Typography(
+                  fontSize: '18px',
+                  color: '#6B7280',
+                ),
+                margin: Spacing(top: '16px', bottom: '32px'),
+              ),
+            ),
+            Component(
+              id: 'business-button',
+              type: 'button',
+              props: {'text': 'Learn More', 'variant': 'contained'},
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  static Section _servicesSection() {
+    return Section(
+      id: 'services-${DateTime.now().millisecondsSinceEpoch}',
+      type: 'content',
+      layout: Layout(
+        type: 'grid',
+        columns: 3,
+        gap: '24px',
+        padding: Spacing(all: '64px'),
+      ),
+      components: [
+        _serviceCard('Consulting', 'Expert business consulting'),
+        _serviceCard('Development', 'Custom software development'),
+        _serviceCard('Marketing', 'Digital marketing services'),
+      ],
+    );
+  }
+
+  static Component _serviceCard(String title, String description) {
+    return Component(
+      id: 'service-${DateTime.now().millisecondsSinceEpoch}',
+      type: 'container',
+      children: [
+        Component(
+          id: 'service-title',
+          type: 'text',
+          props: {'content': title, 'tag': 'h3'},
+          styles: Styles(
+            typography: Typography(
+              fontSize: '24px',
+              fontWeight: 'bold',
+            ),
+            margin: Spacing(bottom: '12px'),
+          ),
+        ),
+        Component(
+          id: 'service-desc',
+          type: 'text',
+          props: {'content': description, 'tag': 'p'},
+          styles: Styles(
+            typography: Typography(color: '#6B7280'),
+          ),
+        ),
+      ],
+      styles: Styles(
+        padding: Spacing(all: '32px'),
+        background: Background(color: '#F9FAFB'),
+        border: Border(radius: BorderRadius(all: '12px')),
+      ),
+    );
+  }
+
+  static Section _testimonialSection() {
+    return Section(
+      id: 'testimonial-${DateTime.now().millisecondsSinceEpoch}',
+      type: 'content',
+      layout: Layout(
+        type: 'flex',
+        direction: 'column',
+        alignment: 'center',
+        padding: Spacing(all: '64px'),
+      ),
+      components: [
+        Component(
+          id: 'testimonial-text',
+          type: 'text',
+          props: {
+            'content': '"This service transformed our business!"',
+            'tag': 'blockquote',
+          },
+          styles: Styles(
+            typography: Typography(
+              fontSize: '24px',
+              fontStyle: 'italic',
+              textAlign: 'center',
+            ),
+            margin: Spacing(bottom: '16px'),
+          ),
+        ),
+        Component(
+          id: 'testimonial-author',
+          type: 'text',
+          props: {
+            'content': '- Happy Customer',
+            'tag': 'p',
+          },
+          styles: Styles(
+            typography: Typography(
+              color: '#6B7280',
+              textAlign: 'center',
+            ),
+          ),
+        ),
+      ],
+      styles: Styles(
+        background: Background(color: '#F9FAFB'),
+      ),
+    );
+  }
+
+  static Section _contactSection() {
+    return Section(
+      id: 'contact-${DateTime.now().millisecondsSinceEpoch}',
+      type: 'content',
+      layout: Layout(
+        type: 'flex',
+        direction: 'column',
+        alignment: 'center',
+        padding: Spacing(all: '64px'),
+      ),
+      components: [
+        Component(
+          id: 'contact-title',
+          type: 'text',
+          props: {'content': 'Get In Touch', 'tag': 'h2'},
+          styles: Styles(
+            typography: Typography(
+              fontSize: '36px',
+              fontWeight: 'bold',
+              textAlign: 'center',
+            ),
+            margin: Spacing(bottom: '32px'),
+          ),
+        ),
+        Component(
+          id: 'contact-email',
+          type: 'link',
+          props: {
+            'text': 'contact@example.com',
+            'url': 'mailto:contact@example.com',
+          },
+          styles: Styles(
+            typography: Typography(
+              fontSize: '20px',
+              color: '#4F46E5',
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class Template {
+  final String id;
+  final String name;
+  final String description;
+  final String category;
+  final String thumbnail;
+  final List<Section> sections;
+
+  Template({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.category,
+    required this.thumbnail,
+    required this.sections,
+  });
+}
+
+// ==================== Template Picker Dialog ====================
+
+class TemplatePickerDialog extends StatelessWidget {
+  const TemplatePickerDialog({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final templates = TemplateLibrary.templates;
+
+    return Dialog(
+      child: Container(
+        width: 900,
+        height: 700,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+              ),
+              child: Row(
+                children: [
+                  const Text(
+                    'Choose a Template',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: GridView.builder(
+                padding: const EdgeInsets.all(24),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 0.75,
+                ),
+                itemCount: templates.length,
+                itemBuilder: (context, index) {
+                  final template = templates[index];
+                  return _TemplateCard(template: template);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TemplateCard extends ConsumerWidget {
+  final Template template;
+
+  const _TemplateCard({required this.template});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          // Apply template
+          for (final section in template.sections) {
+            ref.read(builderStateProvider.notifier).addSection(section);
+          }
+          Navigator.pop(context);
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Container(
+                color: Colors.grey[200],
+                child: Center(
+                  child: Icon(
+                    Icons.web,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    template.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    template.description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Chip(
+                    label: Text(
+                      template.category,
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+      ),
+      child: IconButton(
+        icon: Icon(icon, size: 16),
+        onPressed: onPressed,
+        padding: const EdgeInsets.all(4),
+        constraints: const BoxConstraints(
+          minWidth: 28,
+          minHeight: 28,
+        ),
+      ),
+    );
+  }
+}
+
+class _AddSectionButton extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: OutlinedButton.icon(
+        onPressed: () {
+          _showAddSectionDialog(context, ref);
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Add Section'),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 48),
+          side: BorderSide(color: Colors.grey[400]!),
+        ),
+      ),
+    );
+  }
+
+  void _showAddSectionDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Section'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _SectionTypeCard(
+              title: 'Header',
+              icon: Icons.view_day,
+              onTap: () {
+                _addSection(ref, 'header');
+                Navigator.pop(context);
+              },
+            ),
+            _SectionTypeCard(
+              title: 'Hero',
+              icon: Icons.panorama,
+              onTap: () {
+                _addSection(ref, 'hero');
+                Navigator.pop(context);
+              },
+            ),
+            _SectionTypeCard(
+              title: 'Content',
+              icon: Icons.view_agenda,
+              onTap: () {
+                _addSection(ref, 'content');
+                Navigator.pop(context);
+              },
+            ),
+            _SectionTypeCard(
+              title: 'Footer',
+              icon: Icons.horizontal_rule,
+              onTap: () {
+                _addSection(ref, 'footer');
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _addSection(WidgetRef ref, String type) {
+    final section = Section(
+      id: 'section-${DateTime.now().millisecondsSinceEpoch}',
+      type: type,
+      layout: Layout(
+        type: 'flex',
+        direction: 'column',
+        alignment: 'center',
+      ),
+      components: [],
+      styles: _getDefaultSectionStyles(type),
+    );
+    ref.read(builderStateProvider.notifier).addSection(section);
+  }
+
+  Styles _getDefaultSectionStyles(String type) {
+    switch (type) {
+      case 'header':
+        return Styles(
+          padding: Spacing(all: '16px'),
+          background: Background(color: '#FFFFFF'),
+        );
+      case 'hero':
+        return Styles(
+          padding: Spacing(all: '64px'),
+          background: Background(
+            gradient: Gradient(
+              type: 'linear',
+              stops: [
+                GradientStop(color: '#667eea', position: '0%'),
+                GradientStop(color: '#764ba2', position: '100%'),
+              ],
+            ),
+          ),
+        );
+      case 'footer':
+        return Styles(
+          padding: Spacing(all: '32px'),
+          background: Background(color: '#1F2937'),
+        );
+      default:
+        return Styles(
+          padding: Spacing(all: '32px'),
+        );
+    }
+  }
+}
+
+class _SectionTypeCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _SectionTypeCard({
+    required this.title,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(icon, size: 32, color: Colors.blue),
+              const SizedBox(width: 16),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== Properties Panel ====================
+
+class _PropertiesPanel extends ConsumerWidget {
+  final BuilderState state;
+
+  const _PropertiesPanel({required this.state});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      width: 320,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(left: BorderSide(color: Colors.grey[300]!)),
+      ),
+      child: state.selectedComponent != null
+          ? _ComponentProperties(component: state.selectedComponent!)
+          : state.selectedSection != null
+              ? _SectionProperties(section: state.selectedSection!)
+              : _EmptyProperties(),
+    );
+  }
+}
+
+class _EmptyProperties extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.settings, size: 64, color: Colors.grey[300]),
+          const SizedBox(height: 16),
+          Text(
+            'Select an element to edit',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ComponentProperties extends ConsumerStatefulWidget {
+  final Component component;
+
+  const _ComponentProperties({required this.component});
+
+  @override
+  ConsumerState<_ComponentProperties> createState() => _ComponentPropertiesState();
+}
+
+class _ComponentPropertiesState extends ConsumerState<_ComponentProperties>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                _getIconForComponentType(widget.component.type),
+                size: 20,
+                color: Colors.blue,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.component.type.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 20),
+                onPressed: () {
+                  ref.read(builderStateProvider.notifier).selectComponent(
+                    Component(id: '', type: ''),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Content'),
+            Tab(text: 'Style'),
+            Tab(text: 'Advanced'),
+          ],
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _ContentTab(component: widget.component),
+              _StyleTab(component: widget.component),
+              _AdvancedTab(component: widget.component),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  IconData _getIconForComponentType(String type) {
+    switch (type) {
+      case 'text':
+        return Icons.text_fields;
+      case 'image':
+        return Icons.image;
+      case 'button':
+        return Icons.smart_button;
+      case 'container':
+        return Icons.view_column;
+      default:
+        return Icons.widgets;
+    }
+  }
+}
+
+class _ContentTab extends ConsumerWidget {
+  final Component component;
+
+  const _ContentTab({required this.component});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        ...._buildContentFields(component.type, component.props ?? {}, ref),
+      ],
+    );
+  }
+
+  List<Widget> _buildContentFields(
+    String type,
+    Map<String, dynamic> props,
+    WidgetRef ref,
+  ) {
+    switch (type) {
+      case 'text':
+      case 'heading':
+        return [
+          _PropertyLabel('Content'),
+          TextField(
+            controller: TextEditingController(text: props['content'] ?? ''),
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Enter text...',
+            ),
+            maxLines: 3,
+            onChanged: (value) => _updateProp(ref, 'content', value),
+          ),
+          const SizedBox(height: 16),
+          _PropertyLabel('Tag'),
+          DropdownButtonFormField<String>(
+            value: props['tag'] ?? 'p',
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+            items: const [
+              DropdownMenuItem(value: 'p', child: Text('Paragraph')),
+              DropdownMenuItem(value: 'h1', child: Text('H1')),
+              DropdownMenuItem(value: 'h2', child: Text('H2')),
+              DropdownMenuItem(value: 'h3', child: Text('H3')),
+              DropdownMenuItem(value: 'h4', child: Text('H4')),
+              DropdownMenuItem(value: 'span', child: Text('Span')),
+            ],
+            onChanged: (value) => _updateProp(ref, 'tag', value),
+          ),
+        ];
+      case 'image':
+        return [
+          _PropertyLabel('Image URL'),
+          TextField(
+            controller: TextEditingController(text: props['src'] ?? ''),
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'https://...',
+            ),
+            onChanged: (value) => _updateProp(ref, 'src', value),
+          ),
+          const SizedBox(height: 16),
+          _PropertyLabel('Alt Text'),
+          TextField(
+            controller: TextEditingController(text: props['alt'] ?? ''),
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Image description',
+            ),
+            onChanged: (value) => _updateProp(ref, 'alt', value),
+          ),
+          const SizedBox(height: 16),
+          _PropertyLabel('Fit'),
+          DropdownButtonFormField<String>(
+            value: props['fit'] ?? 'cover',
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+            items: const [
+              DropdownMenuItem(value: 'cover', child: Text('Cover')),
+              DropdownMenuItem(value: 'contain', child: Text('Contain')),
+              DropdownMenuItem(value: 'fill', child: Text('Fill')),
+              DropdownMenuItem(value: 'fitWidth', child: Text('Fit Width')),
+              DropdownMenuItem(value: 'fitHeight', child: Text('Fit Height')),
+            ],
+            onChanged: (value) => _updateProp(ref, 'fit', value),
+          ),
+        ];
+      case 'button':
+        return [
+          _PropertyLabel('Button Text'),
+          TextField(
+            controller: TextEditingController(text: props['text'] ?? ''),
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Button text',
+            ),
+            onChanged: (value) => _updateProp(ref, 'text', value),
+          ),
+          const SizedBox(height: 16),
+          _PropertyLabel('Variant'),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'contained', label: Text('Contained')),
+              ButtonSegment(value: 'outlined', label: Text('Outlined')),
+              ButtonSegment(value: 'text', label: Text('Text')),
+            ],
+            selected: {props['variant'] ?? 'contained'},
+            onSelectionChanged: (set) => _updateProp(ref, 'variant', set.first),
+          ),
+        ];
+      default:
+        return [
+          Text(
+            'No content properties available',
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+        ];
+    }
+  }
+
+  void _updateProp(WidgetRef ref, String key, dynamic value) {
+    final updatedProps = {...component.props ?? {}, key: value};
+    final updated = component.copyWith(props: updatedProps);
+    ref.read(builderStateProvider.notifier).updateComponent(component.id, updated);
+  }
+}
+
+class _StyleTab extends ConsumerWidget {
+  final Component component;
+
+  const _StyleTab({required this.component});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final styles = component.styles ?? Styles();
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _StyleSection(
+          title: 'Layout',
+          children: [
+            _DimensionField(
+              label: 'Width',
+              value: styles.dimensions?.width,
+              onChanged: (value) => _updateDimension(ref, 'width', value),
+            ),
+            _DimensionField(
+              label: 'Height',
+              value: styles.dimensions?.height,
+              onChanged: (value) => _updateDimension(ref, 'height', value),
+            ),
+          ],
+        ),
+        _StyleSection(
+          title: 'Spacing',
+          children: [
+            _SpacingField(
+              label: 'Padding',
+              spacing: styles.padding,
+              onChanged: (spacing) => _updateSpacing(ref, 'padding', spacing),
+            ),
+            _SpacingField(
+              label: 'Margin',
+              spacing: styles.margin,
+              onChanged: (spacing) => _updateSpacing(ref, 'margin', spacing),
+            ),
+          ],
+        ),
+        _StyleSection(
+          title: 'Background',
+          children: [
+            _ColorField(
+              label: 'Color',
+              value: styles.background?.color,
+              onChanged: (color) => _updateBackgroundColor(ref, color),
+            ),
+          ],
+        ),
+        _StyleSection(
+          title: 'Border',
+          children: [
+            _BorderRadiusField(
+              radius: styles.border?.radius,
+              onChanged: (radius) => _updateBorderRadius(ref, radius),
+            ),
+            _ColorField(
+              label: 'Border Color',
+              value: styles.border?.color,
+              onChanged: (color) => _updateBorderColor(ref, color),
+            ),
+          ],
+        ),
+        _StyleSection(
+          title: 'Typography',
+          children: [
+            _FontSizeField(
+              value: styles.typography?.fontSize,
+              onChanged: (size) => _updateFontSize(ref, size),
+            ),
+            _FontWeightField(
+              value: styles.typography?.fontWeight,
+              onChanged: (weight) => _updateFontWeight(ref, weight),
+            ),
+            _ColorField(
+              label: 'Text Color',
+              value: styles.typography?.color,
+              onChanged: (color) => _updateTextColor(ref, color),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _updateDimension(WidgetRef ref, String key, String? value) {
+    final currentDimensions = component.styles?.dimensions ?? Dimensions();
+    final updated = key == 'width'
+        ? currentDimensions.copyWith(width: value)
+        : currentDimensions.copyWith(height: value);
+    
+    final updatedStyles = (component.styles ?? Styles()).copyWith(dimensions: updated);
+    final updatedComponent = component.copyWith(styles: updatedStyles);
+    ref.read(builderStateProvider.notifier).updateComponent(component.id, updatedComponent);
+  }
+
+  void _updateSpacing(WidgetRef ref, String type, Spacing spacing) {
+    final updatedStyles = type == 'padding'
+        ? (component.styles ?? Styles()).copyWith(padding: spacing)
+        : (component.styles ?? Styles()).copyWith(margin: spacing);
+    
+    final updatedComponent = component.copyWith(styles: updatedStyles);
+    ref.read(builderStateProvider.notifier).updateComponent(component.id, updatedComponent);
+  }
+
+  void _updateBackgroundColor(WidgetRef ref, String color) {
+    final background = Background(color: color);
+    final updatedStyles = (component.styles ?? Styles()).copyWith(background: background);
+    final updatedComponent = component.copyWith(styles: updatedStyles);
+    ref.read(builderStateProvider.notifier).updateComponent(component.id, updatedComponent);
+  }
+
+  void _updateBorderRadius(WidgetRef ref, BorderRadius radius) {
+    final border = (component.styles?.border ?? Border()).copyWith(radius: radius);
+    final updatedStyles = (component.styles ?? Styles()).copyWith(border: border);
+    final updatedComponent = component.copyWith(styles: updatedStyles);
+    ref.read(builderStateProvider.notifier).updateComponent(component.id, updatedComponent);
+  }
+
+  void _updateBorderColor(WidgetRef ref, String color) {
+    final border = (component.styles?.border ?? Border()).copyWith(color: color);
+    final updatedStyles = (component.styles ?? Styles()).copyWith(border: border);
+    final updatedComponent = component.copyWith(styles: updatedStyles);
+    ref.read(builderStateProvider.notifier).updateComponent(component.id, updatedComponent);
+  }
+
+  void _updateFontSize(WidgetRef ref, String size) {
+    final typography = (component.styles?.typography ?? Typography()).copyWith(fontSize: size);
+    final updatedStyles = (component.styles ?? Styles()).copyWith(typography: typography);
+    final updatedComponent = component.copyWith(styles: updatedStyles);
+    ref.read(builderStateProvider.notifier).updateComponent(component.id, updatedComponent);
+  }
+
+  void _updateFontWeight(WidgetRef ref, String weight) {
+    final typography = (component.styles?.typography ?? Typography()).copyWith(fontWeight: weight);
+    final updatedStyles = (component.styles ?? Styles()).copyWith(typography: typography);
+    final updatedComponent = component.copyWith(styles: updatedStyles);
+    ref.read(builderStateProvider.notifier).updateComponent(component.id, updatedComponent);
+  }
+
+  void _updateTextColor(WidgetRef ref, String color) {
+    final typography = (component.styles?.typography ?? Typography()).copyWith(color: color);
+    final updatedStyles = (component.styles ?? Styles()).copyWith(typography: typography);
+    final updatedComponent = component.copyWith(styles: updatedStyles);
+    ref.read(builderStateProvider.notifier).updateComponent(component.id, updatedComponent);
+  }
+}
+
+class _AdvancedTab extends ConsumerWidget {
+  final Component component;
+
+  const _AdvancedTab({required this.component});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _PropertyLabel('Animation'),
+        ElevatedButton.icon(
+          onPressed: () {
+            // Open animation editor
+            showDialog(
+              context: context,
+              builder: (context) => AdvancedAnimationEditor(
+                component: ComponentData(
+                  id: component.id,
+                  type: component.type,
+                ),
+              ),
+            );
+          },
+          icon: const Icon(Icons.animation),
+          label: const Text('Configure Animation'),
+        ),
+        const SizedBox(height: 16),
+        _PropertyLabel('Events'),
+        ElevatedButton.icon(
+          onPressed: () {
+            // Open event editor
+          },
+          icon: const Icon(Icons.touch_app),
+          label: const Text('Add Event'),
+        ),
+        const SizedBox(height: 16),
+        _PropertyLabel('Visibility'),
+        SwitchListTile(
+          title: const Text('Visible on Desktop'),
+          value: true,
+          onChanged: (value) {},
+        ),
+        SwitchListTile(
+          title: const Text('Visible on Tablet'),
+          value: true,
+          onChanged: (value) {},
+        ),
+        SwitchListTile(
+          title: const Text('Visible on Mobile'),
+          value: true,
+          onChanged: (value) {},
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionProperties extends StatelessWidget {
+  final Section section;
+
+  const _SectionProperties({required this.section});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _PropertyLabel('Section Type'),
+        Text(
+          section.type.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 24),
+        _PropertyLabel('Layout'),
+        DropdownButtonFormField<String>(
+          value: section.layout.type,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+          items: const [
+            DropdownMenuItem(value: 'flex', child: Text('Flex')),
+            DropdownMenuItem(value: 'grid', child: Text('Grid')),
+            DropdownMenuItem(value: 'stack', child: Text('Stack')),
+          ],
+          onChanged: (value) {},
+        ),
+        const SizedBox(height: 16),
+        if (section.layout.type == 'flex') ...[
+          _PropertyLabel('Direction'),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'row', label: Text('Row')),
+              ButtonSegment(value: 'column', label: Text('Column')),
+            ],
+            selected: {section.layout.direction ?? 'column'},
+            onSelectionChanged: (set) {},
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ==================== Property Field Widgets ====================
+
+class _PropertyLabel extends StatelessWidget {
+  final String text;
+
+  const _PropertyLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, top: 16),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+      ),
+    );
+  }
+}
+
+class _StyleSection extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+
+  const _StyleSection({
+    required this.title,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue,
+            ),
+          ),
+        ),
+        ...children,
+      ],
+    );
+  }
+}
+
+class _DimensionField extends StatelessWidget {
+  final String label;
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  const _DimensionField({
+    required this.label,
+    this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(label, style: const TextStyle(fontSize: 13)),
+          ),
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: TextEditingController(text: value ?? ''),
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                suffixText: 'px',
+                hintText: 'auto',
+              ),
+              onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpacingField extends StatelessWidget {
+  final String label;
+  final Spacing? spacing;
+  final ValueChanged<Spacing> onChanged;
+
+  const _SpacingField({
+    required this.label,
+    this.spacing,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: TextEditingController(text: spacing?.top ?? '0'),
+                decoration: const InputDecoration(
+                  labelText: 'Top',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.all(8),
+                ),
+                onChanged: (value) {
+                  onChanged(Spacing(
+                    top: value,
+                    right: spacing?.right,
+                    bottom: spacing?.bottom,
+                    left: spacing?.left,
+                  ));
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: TextEditingController(text: spacing?.right ?? '0'),
+                decoration: const InputDecoration(
+                  labelText: 'Right',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.all(8),
+                ),
+                onChanged: (value) {
+                  onChanged(Spacing(
+                    top: spacing?.top,
+                    right: value,
+                    bottom: spacing?.bottom,
+                    left: spacing?.left,
+                  ));
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: TextEditingController(text: spacing?.bottom ?? '0'),
+                decoration: const InputDecoration(
+                  labelText: 'Bottom',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.all(8),
+                ),
+                onChanged: (value) {
+                  onChanged(Spacing(
+                    top: spacing?.top,
+                    right: spacing?.right,
+                    bottom: value,
+                    left: spacing?.left,
+                  ));
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: TextEditingController(text: spacing?.left ?? '0'),
+                decoration: const InputDecoration(
+                  labelText: 'Left',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.all(8),
+                ),
+                onChanged: (value) {
+                  onChanged(Spacing(
+                    top: spacing?.top,
+                    right: spacing?.right,
+                    bottom: spacing?.bottom,
+                    left: value,
+                  ));
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ColorField extends StatelessWidget {
+  final String label;
+  final String? value;
+  final ValueChanged<String> onChanged;
+
+  const _ColorField({
+    required this.label,
+    this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(label, style: const TextStyle(fontSize: 13)),
+          ),
+          Expanded(
+            flex: 3,
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    // Open color picker
+                  },
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: _parseColor(value ?? '#000000'),
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: TextEditingController(text: value ?? ''),
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    ),
+                    onChanged: onChanged,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _parseColor(String color) {
+    color = color.replaceAll('#', '');
+    if (color.length == 6) {
+      return Color(int.parse('FF$color', radix: 16));
+    }
+    return Colors.black;
+  }
+}
+
+class _BorderRadiusField extends StatelessWidget {
+  final BorderRadius? radius;
+  final ValueChanged<BorderRadius> onChanged;
+
+  const _BorderRadiusField({
+    this.radius,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          const Expanded(
+            flex: 2,
+            child: Text('Radius', style: TextStyle(fontSize: 13)),
+          ),
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: TextEditingController(text: radius?.all ?? '0'),
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                suffixText: 'px',
+              ),
+              onChanged: (value) {
+                onChanged(BorderRadius(all: value));
+              },
+            ),
+          ),
+        ],BuildContext context) {
+    final builderState = ref.watch(builderStateProvider);
+
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      body: builderState.isPreviewMode
+          ? _buildPreviewMode(builderState)
+          : _buildEditorMode(builderState),
+    );
+  }
+
+  Widget _buildPreviewMode(BuilderState state) {
+    if (state.website == null) return const Center(child: Text('No website loaded'));
+
+    return Stack(
+      children: [
+        SchemaEngine(context: context).renderWebsite(state.website!),
+        Positioned(
+          top: 16,
+          right: 16,
+          child: FloatingActionButton(
+            onPressed: () => ref.read(builderStateProvider.notifier).togglePreviewMode(),
+            child: const Icon(Icons.edit),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEditorMode(BuilderState state) {
+    return Column(
+      children: [
+        _BuilderToolbar(state: state),
+        Expanded(
+          child: Row(
+            children: [
+              _ComponentsPanel(),
+              Expanded(
+                child: _CanvasArea(state: state),
+              ),
+              _PropertiesPanel(state: state),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ==================== Toolbar ====================
+
+class _BuilderToolbar extends ConsumerWidget {
+  final BuilderState state;
+
+  const _BuilderToolbar({required this.state});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Logo/Title
+          const Icon(Icons.web, size: 32, color: Colors.blue),
+          const SizedBox(width: 12),
+          Text(
+            state.website?.metadata.name ?? 'Website Builder',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const Spacer(),
+          
+          // Actions
+          IconButton(
+            icon: const Icon(Icons.undo),
+            onPressed: () {
+              // Undo action
+            },
+            tooltip: 'Undo',
+          ),
+          IconButton(
+            icon: const Icon(Icons.redo),
+            onPressed: () {
+              // Redo action
+            },
+            tooltip: 'Redo',
+          ),
+          const SizedBox(width: 8),
+          
+          // Device preview toggles
+          ToggleButtons(
+            isSelected: const [true, false, false],
+            onPressed: (index) {
+              // Switch device preview
+            },
+            children: const [
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Icon(Icons.desktop_windows, size: 20),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Icon(Icons.tablet, size: 20),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Icon(Icons.phone_android, size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(width: 16),
+          
+          // Preview & Export
+          OutlinedButton.icon(
+            onPressed: () => ref.read(builderStateProvider.notifier).togglePreviewMode(),
+            icon: const Icon(Icons.visibility),
+            label: const Text('Preview'),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            onPressed: () => _showExportDialog(context, state),
+            icon: const Icon(Icons.download),
+            label: const Text('Export'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showExportDialog(BuildContext context, BuilderState state) {
+    showDialog(
+      context: context,
+      builder: (context) => AdvancedExportDialog(
+        project: BuilderProject(
+          name: state.website?.metadata.name ?? 'Project',
+          pages: state.website?.pages ?? [],
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== Components Panel ====================
+
+class _ComponentsPanel extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 280,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(right: BorderSide(color: Colors.grey[300]!)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Components',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search components...',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(8),
+              children: [
+                _ComponentCategory(
+                  title: 'Layout',
+                  components: [
+                    _DraggableComponent(
+                      icon: Icons.view_column,
+                      label: 'Container',
+                      type: 'container',
+                    ),
+                    _DraggableComponent(
+                      icon: Icons.view_agenda,
+                      label: 'Section',
+                      type: 'section',
+                    ),
+                    _DraggableComponent(
+                      icon: Icons.grid_on,
+                      label: 'Grid',
+                      type: 'grid',
+                    ),
+                    _DraggableComponent(
+                      icon: Icons.view_carousel,
+                      label: 'Flex',
+                      type: 'flex',
+                    ),
+                  ],
+                ),
+                _ComponentCategory(
+                  title: 'Basic',
+                  components: [
+                    _DraggableComponent(
+                      icon: Icons.text_fields,
+                      label: 'Text',
+                      type: 'text',
+                    ),
+                    _DraggableComponent(
+                      icon: Icons.title,
+                      label: 'Heading',
+                      type: 'heading',
+                    ),
+                    _DraggableComponent(
+                      icon: Icons.image,
+                      label: 'Image',
+                      type: 'image',
+                    ),
+                    _DraggableComponent(
+                      icon: Icons.smart_button,
+                      label: 'Button',
+                      type: 'button',
+                    ),
+                    _DraggableComponent(
+                      icon: Icons.link,
+                      label: 'Link',
+                      type: 'link',
+                    ),
+                  ],
+                ),
+                _ComponentCategory(
+                  title: 'Forms',
+                  components: [
+                    _DraggableComponent(
+                      icon: Icons.input,
+                      label: 'Input',
+                      type: 'input',
+                    ),
+                    _DraggableComponent(
+                      icon: Icons.check_box,
+                      label: 'Checkbox',
+                      type: 'checkbox',
+                    ),
+                    _DraggableComponent(
+                      icon: Icons.radio_button_checked,
+                      label: 'Radio',
+                      type: 'radio',
+                    ),
+                    _DraggableComponent(
+                      icon: Icons.arrow_drop_down_circle,
+                      label: 'Select',
+                      type: 'select',
+                    ),
+                  ],
+                ),
+                _ComponentCategory(
+                  title: 'Media',
+                  components: [
+                    _DraggableComponent(
+                      icon: Icons.play_circle,
+                      label: 'Video',
+                      type: 'video',
+                    ),
+                    _DraggableComponent(
+                      icon: Icons.music_note,
+                      label: 'Audio',
+                      type: 'audio',
+                    ),
+                    _DraggableComponent(
+                      icon: Icons.view_carousel,
+                      label: 'Carousel',
+                      type: 'carousel',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ComponentCategory extends StatelessWidget {
+  final String title;
+  final List<Widget> components;
+
+  const _ComponentCategory({
+    required this.title,
+    required this.components,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[600],
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        ...components,
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+}
+
+class _DraggableComponent extends ConsumerWidget {
+  final IconData icon;
+  final String label;
+  final String type;
+
+  const _DraggableComponent({
+    required this.icon,
+    required this.label,
+    required this.type,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Draggable<ComponentDragData>(
+      data: ComponentDragData(type: type),
+      feedback: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.blue,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+      ),
+      child: InkWell(
+        onTap: () {
+          // Quick add component
+          _addComponent(ref, type);
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: Colors.grey[700]),
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[800],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _addComponent(WidgetRef ref, String type) {
+    final component = _createComponent(type);
+    ref.read(builderStateProvider.notifier).addComponent(component);
+  }
+
+  Component _createComponent(String type) {
+    final id = 'comp-${DateTime.now().millisecondsSinceEpoch}';
+    
+    switch (type) {
+      case 'text':
+        return Component(
+          id: id,
+          type: 'text',
+          props: {'content': 'Sample text', 'tag': 'p'},
+        );
+      case 'heading':
+        return Component(
+          id: id,
+          type: 'text',
+          props: {'content': 'Heading', 'tag': 'h2'},
+        );
+      case 'image':
+        return Component(
+          id: id,
+          type: 'image',
+          props: {
+            'src': 'https://via.placeholder.com/400x300',
+            'alt': 'Placeholder image',
+          },
+        );
+      case 'button':
+        return Component(
+          id: id,
+          type: 'button',
+          props: {'text': 'Click me', 'variant': 'contained'},
+        );
+      case 'container':
+        return Component(
+          id: id,
+          type: 'container',
+          children: [],
+        );
+      default:
+        return Component(
+          id: id,
+          type: type,
+          props: {},
+        );
+    }
+  }
+}
+
+class ComponentDragData {
+  final String type;
+  ComponentDragData({required this.type});
+}
+
+// ==================== Canvas Area ====================
+
+class _CanvasArea extends ConsumerWidget {
+  final BuilderState state;
+
+  const _CanvasArea({required this.state});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      color: Colors.grey[200],
+      child: Center(
+        child: Container(
+          width: 1200,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 20,
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: state.currentPage == null
+              ? _buildEmptyCanvas(ref)
+              : _buildPageCanvas(state.currentPage!, ref),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyCanvas(WidgetRef ref) {
+    return DragTarget<ComponentDragData>(
+      onAccept: (data) {
+        // Create new section when dropping on empty canvas
+        final section = Section(
+          id: 'section-${DateTime.now().millisecondsSinceEpoch}',
+          type: 'content',
+          layout: Layout(type: 'flex', direction: 'column'),
+          components: [],
+        );
+        ref.read(builderStateProvider.notifier).addSection(section);
+      },
+      builder: (context, candidateData, rejectedData) {
+        final isHovering = candidateData.isNotEmpty;
+        return Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isHovering ? Colors.blue : Colors.grey[300]!,
+              width: 2,
+              style: BorderStyle.solid,
+            ),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.add_circle_outline,
+                  size: 64,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Drag components here to start building',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPageCanvas(Page page, WidgetRef ref) {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          ...page.sections.map((section) => _BuilderSection(
+            section: section,
+            isSelected: state.selectedSection?.id == section.id,
+          )),
+          _AddSectionButton(),
+        ],
+      ),
+    );
+  }
+}
+
+class _BuilderSection extends ConsumerWidget {
+  final Section section;
+  final bool isSelected;
+
+  const _BuilderSection({
+    required this.section,
+    required this.isSelected,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GestureDetector(
+      onTap: () => ref.read(builderStateProvider.notifier).selectSection(section),
+      child: DragTarget<ComponentDragData>(
+        onAccept: (data) {
+          // Add component to this section
+          final component = _createComponent(data.type);
+          ref.read(builderStateProvider.notifier).addComponent(
+            component,
+            targetSection: section,
+          );
+        },
+        builder: (context, candidateData, rejectedData) {
+          final isHovering = candidateData.isNotEmpty;
+          
+          return Container(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isSelected
+                    ? Colors.blue
+                    : isHovering
+                        ? Colors.blue.withOpacity(0.5)
+                        : Colors.transparent,
+                width: 2,
+              ),
+              color: isHovering ? Colors.blue.withOpacity(0.05) : null,
+            ),
+            child: Stack(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: section.components.map((component) {
+                      return _BuilderComponent(component: component);
+                    }).toList(),
+                  ),
+                ),
+                if (isSelected)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            section.type.toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.settings, size: 16),
+                            color: Colors.white,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: () {
+                              // Open section settings
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Component _createComponent(String type) {
+    final id = 'comp-${DateTime.now().millisecondsSinceEpoch}';
+    return Component(id: id, type: type, props: {});
+  }
+}
+
+class _BuilderComponent extends ConsumerWidget {
+  final Component component;
+
+  const _BuilderComponent({required this.component});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isSelected = ref.watch(builderStateProvider).selectedComponent?.id == component.id;
+
+    return GestureDetector(
+      onTap: () => ref.read(builderStateProvider.notifier).selectComponent(component),
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: isSelected ? Colors.blue : Colors.transparent,
+            width: 2,
+          ),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Stack(
+          children: [
+            SchemaEngine(context: context).renderComponent(component),
+            if (isSelected)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+            if (isSelected)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _ComponentActionButton(
+                      icon: Icons.edit,
+                      onPressed: () {
+                        // Edit component
+                      },
+                    ),
+                    _ComponentActionButton(
+                      icon: Icons.content_copy,
+                      onPressed: () {
+                        // Duplicate component
+                      },
+                    ),
+                    _ComponentActionButton(
+                      icon: Icons.delete,
+                      onPressed: () {
+                        ref.read(builderStateProvider.notifier).deleteComponent(component.id);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ComponentActionButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _ComponentActionButton({
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(

@@ -1,0 +1,2657 @@
+fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isWarning ? Colors.orange : Colors.green,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        event['object'] as String,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      event['message'] as String,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  trailing: Text(
+                    event['time'] as String,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// Resource Detail Drawer (Complete Implementation)
+// ============================================================================
+
+class ResourceDetailDrawer extends StatelessWidget {
+  final String resourceName;
+  final String resourceType;
+  final String namespace;
+  final VoidCallback onClose;
+
+  const ResourceDetailDrawer({
+    super.key,
+    required this.resourceName,
+    required this.resourceType,
+    required this.namespace,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 600,
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(-2, 0),
+          ),
+        ],
+      ),
+      child: DefaultTabController(
+        length: 4,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              resourceType,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              resourceName,
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: onClose,
+                      ),
+                    ],
+                  ),
+                  if (namespace.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        Chip(
+                          label: Text('Namespace: $namespace'),
+                          avatar: const Icon(Icons.folder, size: 16),
+                        ),
+                        const Chip(
+                          label: Text('Running'),
+                          avatar: Icon(Icons.check_circle, size: 16, color: Colors.green),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const TabBar(
+              tabs: [
+                Tab(text: 'Overview'),
+                Tab(text: 'YAML'),
+                Tab(text: 'Logs'),
+                Tab(text: 'Events'),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _OverviewTab(resourceName: resourceName, resourceType: resourceType),
+                  _YAMLTab(),
+                  _LogsTab(resourceName: resourceName),
+                  _EventsTab(),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {},
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edit'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {},
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Delete'),
+                      style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OverviewTab extends StatelessWidget {
+  final String resourceName;
+  final String resourceType;
+
+  const _OverviewTab({required this.resourceName, required this.resourceType});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Details', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          _DetailRow('Name', resourceName),
+          _DetailRow('Type', resourceType),
+          _DetailRow('Created', '2024-01-15 10:30:00'),
+          _DetailRow('UID', '123e4567-e89b-12d3-a456-426614174000'),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _DetailRow(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 120, child: Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)))),
+          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500))),
+        ],
+      ),
+    );
+  }
+}
+
+class _YAMLTab extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF1E1E1E),
+      padding: const EdgeInsets.all(16),
+      child: const SingleChildScrollView(
+        child: SelectableText(
+          'apiVersion: v1\nkind: Pod\nmetadata:\n  name: example\nspec:\n  containers:\n  - name: nginx\n    image: nginx:latest',
+          style: TextStyle(fontFamily: 'monospace', fontSize: 13, color: Color(0xFFD4D4D4), height: 1.5),
+        ),
+      ),
+    );
+  }
+}
+
+class _LogsTab extends StatelessWidget {
+  final String resourceName;
+
+  const _LogsTab({required this.resourceName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF1E1E1E),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: const Color(0xFF2D2D2D),
+            child: Row(
+              children: [
+                const Expanded(child: Text('Logs', style: TextStyle(color: Colors.white70))),
+                IconButton(icon: const Icon(Icons.refresh, color: Colors.white70, size: 18), onPressed: () {}),
+              ],
+            ),
+          ),
+          const Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(16),
+              child: SelectableText(
+                '[2024-01-15 10:30:15] Starting...\n[2024-01-15 10:30:16] Ready\n[2024-01-15 10:30:20] GET / - 200 OK',
+                style: TextStyle(fontFamily: 'monospace', fontSize: 13, color: Color(0xFF00FF00), height: 1.5),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EventsTab extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: const [
+        ListTile(leading: Icon(Icons.check_circle, color: Colors.green), title: Text('Scheduled'), subtitle: Text('2m ago')),
+        ListTile(leading: Icon(Icons.check_circle, color: Colors.green), title: Text('Pulled'), subtitle: Text('2m ago')),
+        ListTile(leading: Icon(Icons.check_circle, color: Colors.green), title: Text('Started'), subtitle: Text('2m ago')),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// Metrics Chart Widget (Complete)
+// ============================================================================
+
+class MetricsChart extends StatelessWidget {
+  final String title;
+  final List<double> dataPoints;
+  final Color color;
+  final String unit;
+
+  const MetricsChart({
+    super.key,
+    required this.title,
+    required this.dataPoints,
+    required this.color,
+    required this.unit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                const Spacer(),
+                Text('${dataPoints.last.toStringAsFixed(1)}$unit', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: color)),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 150,
+              child: CustomPaint(
+                painter: LineChartPainter(dataPoints: dataPoints, color: color),
+                child: Container(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(4, (i) => Text(['30m ago', '20m ago', '10m ago', 'now'][i], style: Theme.of(context).textTheme.bodySmall)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class LineChartPainter extends CustomPainter {
+  final List<double> dataPoints;
+  final Color color;
+
+  LineChartPainter({required this.dataPoints, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (dataPoints.isEmpty) return;
+
+    final paint = Paint()..color = color..strokeWidth = 2..style = PaintingStyle.stroke;
+    final fillPaint = Paint()..color = color.withOpacity(0.2)..style = PaintingStyle.fill;
+
+    final path = Path();
+    final fillPath = Path();
+    final maxValue = dataPoints.reduce((a, b) => a > b ? a : b);
+    final stepX = size.width / (dataPoints.length - 1);
+
+    path.moveTo(0, size.height - (dataPoints[0] / maxValue) * size.height);
+    fillPath.moveTo(0, size.height);
+    fillPath.lineTo(0, size.height - (dataPoints[0] / maxValue) * size.height);
+
+    for (int i = 1; i < dataPoints.length; i++) {
+      final x = i * stepX;
+      final y = size.height - (dataPoints[i] / maxValue) * size.height;
+      path.lineTo(x, y);
+      fillPath.lineTo(x, y);
+    }
+
+    fillPath.lineTo(size.width, size.height);
+    fillPath.close();
+
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(path, paint);
+
+    final dotPaint = Paint()..color = color..style = PaintingStyle.fill;
+    for (int i = 0; i < dataPoints.length; i++) {
+      final x = i * stepX;
+      final y = size.height - (dataPoints[i] / maxValue) * size.height;
+      canvas.drawCircle(Offset(x, y), 3, dotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// ============================================================================
+// Helper Widgets (Search, Filter, Notifications, Terminal, Create Dialog)
+// ============================================================================
+
+class SearchDialog extends StatelessWidget {
+  const SearchDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: 600,
+        height: 400,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            TextField(
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Search resources...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView(
+                children: [
+                  ListTile(leading: const Icon(Icons.podcasts), title: const Text('nginx-deployment'), subtitle: const Text('Pod • default')),
+                  ListTile(leading: const Icon(Icons.rocket_launch), title: const Text('api-server'), subtitle: const Text('Deployment • production')),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class FilterPanel extends StatelessWidget {
+  final VoidCallback onClose;
+  final VoidCallback onApply;
+
+  const FilterPanel({super.key, required this.onClose, required this.onApply});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 300,
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border(left: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Text('Filters', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                const Spacer(),
+                IconButton(icon: const Icon(Icons.close), onPressed: onClose),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                Text('Status', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                CheckboxListTile(value: true, onChanged: (v) {}, title: const Text('Running'), dense: true, controlAffinity: ListTileControlAffinity.leading),
+                CheckboxListTile(value: false, onChanged: (v) {}, title: const Text('Pending'), dense: true, controlAffinity: ListTileControlAffinity.leading),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(20),
+            child: SizedBox(width: double.infinity, child: FilledButton(onPressed: onApply, child: const Text('Apply Filters'))),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class NotificationCenter extends StatelessWidget {
+  final VoidCallback onClose;
+
+  const NotificationCenter({super.key, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 400,
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(-2, 0))],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Text('Notifications', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                const Spacer(),
+                IconButton(icon: const Icon(Icons.close), onPressed: onClose),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              children: [
+                ListTile(
+                  leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.error, color: Colors.red, size: 20)),
+                  title: const Text('Pod Failed'),
+                  subtitle: const Text('postgres-db crashed\n2 minutes ago'),
+                  isThreeLine: true,
+                ),
+                ListTile(
+                  leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.info, color: Colors.blue, size: 20)),
+                  title: const Text('Deployment Updated'),
+                  subtitle: const Text('nginx-deployment scaled\n10 minutes ago'),
+                  isThreeLine: true,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PodTerminal extends StatelessWidget {
+  final String podName;
+  final String containerName;
+
+  const PodTerminal({super.key, required this.podName, required this.containerName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF1E1E1E),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: const Color(0xFF2D2D2D),
+            child: Row(
+              children: [
+                const Icon(Icons.terminal, color: Colors.white70, size: 18),
+                const SizedBox(width: 8),
+                Text('$podName ($containerName)', style: const TextStyle(color: Colors.white70, fontFamily: 'monospace')),
+                const Spacer(),
+                IconButton(icon: const Icon(Icons.close, color: Colors.white70), onPressed: () => Navigator.of(context).pop()),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: const [
+                SelectableText('\$ kubectl exec -it pod -- /bin/bash', style: TextStyle(fontFamily: 'monospace', color: Color(0xFF00FF00))),
+                SelectableText('root@pod:/# ls', style: TextStyle(fontFamily: 'monospace', color: Color(0xFF00FF00))),
+                SelectableText('bin  boot  dev  etc  home', style: TextStyle(fontFamily: 'monospace', color: Color(0xFF00FF00))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class CreateResourceDialog extends StatelessWidget {
+  final String resourceType;
+
+  const CreateResourceDialog({super.key, required this.resourceType});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: 600,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Text('Create $resourceType', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                const Spacer(),
+                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const TextField(decoration: InputDecoration(labelText: 'Name', border: OutlineInputBorder())),
+            const SizedBox(height: 16),
+            const TextField(decoration: InputDecoration(labelText: 'Namespace', border: OutlineInputBorder())),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+                const SizedBox(width: 12),
+                FilledButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Create')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}        return Colors.purple;
+      case 'Network':
+        return Colors.green;
+      case 'Load Balancers':
+        return Colors.orange;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Widget _buildOptimizationTip(
+    BuildContext context, {
+    required String title,
+    required String description,
+    required String savings,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(Icons.lightbulb_outline, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            savings,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: color,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Nodes View
+// ============================================================================
+
+class NodesView extends ConsumerWidget {
+  const NodesView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final nodes = ref.watch(nodesProvider);
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              Text(
+                'Cluster Nodes',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+              OutlinedButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.filter_list, size: 18),
+                label: const Text('Filter'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add Node'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 1.5,
+            ),
+            itemCount: nodes.length,
+            itemBuilder: (context, index) {
+              final node = nodes[index];
+              return Card(
+                child: InkWell(
+                  onTap: () {
+                    ref.read(showDetailDrawerProvider.notifier).state = ResourceDetail(
+                      name: node.name,
+                      type: 'Node',
+                      namespace: '',
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.dns, color: Colors.green),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    node.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          node.roles,
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          node.status,
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.green,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.more_vert, size: 18),
+                              onPressed: () {},
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildNodeMetric(
+                                context,
+                                'CPU',
+                                node.cpuUsage,
+                                Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildNodeMetric(
+                                context,
+                                'Memory',
+                                node.memoryUsage,
+                                Colors.purple,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.podcasts,
+                              size: 14,
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Pods: ${node.pods}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const Spacer(),
+                            Icon(
+                              Icons.schedule,
+                              size: 14,
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              node.age,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNodeMetric(
+    BuildContext context,
+    String label,
+    String value,
+    Color color,
+  ) {
+    final percentage = double.tryParse(value.replaceAll('%', '')) ?? 0.0;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: LinearProgressIndicator(
+            value: percentage / 100,
+            backgroundColor: color.withOpacity(0.2),
+            valueColor: AlwaysStoppedAnimation(color),
+            minHeight: 4,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// Workloads View (Continued)
+// ============================================================================
+
+class WorkloadsView extends ConsumerWidget {
+  const WorkloadsView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return DefaultTabController(
+      length: 5,
+      child: Column(
+        children: [
+          Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: TabBar(
+              isScrollable: true,
+              tabs: const [
+                Tab(text: 'Pods'),
+                Tab(text: 'Deployments'),
+                Tab(text: 'StatefulSets'),
+                Tab(text: 'DaemonSets'),
+                Tab(text: 'Jobs'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                PodsTab(),
+                DeploymentsTab(),
+                const Center(child: Text('StatefulSets')),
+                const Center(child: Text('DaemonSets')),
+                const Center(child: Text('Jobs')),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PodsTab extends ConsumerWidget {
+  const PodsTab({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pods = ref.watch(podsProvider);
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              Text(
+                'Pods',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+              OutlinedButton.icon(
+                onPressed: () {
+                  ref.read(showFilterPanelProvider.notifier).state = true;
+                },
+                icon: const Icon(Icons.filter_list, size: 18),
+                label: const Text('Filter'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => const CreateResourceDialog(resourceType: 'Pod'),
+                  );
+                },
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Create Pod'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Card(
+            margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: SingleChildScrollView(
+              child: DataTable(
+                columnSpacing: 24,
+                headingRowHeight: 56,
+                columns: const [
+                  DataColumn(label: Text('Name')),
+                  DataColumn(label: Text('Status')),
+                  DataColumn(label: Text('Ready')),
+                  DataColumn(label: Text('Restarts')),
+                  DataColumn(label: Text('CPU')),
+                  DataColumn(label: Text('Memory')),
+                  DataColumn(label: Text('Age')),
+                  DataColumn(label: Text('Actions')),
+                ],
+                rows: pods
+                    .map(
+                      (pod) => DataRow(
+                        cells: [
+                          DataCell(
+                            InkWell(
+                              onTap: () {
+                                ref.read(showDetailDrawerProvider.notifier).state =
+                                    ResourceDetail(
+                                  name: pod.name,
+                                  type: 'Pod',
+                                  namespace: pod.namespace,
+                                );
+                              },
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.podcasts, size: 16),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      pod.name,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          DataCell(_buildStatusChip(pod.status)),
+                          DataCell(Text('${pod.readyContainers}/${pod.totalContainers}')),
+                          DataCell(Text(pod.restarts.toString())),
+                          DataCell(Text(pod.cpu)),
+                          DataCell(Text(pod.memory)),
+                          DataCell(Text(pod.age)),
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.terminal, size: 18),
+                                  tooltip: 'Logs',
+                                  onPressed: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => Dialog(
+                                        child: SizedBox(
+                                          width: 800,
+                                          height: 600,
+                                          child: PodTerminal(
+                                            podName: pod.name,
+                                            containerName: 'main',
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit, size: 18),
+                                  tooltip: 'Edit',
+                                  onPressed: () {},
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, size: 18),
+                                  tooltip: 'Delete',
+                                  onPressed: () {},
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusChip(PodStatus status) {
+    Color color;
+    String text;
+
+    switch (status) {
+      case PodStatus.running:
+        color = Colors.green;
+        text = 'Running';
+        break;
+      case PodStatus.pending:
+        color = Colors.orange;
+        text = 'Pending';
+        break;
+      case PodStatus.failed:
+        color = Colors.red;
+        text = 'Failed';
+        break;
+      case PodStatus.succeeded:
+        color = Colors.blue;
+        text = 'Succeeded';
+        break;
+      case PodStatus.unknown:
+        color = Colors.grey;
+        text = 'Unknown';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DeploymentsTab extends ConsumerWidget {
+  const DeploymentsTab({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final deployments = ref.watch(deploymentsProvider);
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              Text(
+                'Deployments',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => const CreateResourceDialog(resourceType: 'Deployment'),
+                  );
+                },
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Create Deployment'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Card(
+            margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: SingleChildScrollView(
+              child: DataTable(
+                columnSpacing: 24,
+                headingRowHeight: 56,
+                columns: const [
+                  DataColumn(label: Text('Name')),
+                  DataColumn(label: Text('Namespace')),
+                  DataColumn(label: Text('Ready')),
+                  DataColumn(label: Text('Up-to-date')),
+                  DataColumn(label: Text('Available')),
+                  DataColumn(label: Text('Age')),
+                  DataColumn(label: Text('Actions')),
+                ],
+                rows: deployments
+                    .map(
+                      (deployment) => DataRow(
+                        cells: [
+                          DataCell(
+                            Row(
+                              children: [
+                                const Icon(Icons.rocket_launch, size: 16),
+                                const SizedBox(width: 8),
+                                Text(deployment.name),
+                              ],
+                            ),
+                          ),
+                          DataCell(Text(deployment.namespace)),
+                          DataCell(Text(deployment.ready)),
+                          DataCell(Text(deployment.upToDate.toString())),
+                          DataCell(Text(deployment.available.toString())),
+                          DataCell(Text(deployment.age)),
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.scale, size: 18),
+                                  tooltip: 'Scale',
+                                  onPressed: () {},
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit, size: 18),
+                                  tooltip: 'Edit',
+                                  onPressed: () {},
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, size: 18),
+                                  tooltip: 'Delete',
+                                  onPressed: () {},
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// Additional Views (Networking, Storage, Config, RBAC, Events)
+// ============================================================================
+
+class NetworkingView extends ConsumerWidget {
+  const NetworkingView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: const TabBar(
+              tabs: [
+                Tab(text: 'Services'),
+                Tab(text: 'Ingresses'),
+                Tab(text: 'Network Policies'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                ServicesTab(),
+                const Center(child: Text('Ingresses - Coming Soon')),
+                const Center(child: Text('Network Policies - Coming Soon')),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ServicesTab extends ConsumerWidget {
+  const ServicesTab({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final services = ref.watch(servicesProvider);
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              Text(
+                'Services',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Create Service'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Card(
+            margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: SingleChildScrollView(
+              child: DataTable(
+                columnSpacing: 24,
+                headingRowHeight: 56,
+                columns: const [
+                  DataColumn(label: Text('Name')),
+                  DataColumn(label: Text('Type')),
+                  DataColumn(label: Text('Cluster IP')),
+                  DataColumn(label: Text('External IP')),
+                  DataColumn(label: Text('Ports')),
+                  DataColumn(label: Text('Age')),
+                  DataColumn(label: Text('Actions')),
+                ],
+                rows: services
+                    .map(
+                      (service) => DataRow(
+                        cells: [
+                          DataCell(
+                            Row(
+                              children: [
+                                const Icon(Icons.dns_outlined, size: 16),
+                                const SizedBox(width: 8),
+                                Text(service.name),
+                              ],
+                            ),
+                          ),
+                          DataCell(_buildTypeChip(service.type)),
+                          DataCell(Text(service.clusterIP)),
+                          DataCell(Text(service.externalIP)),
+                          DataCell(Text(service.ports)),
+                          DataCell(Text(service.age)),
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit, size: 18),
+                                  tooltip: 'Edit',
+                                  onPressed: () {},
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, size: 18),
+                                  tooltip: 'Delete',
+                                  onPressed: () {},
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTypeChip(String type) {
+    Color color;
+    switch (type) {
+      case 'LoadBalancer':
+        color = Colors.blue;
+        break;
+      case 'ClusterIP':
+        color = Colors.green;
+        break;
+      case 'NodePort':
+        color = Colors.orange;
+        break;
+      default:
+        color = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        type,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
+class StorageView extends StatelessWidget {
+  const StorageView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.storage,
+            size: 80,
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Storage Management',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Persistent Volumes, Claims, and Storage Classes',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: () {},
+            icon: const Icon(Icons.add),
+            label: const Text('Create Storage Resource'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ConfigurationView extends StatelessWidget {
+  const ConfigurationView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.settings_applications,
+            size: 80,
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Configuration',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'ConfigMaps and Secrets',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class RBACView extends StatelessWidget {
+  const RBACView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.security,
+            size: 80,
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'RBAC Management',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Roles, RoleBindings, and Service Accounts',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class EventsView extends ConsumerWidget {
+  const EventsView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final events = [
+      {
+        'type': 'Normal',
+        'reason': 'Scheduled',
+        'message': 'Successfully assigned default/nginx-deployment-7d8d9f4c5-abc123 to node-1',
+        'object': 'Pod/nginx-deployment-7d8d9f4c5-abc123',
+        'time': '2m ago',
+      },
+      {
+        'type': 'Normal',
+        'reason': 'Pulling',
+        'message': 'Pulling image "nginx:latest"',
+        'object': 'Pod/nginx-deployment-7d8d9f4c5-abc123',
+        'time': '2m ago',
+      },
+      {
+        'type': 'Warning',
+        'reason': 'BackOff',
+        'message': 'Back-off restarting failed container',
+        'object': 'Pod/postgres-db-6f8b9c-xyz789',
+        'time': '5m ago',
+      },
+      {
+        'type': 'Normal',
+        'reason': 'ScalingReplicaSet',
+        'message': 'Scaled up replica set nginx-deployment-7d8d9f4c5 to 3',
+        'object': 'Deployment/nginx-deployment',
+        'time': '10m ago',
+      },
+    ];
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              Text(
+                'Cluster Events',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+              OutlinedButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.filter_list, size: 18),
+                label: const Text('Filter'),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Refresh'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Card(
+            margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: ListView.separated(
+              itemCount: events.length,
+              separatorBuilder: (context, index) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final event = events[index];
+                final isWarning = event['type'] == 'Warning';
+
+                return ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isWarning
+                          ? Colors.orange.withOpacity(0.1)
+                          : Colors.blue.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isWarning ? Icons.warning_amber : Icons.info_outline,
+                      color: isWarning ? Colors.orange : Colors.blue,
+                      size: 20,
+                    ),
+                  ),
+                  title: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isWarning
+                              ? Colors.orange.withOpacity(0.1)
+                              : Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          event['reason'] as String,
+                          style: TextStyle(
+                            fontSize: 12,
+                            import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:math' as math;
+
+// ============================================================================
+// Main App
+// ============================================================================
+
+void main() {
+  runApp(const ProviderScope(child: KubernetesDashboard()));
+}
+
+class KubernetesDashboard extends ConsumerWidget {
+  const KubernetesDashboard({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+    
+    return MaterialApp(
+      title: 'Kubernetes Dashboard',
+      debugShowCheckedModeBanner: false,
+      themeMode: themeMode,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0066CC),
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0066CC),
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF1A1A1A),
+      ),
+      home: const DashboardScreen(),
+    );
+  }
+}
+
+// ============================================================================
+// State Management - Providers
+// ============================================================================
+
+// Cluster provider
+final selectedClusterProvider = StateProvider<ClusterInfo?>((ref) {
+  final clusters = ref.watch(clustersProvider);
+  return clusters.isNotEmpty ? clusters.first : null;
+});
+
+final clustersProvider = StateProvider<List<ClusterInfo>>((ref) {
+  return [
+    ClusterInfo(
+      id: '1',
+      name: 'Production Cluster',
+      endpoint: 'https://prod-k8s.example.com',
+      region: 'us-east-1',
+      provider: 'AWS',
+      version: 'v1.28.3',
+      status: ClusterStatus.healthy,
+      nodes: 5,
+      namespaces: 12,
+    ),
+    ClusterInfo(
+      id: '2',
+      name: 'Staging Cluster',
+      endpoint: 'https://staging-k8s.example.com',
+      region: 'us-west-2',
+      provider: 'AWS',
+      version: 'v1.27.8',
+      status: ClusterStatus.healthy,
+      nodes: 3,
+      namespaces: 8,
+    ),
+    ClusterInfo(
+      id: '3',
+      name: 'Development Cluster',
+      endpoint: 'https://dev-k8s.example.com',
+      region: 'eu-west-1',
+      provider: 'GCP',
+      version: 'v1.28.0',
+      status: ClusterStatus.warning,
+      nodes: 2,
+      namespaces: 5,
+    ),
+  ];
+});
+
+// Current namespace provider
+final currentNamespaceProvider = StateProvider<String>((ref) => 'default');
+
+// Current view provider
+final currentViewProvider = StateProvider<DashboardView>((ref) => DashboardView.overview);
+
+// Theme mode provider
+final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
+
+// Show detail drawer provider
+final showDetailDrawerProvider = StateProvider<ResourceDetail?>((ref) => null);
+
+// Show filter panel provider
+final showFilterPanelProvider = StateProvider<bool>((ref) => false);
+
+// Show notification center provider
+final showNotificationCenterProvider = StateProvider<bool>((ref) => false);
+
+// Cost tracking provider
+final costTrackingProvider = StateProvider<CostTracking>((ref) {
+  return CostTracking(
+    currentMonthCost: 4567.89,
+    previousMonthCost: 4123.45,
+    projectedCost: 5100.0,
+    breakdown: {
+      'Compute': 2800.0,
+      'Storage': 890.0,
+      'Network': 567.89,
+      'Load Balancers': 310.0,
+    },
+    dailyCosts: List.generate(30, (i) => 140.0 + math.Random().nextDouble() * 40),
+  );
+});
+
+// Mock data providers
+final podsProvider = StateProvider<List<PodInfo>>((ref) {
+  return [
+    PodInfo(
+      name: 'nginx-deployment-7d8d9f4c5-abc123',
+      namespace: 'default',
+      status: PodStatus.running,
+      readyContainers: 1,
+      totalContainers: 1,
+      restarts: 0,
+      age: '2d',
+      node: 'node-1',
+      cpu: '50m',
+      memory: '128Mi',
+      labels: {'app': 'nginx', 'tier': 'frontend'},
+    ),
+    PodInfo(
+      name: 'redis-master-0',
+      namespace: 'default',
+      status: PodStatus.running,
+      readyContainers: 1,
+      totalContainers: 1,
+      restarts: 2,
+      age: '5d',
+      node: 'node-2',
+      cpu: '100m',
+      memory: '256Mi',
+      labels: {'app': 'redis', 'role': 'master'},
+    ),
+    PodInfo(
+      name: 'postgres-db-6f8b9c-xyz789',
+      namespace: 'default',
+      status: PodStatus.pending,
+      readyContainers: 0,
+      totalContainers: 1,
+      restarts: 0,
+      age: '1m',
+      node: 'node-1',
+      cpu: '0m',
+      memory: '0Mi',
+      labels: {'app': 'postgres'},
+    ),
+    PodInfo(
+      name: 'api-server-deployment-5f7c8d-qwe456',
+      namespace: 'production',
+      status: PodStatus.running,
+      readyContainers: 2,
+      totalContainers: 2,
+      restarts: 1,
+      age: '7d',
+      node: 'node-3',
+      cpu: '250m',
+      memory: '512Mi',
+      labels: {'app': 'api-server', 'version': 'v2'},
+    ),
+  ];
+});
+
+final deploymentsProvider = StateProvider<List<DeploymentInfo>>((ref) {
+  return [
+    DeploymentInfo(
+      name: 'nginx-deployment',
+      namespace: 'default',
+      ready: '3/3',
+      upToDate: 3,
+      available: 3,
+      age: '5d',
+      strategy: 'RollingUpdate',
+    ),
+    DeploymentInfo(
+      name: 'api-server',
+      namespace: 'default',
+      ready: '2/5',
+      upToDate: 2,
+      available: 2,
+      age: '3d',
+      strategy: 'RollingUpdate',
+    ),
+    DeploymentInfo(
+      name: 'frontend-app',
+      namespace: 'production',
+      ready: '5/5',
+      upToDate: 5,
+      available: 5,
+      age: '10d',
+      strategy: 'RollingUpdate',
+    ),
+  ];
+});
+
+final servicesProvider = StateProvider<List<ServiceInfo>>((ref) {
+  return [
+    ServiceInfo(
+      name: 'nginx-service',
+      namespace: 'default',
+      type: 'LoadBalancer',
+      clusterIP: '10.96.0.1',
+      externalIP: '203.0.113.1',
+      ports: '80:30080/TCP',
+      age: '5d',
+    ),
+    ServiceInfo(
+      name: 'redis-service',
+      namespace: 'default',
+      type: 'ClusterIP',
+      clusterIP: '10.96.0.2',
+      externalIP: '<none>',
+      ports: '6379/TCP',
+      age: '5d',
+    ),
+    ServiceInfo(
+      name: 'api-gateway',
+      namespace: 'production',
+      type: 'LoadBalancer',
+      clusterIP: '10.96.0.10',
+      externalIP: '203.0.113.10',
+      ports: '443:30443/TCP',
+      age: '15d',
+    ),
+  ];
+});
+
+final nodesProvider = StateProvider<List<NodeInfo>>((ref) {
+  return [
+    NodeInfo(
+      name: 'node-1',
+      status: 'Ready',
+      roles: 'master',
+      age: '30d',
+      version: 'v1.28.3',
+      cpuCapacity: '8',
+      memoryCapacity: '32Gi',
+      cpuUsage: '45%',
+      memoryUsage: '60%',
+      pods: '25/110',
+    ),
+    NodeInfo(
+      name: 'node-2',
+      status: 'Ready',
+      roles: 'worker',
+      age: '30d',
+      version: 'v1.28.3',
+      cpuCapacity: '8',
+      memoryCapacity: '32Gi',
+      cpuUsage: '38%',
+      memoryUsage: '55%',
+      pods: '22/110',
+    ),
+    NodeInfo(
+      name: 'node-3',
+      status: 'Ready',
+      roles: 'worker',
+      age: '28d',
+      version: 'v1.28.3',
+      cpuCapacity: '8',
+      memoryCapacity: '32Gi',
+      cpuUsage: '52%',
+      memoryUsage: '68%',
+      pods: '28/110',
+    ),
+  ];
+});
+
+final namespacesProvider = StateProvider<List<NamespaceInfo>>((ref) {
+  return [
+    NamespaceInfo(
+      name: 'default',
+      status: 'Active',
+      age: '30d',
+      pods: 15,
+      deployments: 8,
+      services: 5,
+    ),
+    NamespaceInfo(
+      name: 'kube-system',
+      status: 'Active',
+      age: '30d',
+      pods: 12,
+      deployments: 6,
+      services: 4,
+    ),
+    NamespaceInfo(
+      name: 'production',
+      status: 'Active',
+      age: '25d',
+      pods: 35,
+      deployments: 12,
+      services: 8,
+    ),
+    NamespaceInfo(
+      name: 'staging',
+      status: 'Active',
+      age: '20d',
+      pods: 18,
+      deployments: 7,
+      services: 4,
+    ),
+  ];
+});
+
+// ============================================================================
+// Models
+// ============================================================================
+
+enum DashboardView {
+  overview,
+  workloads,
+  networking,
+  storage,
+  configuration,
+  rbac,
+  events,
+  nodes,
+  costs,
+}
+
+enum PodStatus { running, pending, failed, succeeded, unknown }
+enum ClusterStatus { healthy, warning, error, unknown }
+
+class ClusterInfo {
+  final String id;
+  final String name;
+  final String endpoint;
+  final String region;
+  final String provider;
+  final String version;
+  final ClusterStatus status;
+  final int nodes;
+  final int namespaces;
+
+  ClusterInfo({
+    required this.id,
+    required this.name,
+    required this.endpoint,
+    required this.region,
+    required this.provider,
+    required this.version,
+    required this.status,
+    required this.nodes,
+    required this.namespaces,
+  });
+}
+
+class PodInfo {
+  final String name;
+  final String namespace;
+  final PodStatus status;
+  final int readyContainers;
+  final int totalContainers;
+  final int restarts;
+  final String age;
+  final String node;
+  final String cpu;
+  final String memory;
+  final Map<String, String> labels;
+
+  PodInfo({
+    required this.name,
+    required this.namespace,
+    required this.status,
+    required this.readyContainers,
+    required this.totalContainers,
+    required this.restarts,
+    required this.age,
+    required this.node,
+    required this.cpu,
+    required this.memory,
+    required this.labels,
+  });
+}
+
+class DeploymentInfo {
+  final String name;
+  final String namespace;
+  final String ready;
+  final int upToDate;
+  final int available;
+  final String age;
+  final String strategy;
+
+  DeploymentInfo({
+    required this.name,
+    required this.namespace,
+    required this.ready,
+    required this.upToDate,
+    required this.available,
+    required this.age,
+    required this.strategy,
+  });
+}
+
+class ServiceInfo {
+  final String name;
+  final String namespace;
+  final String type;
+  final String clusterIP;
+  final String externalIP;
+  final String ports;
+  final String age;
+
+  ServiceInfo({
+    required this.name,
+    required this.namespace,
+    required this.type,
+    required this.clusterIP,
+    required this.externalIP,
+    required this.ports,
+    required this.age,
+  });
+}
+
+class NodeInfo {
+  final String name;
+  final String status;
+  final String roles;
+  final String age;
+  final String version;
+  final String cpuCapacity;
+  final String memoryCapacity;
+  final String cpuUsage;
+  final String memoryUsage;
+  final String pods;
+
+  NodeInfo({
+    required this.name,
+    required this.status,
+    required this.roles,
+    required this.age,
+    required this.version,
+    required this.cpuCapacity,
+    required this.memoryCapacity,
+    required this.cpuUsage,
+    required this.memoryUsage,
+    required this.pods,
+  });
+}
+
+class NamespaceInfo {
+  final String name;
+  final String status;
+  final String age;
+  final int pods;
+  final int deployments;
+  final int services;
+
+  NamespaceInfo({
+    required this.name,
+    required this.status,
+    required this.age,
+    required this.pods,
+    required this.deployments,
+    required this.services,
+  });
+}
+
+class ResourceDetail {
+  final String name;
+  final String type;
+  final String namespace;
+
+  ResourceDetail({
+    required this.name,
+    required this.type,
+    required this.namespace,
+  });
+}
+
+class CostTracking {
+  final double currentMonthCost;
+  final double previousMonthCost;
+  final double projectedCost;
+  final Map<String, double> breakdown;
+  final List<double> dailyCosts;
+
+  CostTracking({
+    required this.currentMonthCost,
+    required this.previousMonthCost,
+    required this.projectedCost,
+    required this.breakdown,
+    required this.dailyCosts,
+  });
+
+  double get changePercentage => 
+      ((currentMonthCost - previousMonthCost) / previousMonthCost) * 100;
+}
+
+// ============================================================================
+// Main Dashboard Screen
+// ============================================================================
+
+class DashboardScreen extends ConsumerWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentView = ref.watch(currentViewProvider);
+    final currentNamespace = ref.watch(currentNamespaceProvider);
+    final showDetailDrawer = ref.watch(showDetailDrawerProvider);
+    final showFilterPanel = ref.watch(showFilterPanelProvider);
+    final showNotificationCenter = ref.watch(showNotificationCenterProvider);
+
+    return Scaffold(
+      body: Stack(
+        children: [
+          Row(
+            children: [
+              // Sidebar Navigation
+              const NavigationSidebar(),
+              
+              // Main Content Area
+              Expanded(
+                child: Column(
+                  children: [
+                    // Top Bar
+                    TopBar(
+                      currentNamespace: currentNamespace,
+                      onNamespaceChanged: (ns) =>
+                          ref.read(currentNamespaceProvider.notifier).state = ns,
+                      onSearchTap: () => _showSearch(context),
+                      onNotificationTap: () => ref
+                          .read(showNotificationCenterProvider.notifier)
+                          .state = !showNotificationCenter,
+                    ),
+                    
+                    // Content
+                    Expanded(
+                      child: _buildContent(currentView, ref),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Filter Panel
+              if (showFilterPanel)
+                FilterPanel(
+                  onClose: () => ref.read(showFilterPanelProvider.notifier).state = false,
+                  onApply: () {
+                    ref.read(showFilterPanelProvider.notifier).state = false;
+                    // Apply filters
+                  },
+                ),
+              
+              // Detail Drawer
+              if (showDetailDrawer != null)
+                ResourceDetailDrawer(
+                  resourceName: showDetailDrawer.name,
+                  resourceType: showDetailDrawer.type,
+                  namespace: showDetailDrawer.namespace,
+                  onClose: () => ref.read(showDetailDrawerProvider.notifier).state = null,
+                ),
+              
+              // Notification Center
+              if (showNotificationCenter)
+                NotificationCenter(
+                  onClose: () => ref.read(showNotificationCenterProvider.notifier).state = false,
+                ),
+            ],
+          ),
+          
+          // Cluster Selector FAB
+          Positioned(
+            right: 24,
+            bottom: 24,
+            child: FloatingActionButton.extended(
+              onPressed: () => _showClusterSelector(context, ref),
+              icon: const Icon(Icons.cloud),
+              label: Text(ref.watch(selectedClusterProvider)?.name ?? 'Select Cluster'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent(DashboardView view, WidgetRef ref) {
+    switch (view) {
+      case DashboardView.overview:
+        return const EnhancedOverviewView();
+      case DashboardView.workloads:
+        return const WorkloadsView();
+      case DashboardView.networking:
+        return const NetworkingView();
+      case DashboardView.storage:
+        return const StorageView();
+      case DashboardView.configuration:
+        return const ConfigurationView();
+      case DashboardView.rbac:
+        return const RBACView();
+      case DashboardView.events:
+        return const EventsView();
+      case DashboardView.nodes:
+        return const NodesView();
+      case DashboardView.costs:
+        return const CostsView();
+    }
+  }
+
+  void _showSearch(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const SearchDialog(),
+    );
+  }
+
+  void _showClusterSelector(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => ClusterSelectorDialog(
+        onClusterSelected: (cluster) {
+          ref.read(selectedClusterProvider.notifier).state = cluster;
+          Navigator.of(context).pop();
+        },
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Navigation Sidebar
+// ============================================================================
+
+class NavigationSidebar extends ConsumerWidget {
+  const NavigationSidebar({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentView = ref.watch(currentViewProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final selectedCluster = ref.watch(selectedClusterProvider);
+
+    return Container(
+      width: 240,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF252525) : Colors.white,
+        border: Border(
+          right: BorderSide(
+            color: isDark ? const Color(0xFF3A3A3A) : const Color(0xFFE0E0E0),
+          ),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Logo & Cluster Info
+          Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.sailing,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 32,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'K8s Dashboard',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (selectedCluster != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _getProviderIcon(selectedCluster.provider),
+                          size: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                selectedCluster.name,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                '${selectedCluster.nodes} nodes • ${selectedCluster.region}',
+                                style: const TextStyle(fontSize: 9),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        _buildStatusDot(selectedCluster.status),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          
+          // Navigation Items
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: [
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.dashboard,
+                  label: 'Overview',
+                  view: DashboardView.overview,
+                  isSelected: currentView == DashboardView.overview,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.workspaces,
+                  label: 'Workloads',
+                  view: DashboardView.workloads,
+                  isSelected: currentView == DashboardView.workloads,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.language,
+                  label: 'Networking',
+                  view: DashboardView.networking,
+                  isSelected: currentView == DashboardView.networking,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.storage,
+                  label: 'Storage',
+                  view: DashboardView.storage,
+                  isSelected: currentView == DashboardView.storage,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.dns,
+                  label: 'Nodes',
+                  view: DashboardView.nodes,
+                  isSelected: currentView == DashboardView.nodes,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.settings,
+                  label: 'Configuration',
+                  view: DashboardView.configuration,
+                  isSelected: currentView == DashboardView.configuration,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.security,
+                  label: 'RBAC',
+                  view: DashboardView.rbac,
+                  isSelected: currentView == DashboardView.rbac,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.attach_money,
+                  label: 'Costs',
+                  view: DashboardView.costs,
+                  isSelected: currentView == DashboardView.costs,
+                ),
+                _buildNavItem(
+                  context,
+                  ref,
+                  icon: Icons.event_note,
+                  label: 'Events',
+                  view: DashboardView.events,
+                  isSelected: currentView == DashboardView.events,
+                ),
+              ],
+            ),
+          ),
+          
+          // Bottom Actions
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                _buildActionButton(
+                  context,
+                  icon: Icons.help_outline,
+                  label: 'Documentation',
+                  onTap: () {},
+                ),
+                const SizedBox(height: 8),
+                _buildActionButton(
+                  context,
+                  icon: Icons.brightness_6,
+                  label: 'Theme',
+                  onTap: () {
+                    final current = ref.read(themeModeProvider);
+                    ref.read(themeModeProvider.notifier).state =
+                        current == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getProviderIcon(String provider) {
+    switch (provider.toUpperCase()) {
+      case 'AWS':
+        return Icons.cloud;
+      case 'GCP':
+        return Icons.cloud_circle;
+      case 'AZURE':
+        return Icons.cloud_queue;
+      default:
+        return Icons.cloud_outlined;
+    }
+  }
+
+  Widget _buildStatusDot(ClusterStatus status) {
+    Color color;
+    switch (status) {
+      case ClusterStatus.healthy:
+        color = Colors.green;
+        break;
+      case ClusterStatus.warning:
+        color = Colors.orange;
+        break;
+      case ClusterStatus.error:
+        color = Colors.red;
+        break;
+      default:
+        color = Colors.grey;
+    }
+
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+
+  Widget _buildNavItem(
+    BuildContext context,
+    WidgetRef ref, {
+    required IconData icon,
+    required String label,
+    required DashboardView view,
+    required bool isSelected,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: Material(
+        color: isSelected
+            ? Theme.of(context).colorScheme.primaryContainer
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: () => ref.read(currentViewProvider.notifier).state = view,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.onPrimaryContainer
+                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.onPrimaryContainer
+                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+            Text(label, style: const TextStyle(fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Top Bar
+// ============================================================================
+
+class TopBar extends StatelessWidget {
+  final String currentNamespace;
+  final ValueChanged<String> onNamespaceChanged;
+  final VoidCallback onSearchTap;
+  final VoidCallback onNotificationTap;
+
+  const TopBar({
+    super.key,
+    required this.currentNamespace,
+    required this.onNamespaceChanged,
+    required this.onSearchTap,
+    required this.onNotificationTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      height: 64,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF252525) : Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? const Color(0xFF3A3A3A) : const Color(0xFFE0E0E0),
+          ),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        children: [
+          // Namespace Selector
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isDark ? const Color(0xFF3A3A3A) : const Color(0xFFE0E0E0),
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.folder_outlined, size: 18),
+                const SizedBox(width: 8),
+                DropdownButton<String>(
+                  value: currentNamespace,
+                  underline: const SizedBox(),
+                  items: ['default', 'kube-system', 'kube-public', 'production', 'staging']
+                      .map((ns) => DropdownMenuItem(
+                            value: ns,
+                            child: Text(ns),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) onNamespaceChanged(value);
+                  },
+                ),

@@ -1,0 +1,72 @@
+[package]
+name = "gallery_bridge_engine"
+version = "1.0.0"
+edition = "2021"
+description = "High-performance media gallery engine for GalleryBridge"
+authors = ["GalleryBridge"]
+
+[lib]
+name = "gallery_bridge_engine"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+# Flutter bridge
+flutter_rust_bridge = "2"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Database
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# Image processing
+image = { version = "0.25", features = ["jpeg", "png", "webp", "tiff", "gif", "bmp"] }
+imageproc = "0.25"
+
+# File system
+walkdir = "2"
+notify = "6"         # FSEvents/inotify/ReadDirectoryChangesW
+mime_guess = "2"
+
+# Metadata
+kamadak-exif = "0.5"
+
+# Serialisation
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Utilities
+anyhow = "1"
+thiserror = "1"
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+hex = "0.4"
+rayon = "1"
+crossbeam-channel = "0.5"
+log = "0.4"
+env_logger = "0.11"
+
+# PDF export (optional feature)
+# printpdf = { version = "0.7", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "indexer_bench"
+harness = false
+
+[features]
+default = []
+# pdf = ["printpdf"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 1   # faster incremental builds

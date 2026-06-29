@@ -1,0 +1,83 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:golok/app/pages/forgot_password_page.dart';
+import 'package:golok/app/pages/home.dart';
+
+import '../../app/pages/intro_screen.dart';
+import '../../app/pages/register_page.dart';
+import '../../app/pages/splash.dart';
+import '../../features/auth/logic/auth_provider.dart';
+import '../../features/auth/pages/signin.dart';
+
+final routerProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authProvider);
+
+  return GoRouter(
+    initialLocation: '/',
+    redirect: (context, state) {
+      if (authState.isLoading) {
+        return null;
+      }
+
+      final isIntroduction = state.fullPath == '/introduction';
+      final isSplash = state.fullPath == '/splash';
+      final isSignIn = state.fullPath == '/signin';
+      final isRegister = state.fullPath == '/register';
+      final isForgotPassword = state.fullPath == '/forgot-password';
+      final isHome = state.fullPath == '/home';
+
+      // Handle first time user
+      if (authState.isFirstTime && !isIntroduction) {
+        return '/introduction';
+      }
+
+      // Handle authenticated user
+      if (authState.isAuthenticated) {
+        if (!isHome) return '/home';
+        return null;
+      }
+
+      // Handle non-authenticated user
+      if (!authState.isAuthenticated) {
+        if (isHome) return '/signin';
+        if (!isSignIn && !isRegister && !isForgotPassword && !isSplash && !isIntroduction) {
+          return '/signin';
+        }
+        return null;
+      }
+
+      return null;
+    },
+    routes: [
+      GoRoute(
+        path: '/',
+        redirect: (_, __) => '/splash',
+      ),
+      GoRoute(
+        path: '/introduction',
+        builder: (context, state) => const IntroductionScreen(),
+      ),
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: '/signin',
+        builder: (context, state) => const SignInScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterPage(),
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (context, state) => const ForgotPasswordPage(),
+      ),
+      GoRoute(
+        path: '/home',
+        builder: (context, state) => const HomePage(),
+      ),
+    ],
+  );
+});

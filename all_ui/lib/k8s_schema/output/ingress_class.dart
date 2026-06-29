@@ -1,0 +1,32 @@
+import 'ingress_class_spec.dart';
+import 'object_meta.dart';
+
+class IngressClass {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final IngressClassSpec? spec;
+  IngressClass({
+    this.apiVersion = 'networking.k8s.io/v1',
+    this.kind = 'IngressClass',
+    required this.metadata,
+    this.spec,
+  });
+  factory IngressClass.fromJson(Map<String, dynamic> json) {
+    return IngressClass(
+      apiVersion: json['apiVersion'] ?? 'networking.k8s.io/v1',
+      kind: json['kind'] ?? 'IngressClass',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      spec:
+          json['spec'] != null ? IngressClassSpec.fromJson(json['spec']) : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      if (spec != null) 'spec': spec!.toJson(),
+    };
+  }
+}

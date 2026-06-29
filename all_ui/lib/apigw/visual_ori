@@ -1,0 +1,2004 @@
+import 'package:flutter/material.dart';
+import 'dart:math' as math;
+
+void main() {
+  runApp(const ApiGatewayApp());
+}
+
+class ApiGatewayApp extends StatelessWidget {
+  const ApiGatewayApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Iket  Management',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6200EE),
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+        fontFamily: 'Inter',
+      ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6200EE),
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+        fontFamily: 'Inter',
+      ),
+      themeMode: ThemeMode.system,
+      home: const ApiGatewayDashboard(),
+    );
+  }
+}
+
+class ApiGatewayDashboard extends StatefulWidget {
+  const ApiGatewayDashboard({Key? key}) : super(key: key);
+
+  @override
+  State<ApiGatewayDashboard> createState() => _ApiGatewayDashboardState();
+}
+
+class _ApiGatewayDashboardState extends State<ApiGatewayDashboard> with SingleTickerProviderStateMixin {
+  final tabs = [
+    'Dashboard',
+    'Load Balancing',
+    'Traffic Control',
+    'Protocols',
+    'Settings'
+  ];
+  
+  int _selectedIndex = 0;
+  
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Row(
+        children: [
+          // Side Navigation
+          NavigationRail(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: (int index) {
+              setState(() {
+                _selectedIndex = index;
+              });
+            },
+            labelType: NavigationRailLabelType.all,
+            leading: Padding(
+              padding: const EdgeInsets.only(top: 16, bottom: 24),
+              child: Column(
+                children: [
+                  Container(
+                    height: 48,
+                    width: 48,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.api_rounded,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Iket ',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onBackground,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            destinations: [
+              NavigationRailDestination(
+                icon: const Icon(Icons.dashboard_outlined),
+                selectedIcon: const Icon(Icons.dashboard),
+                label: Text(tabs[0]),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.balance_outlined),
+                selectedIcon: const Icon(Icons.balance),
+                label: Text(tabs[1]),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.shuffle_outlined),
+                selectedIcon: const Icon(Icons.shuffle),
+                label: Text(tabs[2]),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.settings_ethernet_outlined),
+                selectedIcon: const Icon(Icons.settings_ethernet),
+                label: Text(tabs[3]),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.settings_outlined),
+                selectedIcon: const Icon(Icons.settings),
+                label: Text(tabs[4]),
+              ),
+            ],
+          ),
+          
+          // Main Content
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: IndexedStack(
+                index: _selectedIndex,
+                children: [
+                  const DashboardView(),
+                  const LoadBalancingView(),
+                  const TrafficControlView(),
+                  const ProtocolSupportView(),
+                  const SettingsView(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DashboardView extends StatelessWidget {
+  const DashboardView({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Iket  Management',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 24),
+        
+        // Gateway Status Card
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+              width: 1,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Gateway Status',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Healthy',
+                            style: TextStyle(
+                              color: Colors.green,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                
+                // Iket  Visualization
+                Container(
+                  height: 320,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const ApiGatewayVisualization(),
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 24),
+        
+        // Stats Cards
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(
+                child: Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      width: 1,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Total APIs',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '24',
+                          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        const LinearProgressIndicator(
+                          value: 0.6,
+                          backgroundColor: Colors.grey,
+                          color: Colors.deepPurple,
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          '60% capacity',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      width: 1,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Services',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '12',
+                          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: const BoxDecoration(
+                                color: Colors.green,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Text(
+                              '10 Online',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            const SizedBox(width: 16),
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: const BoxDecoration(
+                                color: Colors.orange,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Text(
+                              '2 Degraded',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      width: 1,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Traffic',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '1.2K',
+                          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Text(
+                          'req/s',
+                          style: TextStyle(
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const Spacer(),
+                        SizedBox(
+                          height: 20,
+                          child: Row(
+                            children: List.generate(20, (index) {
+                              return Expanded(
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                                  height: 4 + (math.Random().nextDouble() * 16),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class ApiGatewayVisualization extends StatelessWidget {
+  const ApiGatewayVisualization({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            // Client Section
+            Positioned(
+              left: 24,
+              top: constraints.maxHeight / 2 - 100,
+              child: Column(
+                children: [
+                  const Icon(Icons.devices, size: 40),
+                  const SizedBox(height: 8),
+                  const Text('Clients'),
+                  const SizedBox(height: 16),
+                  Column(
+                    children: [
+                      _clientBox(context, 'Mobile'),
+                      const SizedBox(height: 8),
+                      _clientBox(context, 'Web'),
+                      const SizedBox(height: 8),
+                      _clientBox(context, 'IoT'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            // Iket  Section
+            Positioned(
+              left: constraints.maxWidth / 2 - 80,
+              top: constraints.maxHeight / 2 - 100,
+              child: Column(
+                children: [
+                  Container(
+                    width: 160,
+                    height: 200,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.api,
+                          size: 48,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Iket ',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Column(
+                            children: [
+                              _gatewayFeature(context, 'Load Balancing'),
+                              const SizedBox(height: 4),
+                              _gatewayFeature(context, 'Traffic Control'),
+                              const SizedBox(height: 4),
+                              _gatewayFeature(context, 'Multi-Protocol'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Services Section
+            Positioned(
+              right: 24,
+              top: constraints.maxHeight / 2 - 140,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.cloud, size: 40),
+                  const SizedBox(height: 8),
+                  const Text('Services'),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Column(
+                        children: [
+                          _serviceBox(context, 'REST API', Colors.blue),
+                          const SizedBox(height: 8),
+                          _serviceBox(context, 'GraphQL', Colors.purple),
+                          const SizedBox(height: 8),
+                          _serviceBox(context, 'gRPC', Colors.green),
+                        ],
+                      ),
+                      const SizedBox(width: 16),
+                      Column(
+                        children: [
+                          _serviceBox(context, 'WebSocket', Colors.orange),
+                          const SizedBox(height: 8),
+                          _serviceBox(context, 'Database', Colors.red),
+                          const SizedBox(height: 8),
+                          _serviceBox(context, 'Kafka', Colors.teal),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            // Connection Lines
+            CustomPaint(
+              size: Size(constraints.maxWidth, constraints.maxHeight),
+              painter: ConnectionPainter(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  Widget _clientBox(BuildContext context, String name) {
+    return Container(
+      width: 80,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      alignment: Alignment.center,
+      child: Text(name, style: const TextStyle(fontSize: 12)),
+    );
+  }
+  
+  Widget _serviceBox(BuildContext context, String name, Color color) {
+    return Container(
+      width: 80,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        name,
+        style: TextStyle(fontSize: 12, color: color.withValues(alpha: 0.8)),
+      ),
+    );
+  }
+  
+  Widget _gatewayFeature(BuildContext context, String name) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        name,
+        style: TextStyle(
+          fontSize: 10,
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
+class ConnectionPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey.withValues(alpha: 0.5)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+    
+    final dashPaint = Paint()
+      ..color = Colors.grey.withValues(alpha: 0.5)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+    
+    // Client to Gateway lines
+    final clientX = 64;
+    final gatewayX = size.width / 2;
+    final clientY1 = size.height / 2 - 60;
+    final clientY2 = size.height / 2;
+    final clientY3 = size.height / 2 + 60;
+    
+    // Draw dashed lines from clients to gateway
+    _drawDashedLine(
+      canvas,
+      Offset(clientX + 40, clientY1),
+      Offset(gatewayX - 80, size.height / 2 - 50),
+      dashPaint,
+    );
+    
+    _drawDashedLine(
+      canvas,
+      Offset(clientX + 40, clientY2),
+      Offset(gatewayX - 80, size.height / 2),
+      dashPaint,
+    );
+    
+    _drawDashedLine(
+      canvas,
+      Offset(clientX + 40, clientY3),
+      Offset(gatewayX - 80, size.height / 2 + 50),
+      dashPaint,
+    );
+    
+    // Gateway to Services lines
+    final serviceX = size.width - 145;
+    final serviceY1 = size.height / 2 - 100;
+    final serviceY2 = size.height / 2;
+    final serviceY3 = size.height / 2 + 100;
+    
+    // Draw dashed lines from gateway to services
+    _drawDashedLine(
+      canvas,
+      Offset(gatewayX + 80, size.height / 2 - 50),
+      Offset(serviceX, serviceY1),
+      dashPaint,
+    );
+    
+    _drawDashedLine(
+      canvas,
+      Offset(gatewayX + 80, size.height / 2),
+      Offset(serviceX, serviceY2),
+      dashPaint,
+    );
+    
+    _drawDashedLine(
+      canvas,
+      Offset(gatewayX + 80, size.height / 2 + 50),
+      Offset(serviceX, serviceY3),
+      dashPaint,
+    );
+  }
+  
+  void _drawDashedLine(Canvas canvas, Offset start, Offset end, Paint paint) {
+    final path = Path()
+      ..moveTo(start.dx, start.dy)
+      ..lineTo(end.dx, end.dy);
+    
+    const dashWidth = 4;
+    const dashSpace = 4;
+    
+    final distances = <double>[dashWidth, dashSpace];
+    canvas.drawPath(
+      dashPath(path, distances),
+      paint,
+    );
+  }
+  
+  Path dashPath(Path path, List<double> dashArray) {
+    final dashPath = Path();
+    final pathMetrics = path.computeMetrics();
+    
+    for (final pathMetric in pathMetrics) {
+      var distance = 0.0;
+      var draw = true;
+      var index = 0;
+      
+      while (distance < pathMetric.length) {
+        final dash = dashArray[index % dashArray.length];
+        final next = distance + dash;
+        
+        if (draw) {
+          dashPath.addPath(
+            pathMetric.extractPath(distance, next),
+            Offset.zero,
+          );
+        }
+        
+        distance = next;
+        draw = !draw;
+        index++;
+      }
+    }
+    
+    return dashPath;
+  }
+  
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
+}
+
+class LoadBalancingView extends StatefulWidget {
+  const LoadBalancingView({Key? key}) : super(key: key);
+
+  @override
+  State<LoadBalancingView> createState() => _LoadBalancingViewState();
+}
+
+class _LoadBalancingViewState extends State<LoadBalancingView> {
+  String _selectedAlgorithm = 'Round Robin';
+  String _selectedDiscovery = 'Kubernetes';
+  bool _healthChecksEnabled = true;
+  int _healthCheckInterval = 5;
+  int _healthCheckTimeout = 2;
+  int _healthCheckThreshold = 3;
+  
+  final _algorithms = [
+    'Round Robin',
+    'Weighted Round Robin',
+    'Least Connections',
+    'Consistent Hashing (Ketama)',
+    'IP Hash',
+    'Random',
+  ];
+  
+  final _discoveryOptions = [
+    'Kubernetes',
+    'Consul',
+    'Nacos',
+    'Eureka',
+    'DNS',
+    'Static Config',
+  ];
+  
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Dynamic Load Balancing',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Algorithm Selection
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 1,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Load Balancing Algorithm',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Algorithm options
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      childAspectRatio: 3,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                    ),
+                    itemCount: _algorithms.length,
+                    itemBuilder: (context, index) {
+                      final algorithm = _algorithms[index];
+                      final isSelected = algorithm == _selectedAlgorithm;
+                      
+                      return InkWell(
+                        onTap: () {
+                          setState(() {
+                            _selectedAlgorithm = algorithm;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isSelected 
+                                ? Theme.of(context).colorScheme.primaryContainer 
+                                : Theme.of(context).colorScheme.surface,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isSelected 
+                                  ? Theme.of(context).colorScheme.primary 
+                                  : Theme.of(context).colorScheme.outline,
+                              width: isSelected ? 2 : 1,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            algorithm,
+                            style: TextStyle(
+                              color: isSelected 
+                                  ? Theme.of(context).colorScheme.primary 
+                                  : Theme.of(context).colorScheme.onSurface,
+                              fontWeight: isSelected ? FontWeight.bold : null,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Algorithm visualization
+                  Container(
+                    height: 200,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: LoadBalancerVisualization(algorithm: _selectedAlgorithm),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // Service Discovery
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 1,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Service Discovery',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Discovery options
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: _discoveryOptions.map((option) {
+                      final isSelected = option == _selectedDiscovery;
+                      
+                      return ChoiceChip(
+                        label: Text(option),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() {
+                              _selectedDiscovery = option;
+                            });
+                          }
+                        },
+                        labelStyle: TextStyle(
+                          color: isSelected 
+                              ? Theme.of(context).colorScheme.onPrimaryContainer 
+                              : null,
+                        ),
+                        backgroundColor: Theme.of(context).colorScheme.surface,
+                        selectedColor: Theme.of(context).colorScheme.primaryContainer,
+                      );
+                    }).toList(),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Discovery settings
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: _buildDiscoverySettings(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // Health Checks
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 1,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Health Checks',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      Switch(
+                        value: _healthChecksEnabled,
+                        onChanged: (value) {
+                          setState(() {
+                            _healthChecksEnabled = value;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  if (_healthChecksEnabled) ...[
+                    // Active health checks
+                    ListTile(
+                      title: Text(
+                        'Active Health Checks',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      subtitle: const Text('Periodically probe upstream services'),
+                      leading: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.monitor_heart,
+                          color: Colors.green,
+                        ),
+                      ),
+                      trailing: const Icon(Icons.check_circle, color: Colors.green),
+                    ),
+                    
+                    const SizedBox(height: 8),
+                    
+                    // Health check interval
+                    Padding(
+                      // Health check interval
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text('Check Interval:'),
+                              const SizedBox(width: 8),
+                              Text(
+                                '$_healthCheckInterval seconds',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          Slider(
+                            value: _healthCheckInterval.toDouble(),
+                            min: 1,
+                            max: 30,
+                            divisions: 29,
+                            label: '$_healthCheckInterval s',
+                            onChanged: (value) {
+                              setState(() {
+                                _healthCheckInterval = value.round();
+                              });
+                            },
+                          ),
+                          
+                          const SizedBox(height: 8),
+                          
+                          Row(
+                            children: [
+                              const Text('Timeout:'),
+                              const SizedBox(width: 8),
+                              Text(
+                                '$_healthCheckTimeout seconds',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          Slider(
+                            value: _healthCheckTimeout.toDouble(),
+                            min: 1,
+                            max: 10,
+                            divisions: 9,
+                            label: '$_healthCheckTimeout s',
+                            onChanged: (value) {
+                              setState(() {
+                                _healthCheckTimeout = value.round();
+                              });
+                            },
+                          ),
+                          
+                          const SizedBox(height: 8),
+                          
+                          Row(
+                            children: [
+                              const Text('Failure Threshold:'),
+                              const SizedBox(width: 8),
+                              Text(
+                                '$_healthCheckThreshold failures',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          Slider(
+                            value: _healthCheckThreshold.toDouble(),
+                            min: 1,
+                            max: 10,
+                            divisions: 9,
+                            label: '$_healthCheckThreshold',
+                            onChanged: (value) {
+                              setState(() {
+                                _healthCheckThreshold = value.round();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    
+                    // Passive health checks
+                    ListTile(
+                      title: Text(
+                        'Passive Health Checks',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      subtitle: const Text('Detect failures from real traffic'),
+                      leading: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.analytics_outlined,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      trailing: const Icon(Icons.check_circle, color: Colors.blue),
+                    ),
+                  ] else ...[
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32.0),
+                        child: Text('Health checks are disabled'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // Apply button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                // Apply configuration
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text('Apply Load Balancing Configuration'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildDiscoverySettings() {
+    switch (_selectedDiscovery) {
+      case 'Kubernetes':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Kubernetes Namespace',
+                hintText: 'default',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Service Selector',
+                hintText: 'app=backend',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        );
+      case 'Consul':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Consul Address',
+                hintText: 'consul.example.com:8500',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Service Name',
+                hintText: 'api-service',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        );
+      default:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Service Endpoint',
+                hintText: 'https://api.example.com',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        );
+    }
+  }
+}
+
+class LoadBalancerVisualization extends StatelessWidget {
+  final String algorithm;
+  
+  const LoadBalancerVisualization({
+    Key? key,
+    required this.algorithm,
+  }) : super(key: key);
+  
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            // Client icon
+            Positioned(
+              left: 24,
+              top: constraints.maxHeight / 2 - 20,
+              child: Column(
+                children: [
+                  const Icon(Icons.computer, size: 40),
+                  const SizedBox(height: 4),
+                  const Text('Client'),
+                ],
+              ),
+            ),
+            
+            // Load balancer
+            Positioned(
+              left: constraints.maxWidth / 2 - 40,
+              top: constraints.maxHeight / 2 - 40,
+              child: Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.balance,
+                      size: 32,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'LB',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            // Server nodes
+            ..._buildServerNodes(context, constraints),
+            
+            // Connection lines
+            CustomPaint(
+              size: Size(constraints.maxWidth, constraints.maxHeight),
+              painter: LoadBalancerConnectionPainter(
+                algorithm: algorithm,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  List<Widget> _buildServerNodes(BuildContext context, BoxConstraints constraints) {
+    final nodes = <Widget>[];
+    final count = 4;
+    final spacing = constraints.maxHeight / (count + 1);
+    
+    for (int i = 0; i < count; i++) {
+      final weight = i == 1 ? '2x' : '1x';
+      final isActive = i != 3; // Make the last node inactive
+      
+      nodes.add(
+        Positioned(
+          right: 24,
+          top: spacing * (i + 1) - 20,
+          child: Row(
+            children: [
+              Container(
+                width: 50,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? Theme.of(context).colorScheme.tertiaryContainer
+                      : Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isActive
+                        ? Theme.of(context).colorScheme.tertiary
+                        : Colors.grey,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'S${i + 1}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isActive
+                            ? Theme.of(context).colorScheme.onTertiaryContainer
+                            : Colors.grey,
+                      ),
+                    ),
+                    if (algorithm.contains('Weighted'))
+                      Text(
+                        weight,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isActive
+                              ? Theme.of(context).colorScheme.onTertiaryContainer
+                              : Colors.grey,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (algorithm.contains('Least'))
+                Container(
+                  margin: const EdgeInsets.only(left: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getConnectionColor(i).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: _getConnectionColor(i).withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Text(
+                    '${8 - i * 2}',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: _getConnectionColor(i),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    return nodes;
+  }
+  
+  Color _getConnectionColor(int index) {
+    switch (index) {
+      case 0:
+        return Colors.green;
+      case 1:
+        return Colors.orange;
+      case 2:
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+}
+
+class LoadBalancerConnectionPainter extends CustomPainter {
+  final String algorithm;
+  
+  LoadBalancerConnectionPainter({
+    required this.algorithm,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Draw lines from client to load balancer
+    final Paint clientPaint = Paint()
+      ..color = Colors.grey
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    
+    canvas.drawLine(
+      Offset(64, size.height / 2),
+      Offset(size.width / 2 - 40, size.height / 2),
+      clientPaint,
+    );
+    
+    // Draw connection lines based on algorithm
+    final count = 4;
+    final spacing = size.height / (count + 1);
+    
+    for (int i = 0; i < count; i++) {
+      final isActive = i != 3; // Last server is inactive
+      
+      if (!isActive) continue;
+      
+      final color = _getConnectionColor(i);
+      double lineWeight = 2.0;
+      
+      // Change line weight for weighted algorithms
+      if (algorithm.contains('Weighted') && i == 1) {
+        lineWeight = 3.5;
+      }
+      
+      // Change line weight for least connections
+      if (algorithm.contains('Least')) {
+        lineWeight = 2.0 + (3 - i) * 0.5;
+      }
+      
+      final Paint serverPaint = Paint()
+        ..color = color
+        ..strokeWidth = lineWeight
+        ..style = PaintingStyle.stroke;
+      
+      if (algorithm.contains('Hashing')) {
+        // For consistent hashing, draw curved lines
+        final path = Path();
+        final controlPoint1 = Offset(
+          size.width / 2 + 40,
+          size.height / 2 - 20 + i * 20,
+        );
+        final controlPoint2 = Offset(
+          size.width - 100,
+          spacing * (i + 1),
+        );
+        
+        path.moveTo(size.width / 2 + 40, size.height / 2);
+        path.cubicTo(
+          controlPoint1.dx,
+          controlPoint1.dy,
+          controlPoint2.dx,
+          controlPoint2.dy,
+          size.width - 74,
+          spacing * (i + 1),
+        );
+        
+        canvas.drawPath(path, serverPaint);
+      } else {
+        // For other algorithms, draw straight lines
+        canvas.drawLine(
+          Offset(size.width / 2 + 40, size.height / 2),
+          Offset(size.width - 74, spacing * (i + 1)),
+          serverPaint,
+        );
+      }
+    }
+  }
+  
+  Color _getConnectionColor(int index) {
+    switch (index) {
+      case 0:
+        return Colors.green;
+      case 1:
+        return Colors.orange;
+      case 2:
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+  
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => true;
+}
+
+class TrafficControlView extends StatefulWidget {
+  const TrafficControlView({Key? key}) : super(key: key);
+
+  @override
+  State<TrafficControlView> createState() => _TrafficControlViewState();
+}
+
+class _TrafficControlViewState extends State<TrafficControlView> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final _protocols = ['HTTP/1.x', 'HTTP/2', 'gRPC', 'WebSocket', 'MQTT', 'TCP/UDP'];
+  
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+  
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Traffic Control',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 24),
+        
+        // Protocol Support
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+              width: 1,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Protocol Support',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                
+                // Protocol chips
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _protocols.map((protocol) {
+                    return Chip(
+                      label: Text(protocol),
+                      avatar: CircleAvatar(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        child: Icon(
+                          _getProtocolIcon(protocol),
+                          size: 16,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      ),
+                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                      labelStyle: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 24),
+        
+        // Tabs for different routing configurations
+        TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'HTTP Routing'),
+            Tab(text: 'TCP/UDP Proxy'),
+            Tab(text: 'Advanced Rules'),
+          ],
+          labelColor: Theme.of(context).colorScheme.primary,
+          unselectedLabelColor: Theme.of(context).colorScheme.onSurface,
+          indicatorColor: Theme.of(context).colorScheme.primary,
+        ),
+        
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: const [
+              HttpRoutingTab(),
+              TcpUdpProxyTab(),
+              AdvancedRulesTab(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+  
+  IconData _getProtocolIcon(String protocol) {
+    switch (protocol) {
+      case 'HTTP/1.x':
+      case 'HTTP/2':
+        return Icons.http;
+      case 'gRPC':
+        return Icons.grain;
+      case 'WebSocket':
+        return Icons.sync_alt;
+      case 'MQTT':
+        return Icons.message;
+      case 'TCP/UDP':
+        return Icons.lan;
+      default:
+        return Icons.settings_ethernet;
+    }
+  }
+}
+
+class HttpRoutingTab extends StatelessWidget {
+  const HttpRoutingTab({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 1,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'HTTP Route Configuration',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Host and path fields
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'Host',
+                      hintText: 'api.example.com',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.domain),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'Path',
+                      hintText: '/users/:id',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.route),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Methods selection
+                  Text(
+                    'Methods',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map((method) {
+                      return FilterChip(
+                        label: Text(method),
+                        selected: method == 'GET' || method == 'POST',
+                        onSelected: (bool selected) {},
+                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        selectedColor: Theme.of(context).colorScheme.primaryContainer,
+                        checkmarkColor: Theme.of(context).colorScheme.primary,
+                      );
+                    }).toList(),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Headers
+                  ExpansionTile(
+                    title: const Text('Headers'),
+                    leading: const Icon(Icons.view_headline),
+                    children: [
+                      ListTile(
+                        title: const Text('X-API-Version'),
+                        subtitle: const Text('v1.0'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () {},
+                        ),
+                      ),
+                      const Divider(),
+                      ListTile(
+                        title: const Text('Add Header'),
+                        leading: const Icon(Icons.add_circle_outline),
+                        onTap: () {},
+                      ),
+                    ],
+                  ),
+                  
+                  // Query parameters
+                  ExpansionTile(
+                    title: const Text('Query Parameters'),
+                    leading: const Icon(Icons.help_outline),
+                    children: [
+                      ListTile(
+                        title: const Text('version'),
+                        subtitle: const Text('1.0'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () {},
+                        ),
+                      ),
+                      const Divider(),
+                      ListTile(
+                        title: const Text('Add Query Parameter'),
+                        leading: const Icon(Icons.add_circle_outline),
+                        onTap: () {},
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Target service
+                  Text(
+                    'Target Service',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: 'user-service',
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.cloud),
+                    ),
+                    items: ['user-service', 'auth-service', 'product-service']
+                        .map((service) => DropdownMenuItem(
+                              value: service,
+                              child: Text(service),
+                            ))
+                        .toList(),
+                    onChanged: (value) {},
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Add route button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {},
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Route'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // Existing routes
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 1,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Existing Routes',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildRouteItem(
+                    context,
+                    host: 'api.example.com',
+                    path: '/users/:id',
+                    methods: 'GET, POST',
+                    target: 'user-service',
+                  ),
+                  
+                  const Divider(),
+                  
+                  _buildRouteItem(
+                    context,
+                    host: 'api.example.com',
+                    path: '/auth/*',
+                    methods: 'POST',
+                    target: 'auth-service',
+                  ),
+                  
+                  const Divider(),
+                  
+                  _buildRouteItem(
+                    context,
+                    host: 'api.example.com',
+                    path: '/products',
+                    methods: 'GET, POST, PUT, DELETE',
+                    target: 'product-service',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildRouteItem(
+    BuildContext context, {
+    required String host,
+    required String path,
+    required String methods,
+    required String target,
+  }) {
+    return ListTile(
+      title: Text('$host$path'),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  methods,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSecondaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.arrow_forward, size: 16),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.tertiaryContainer,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  target,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onTertiaryContainer,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outlined),
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TcpUdpProxyTab extends StatelessWidget {
+  const TcpUdpProxyTab({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 1,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'L4 TCP/UDP Proxy Configuration',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Protocol selection
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('TCP'),
+                          value: 'tcp',
+                          groupValue: 'tcp',
+                          onChanged: (value) {},
+                        ),
+                      ),
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('UDP'),
+                          value: 'udp',
+                          groupValue: 'tcp',
+                          onChanged: (value) {},
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Port configuration
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Listen Port',
+                            hintText: '8080',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Target Port',
+                            hintText: '9000',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Target service
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'Target Service',
+                      hintText: 'database.internal:5432',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.storage),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Advanced options
+                  ExpansionTile(
+                    title: const Text('Advanced Options'),
+                    children: [
+                      CheckboxListTile(
+                        title: const Text('Enable Keep-Alive'),
+                        subtitle: const Text('Maintain persistent connections'),
+                        value: true,
+                        onChanged: (value) {},
+                      ),
+                      CheckboxListTile(
+                        title: const Text('Connection Pooling'),
+                        subtitle: const Text('Reuse connections for better performance'),
+                        value: true,
+                        onChanged: (value) {},
+                      ),
+                      ListTile(
+                        title: const Text('Timeout (seconds)'),
+                        trailing: SizedBox(
+                          width: 80,
+                          child: TextField(
+                            decoration: const InputDecoration(
+                              hintText: '60',

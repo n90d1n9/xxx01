@@ -1,0 +1,39 @@
+class User {
+  final String id;
+  final String name;
+  final String email;
+  final String userType; // 'investor' or 'partner'
+  final String? profileImage;
+  final String? bio;
+
+  User({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.userType,
+    this.profileImage,
+    this.bio,
+  });
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: json['id'],
+      name: json['name'],
+      email: json['email'],
+      userType: json['userType'],
+      profileImage: json['profileImage'],
+      bio: json['bio'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'userType': userType,
+      'profileImage': profileImage,
+      'bio': bio,
+    };
+  }
+}

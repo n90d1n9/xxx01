@@ -1,0 +1,1644 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:math' as math;
+
+void main() {
+  runApp(const ProviderScope(child: MermaidC4App()));
+}
+
+class MermaidC4App extends StatelessWidget {
+  const MermaidC4App({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Mermaid C4 Diagram Editor',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+      ),
+      home: const C4EditorScreen(),
+    );
+  }
+}
+
+// ==================== C4 MODELS ====================
+
+enum C4DiagramType {
+  context,     // System Context
+  container,   // Container diagram
+  component,   // Component diagram
+  dynamic,     // Dynamic diagram
+  deployment   // Deployment diagram
+}
+
+enum C4ElementType {
+  person,
+  system,
+  systemDb,
+  systemQueue,
+  systemExt,
+  systemDbExt,
+  systemQueueExt,
+  container,
+  containerDb,
+  containerQueue,
+  containerExt,
+  containerDbExt,
+  containerQueueExt,
+  component,
+  componentDb,
+  componentQueue,
+  componentExt,
+  componentDbExt,
+  componentQueueExt,
+  node,
+  boundary,
+}
+
+enum C4RelationType {
+  relationship,
+  relationshipDown,
+  relationshipUp,
+  relationshipLeft,
+  relationshipRight,
+  biDirectional,
+}
+
+class C4Element {
+  final String id;
+  final String alias;
+  final String label;
+  final C4ElementType type;
+  final String? description;
+  final String? technology;
+  final String? link;
+  Offset position;
+  Size size;
+
+  C4Element({
+    required this.id,
+    required this.alias,
+    required this.label,
+    required this.type,
+    this.description,
+    this.technology,
+    this.link,
+    this.position = Offset.zero,
+    this.size = const Size(240, 180),
+  });
+
+  bool get isExternal => type.name.contains('Ext');
+  bool get isDatabase => type.name.contains('Db');
+  bool get isQueue => type.name.contains('Queue');
+  bool get isPerson => type == C4ElementType.person;
+  bool get isBoundary => type == C4ElementType.boundary;
+}
+
+class C4Relationship {
+  final String from;
+  final String to;
+  final String label;
+  final C4RelationType type;
+  final String? technology;
+  final String? description;
+
+  C4Relationship({
+    required this.from,
+    required this.to,
+    required this.label,
+    this.type = C4RelationType.relationship,
+    this.technology,
+    this.description,
+  });
+}
+
+class C4Boundary {
+  final String id;
+  final String label;
+  final String? type;
+  final List<String> children;
+  Rect bounds;
+
+  C4Boundary({
+    required this.id,
+    required this.label,
+    this.type,
+    this.children = const [],
+    this.bounds = Rect.zero,
+  });
+}
+
+class C4Diagram {
+  final C4DiagramType type;
+  final String title;
+  final List<C4Element> elements;
+  final List<C4Relationship> relationships;
+  final List<C4Boundary> boundaries;
+  final String rawCode;
+
+  C4Diagram({
+    required this.type,
+    this.title = '',
+    this.elements = const [],
+    this.relationships = const [],
+    this.boundaries = const [],
+    required this.rawCode,
+  });
+}
+
+// ==================== C4 PARSER ====================
+
+class C4Parser {
+  static C4Diagram parse(String code) {
+    final lines = code.trim().split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    
+    if (lines.isEmpty) {
+      return C4Diagram(type: C4DiagramType.context, rawCode: code);
+    }
+
+    final firstLine = lines[0].toLowerCase();
+    C4DiagramType diagramType = C4DiagramType.context;
+    
+    if (firstLine.contains('c4context')) {
+      diagramType = C4DiagramType.context;
+    } else if (firstLine.contains('c4container')) {
+      diagramType = C4DiagramType.container;
+    } else if (firstLine.contains('c4component')) {
+      diagramType = C4DiagramType.component;
+    } else if (firstLine.contains('c4dynamic')) {
+      diagramType = C4DiagramType.dynamic;
+    } else if (firstLine.contains('c4deployment')) {
+      diagramType = C4DiagramType.deployment;
+    }
+
+    final elements = <C4Element>[];
+    final relationships = <C4Relationship>[];
+    final boundaries = <C4Boundary>[];
+    String title = '';
+
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i].trim();
+      if (line.isEmpty || line.startsWith('%%')) continue;
+
+      // Parse title
+      if (line.toLowerCase().startsWith('title')) {
+        title = line.substring(5).trim();
+        continue;
+      }
+
+      // Parse Person
+      if (line.startsWith('Person(') || line.startsWith('Person_Ext(')) {
+        elements.add(_parsePerson(line));
+        continue;
+      }
+
+      // Parse System
+      if (line.contains('System(') || line.contains('SystemDb(') || 
+          line.contains('SystemQueue(') || line.contains('System_Ext(') ||
+          line.contains('SystemDb_Ext(') || line.contains('SystemQueue_Ext(')) {
+        elements.add(_parseSystem(line));
+        continue;
+      }
+
+      // Parse Container
+      if (line.contains('Container(') || line.contains('ContainerDb(') || 
+          line.contains('ContainerQueue(') || line.contains('Container_Ext(') ||
+          line.contains('ContainerDb_Ext(') || line.contains('ContainerQueue_Ext(')) {
+        elements.add(_parseContainer(line));
+        continue;
+      }
+
+      // Parse Component
+      if (line.contains('Component(') || line.contains('ComponentDb(') || 
+          line.contains('ComponentQueue(') || line.contains('Component_Ext(') ||
+          line.contains('ComponentDb_Ext(') || line.contains('ComponentQueue_Ext(')) {
+        elements.add(_parseComponent(line));
+        continue;
+      }
+
+      // Parse Boundary
+      if (line.startsWith('Boundary(') || line.startsWith('Enterprise_Boundary(') ||
+          line.startsWith('System_Boundary(') || line.startsWith('Container_Boundary(')) {
+        boundaries.add(_parseBoundary(line));
+        continue;
+      }
+
+      // Parse Relationships
+      if (line.startsWith('Rel(') || line.startsWith('BiRel(') || 
+          line.startsWith('Rel_Down(') || line.startsWith('Rel_Up(') ||
+          line.startsWith('Rel_Left(') || line.startsWith('Rel_Right(')) {
+        relationships.add(_parseRelationship(line));
+        continue;
+      }
+    }
+
+    // Auto-layout elements
+    _layoutElements(elements, boundaries, diagramType);
+
+    return C4Diagram(
+      type: diagramType,
+      title: title,
+      elements: elements,
+      relationships: relationships,
+      boundaries: boundaries,
+      rawCode: code,
+    );
+  }
+
+  static C4Element _parsePerson(String line) {
+    final isExternal = line.startsWith('Person_Ext(');
+    final match = RegExp(r'\(([^,]+),\s*"([^"]+)"(?:,\s*"([^"]*)")?(?:,\s*"([^"]*)")?\)').firstMatch(line);
+    
+    if (match != null) {
+      return C4Element(
+        id: match.group(1)!.trim(),
+        alias: match.group(1)!.trim(),
+        label: match.group(2)!.trim(),
+        type: isExternal ? C4ElementType.systemExt : C4ElementType.person,
+        description: match.group(3)?.trim(),
+        technology: match.group(4)?.trim(),
+        size: const Size(200, 240),
+      );
+    }
+    
+    return C4Element(
+      id: 'unknown',
+      alias: 'unknown',
+      label: 'Unknown Person',
+      type: C4ElementType.person,
+    );
+  }
+
+  static C4Element _parseSystem(String line) {
+    C4ElementType type = C4ElementType.system;
+    
+    if (line.contains('SystemDb_Ext(')) {
+      type = C4ElementType.systemDbExt;
+    } else if (line.contains('SystemQueue_Ext(')) {
+      type = C4ElementType.systemQueueExt;
+    } else if (line.contains('System_Ext(')) {
+      type = C4ElementType.systemExt;
+    } else if (line.contains('SystemDb(')) {
+      type = C4ElementType.systemDb;
+    } else if (line.contains('SystemQueue(')) {
+      type = C4ElementType.systemQueue;
+    }
+
+    final match = RegExp(r'\(([^,]+),\s*"([^"]+)"(?:,\s*"([^"]*)")?(?:,\s*"([^"]*)")?\)').firstMatch(line);
+    
+    if (match != null) {
+      return C4Element(
+        id: match.group(1)!.trim(),
+        alias: match.group(1)!.trim(),
+        label: match.group(2)!.trim(),
+        type: type,
+        description: match.group(3)?.trim(),
+        technology: match.group(4)?.trim(),
+      );
+    }
+    
+    return C4Element(
+      id: 'unknown',
+      alias: 'unknown',
+      label: 'Unknown System',
+      type: type,
+    );
+  }
+
+  static C4Element _parseContainer(String line) {
+    C4ElementType type = C4ElementType.container;
+    
+    if (line.contains('ContainerDb_Ext(')) {
+      type = C4ElementType.containerDbExt;
+    } else if (line.contains('ContainerQueue_Ext(')) {
+      type = C4ElementType.containerQueueExt;
+    } else if (line.contains('Container_Ext(')) {
+      type = C4ElementType.containerExt;
+    } else if (line.contains('ContainerDb(')) {
+      type = C4ElementType.containerDb;
+    } else if (line.contains('ContainerQueue(')) {
+      type = C4ElementType.containerQueue;
+    }
+
+    final match = RegExp(r'\(([^,]+),\s*"([^"]+)"(?:,\s*"([^"]*)")?(?:,\s*"([^"]*)")?\)').firstMatch(line);
+    
+    if (match != null) {
+      return C4Element(
+        id: match.group(1)!.trim(),
+        alias: match.group(1)!.trim(),
+        label: match.group(2)!.trim(),
+        type: type,
+        description: match.group(3)?.trim(),
+        technology: match.group(4)?.trim(),
+      );
+    }
+    
+    return C4Element(
+      id: 'unknown',
+      alias: 'unknown',
+      label: 'Unknown Container',
+      type: type,
+    );
+  }
+
+  static C4Element _parseComponent(String line) {
+    C4ElementType type = C4ElementType.component;
+    
+    if (line.contains('ComponentDb_Ext(')) {
+      type = C4ElementType.componentDbExt;
+    } else if (line.contains('ComponentQueue_Ext(')) {
+      type = C4ElementType.componentQueueExt;
+    } else if (line.contains('Component_Ext(')) {
+      type = C4ElementType.componentExt;
+    } else if (line.contains('ComponentDb(')) {
+      type = C4ElementType.componentDb;
+    } else if (line.contains('ComponentQueue(')) {
+      type = C4ElementType.componentQueue;
+    }
+
+    final match = RegExp(r'\(([^,]+),\s*"([^"]+)"(?:,\s*"([^"]*)")?(?:,\s*"([^"]*)")?\)').firstMatch(line);
+    
+    if (match != null) {
+      return C4Element(
+        id: match.group(1)!.trim(),
+        alias: match.group(1)!.trim(),
+        label: match.group(2)!.trim(),
+        type: type,
+        description: match.group(3)?.trim(),
+        technology: match.group(4)?.trim(),
+        size: const Size(200, 160),
+      );
+    }
+    
+    return C4Element(
+      id: 'unknown',
+      alias: 'unknown',
+      label: 'Unknown Component',
+      type: type,
+    );
+  }
+
+  static C4Boundary _parseBoundary(String line) {
+    final match = RegExp(r'\(([^,]+),\s*"([^"]+)"(?:,\s*"([^"]*)")?\)').firstMatch(line);
+    
+    if (match != null) {
+      return C4Boundary(
+        id: match.group(1)!.trim(),
+        label: match.group(2)!.trim(),
+        type: match.group(3)?.trim(),
+      );
+    }
+    
+    return C4Boundary(
+      id: 'unknown',
+      label: 'Unknown Boundary',
+    );
+  }
+
+  static C4Relationship _parseRelationship(String line) {
+    C4RelationType type = C4RelationType.relationship;
+    
+    if (line.startsWith('BiRel(')) {
+      type = C4RelationType.biDirectional;
+    } else if (line.startsWith('Rel_Down(')) {
+      type = C4RelationType.relationshipDown;
+    } else if (line.startsWith('Rel_Up(')) {
+      type = C4RelationType.relationshipUp;
+    } else if (line.startsWith('Rel_Left(')) {
+      type = C4RelationType.relationshipLeft;
+    } else if (line.startsWith('Rel_Right(')) {
+      type = C4RelationType.relationshipRight;
+    }
+
+    final match = RegExp(r'\(([^,]+),\s*([^,]+),\s*"([^"]+)"(?:,\s*"([^"]*)")?(?:,\s*"([^"]*)")?\)').firstMatch(line);
+    
+    if (match != null) {
+      return C4Relationship(
+        from: match.group(1)!.trim(),
+        to: match.group(2)!.trim(),
+        label: match.group(3)!.trim(),
+        type: type,
+        technology: match.group(4)?.trim(),
+        description: match.group(5)?.trim(),
+      );
+    }
+    
+    return C4Relationship(
+      from: 'unknown',
+      to: 'unknown',
+      label: 'Unknown',
+    );
+  }
+
+  static void _layoutElements(List<C4Element> elements, List<C4Boundary> boundaries, C4DiagramType type) {
+    if (elements.isEmpty) return;
+
+    final internalElements = elements.where((e) => !e.isExternal).toList();
+    final externalElements = elements.where((e) => e.isExternal).toList();
+
+    const startX = 100.0;
+    const startY = 150.0;
+    const spacingX = 300.0;
+    const spacingY = 280.0;
+
+    // Layout internal elements in grid
+    final cols = math.sqrt(internalElements.length).ceil();
+    for (var i = 0; i < internalElements.length; i++) {
+      final row = i ~/ cols;
+      final col = i % cols;
+      internalElements[i].position = Offset(
+        startX + col * spacingX,
+        startY + row * spacingY,
+      );
+    }
+
+    // Layout external elements around the perimeter
+    final perimeter = externalElements.length;
+    for (var i = 0; i < externalElements.length; i++) {
+      final angle = (i / perimeter) * 2 * math.pi - math.pi / 2;
+      final radius = 500.0;
+      final centerX = startX + (cols - 1) * spacingX / 2;
+      final centerY = startY + ((internalElements.length / cols).ceil() - 1) * spacingY / 2;
+      
+      externalElements[i].position = Offset(
+        centerX + radius * math.cos(angle),
+        centerY + radius * math.sin(angle),
+      );
+    }
+
+    // Calculate boundary bounds
+    for (final boundary in boundaries) {
+      final boundaryElements = elements.where((e) => 
+        boundary.children.contains(e.id) || boundary.children.contains(e.alias)
+      ).toList();
+
+      if (boundaryElements.isNotEmpty) {
+        double minX = double.infinity;
+        double minY = double.infinity;
+        double maxX = double.negativeInfinity;
+        double maxY = double.negativeInfinity;
+
+        for (final elem in boundaryElements) {
+          minX = math.min(minX, elem.position.dx);
+          minY = math.min(minY, elem.position.dy);
+          maxX = math.max(maxX, elem.position.dx + elem.size.width);
+          maxY = math.max(maxY, elem.position.dy + elem.size.height);
+        }
+
+        boundary.bounds = Rect.fromLTRB(
+          minX - 40,
+          minY - 60,
+          maxX + 40,
+          maxY + 40,
+        );
+      }
+    }
+  }
+}
+
+// ==================== STATE MANAGEMENT ====================
+
+class C4State {
+  final String code;
+  final C4Diagram diagram;
+  final String? error;
+
+  C4State({
+    required this.code,
+    required this.diagram,
+    this.error,
+  });
+
+  C4State copyWith({
+    String? code,
+    C4Diagram? diagram,
+    String? error,
+  }) {
+    return C4State(
+      code: code ?? this.code,
+      diagram: diagram ?? this.diagram,
+      error: error,
+    );
+  }
+}
+
+class C4Notifier extends StateNotifier<C4State> {
+  C4Notifier()
+      : super(C4State(
+          code: '''C4Context
+title System Context diagram for Internet Banking System
+
+Person(customer, "Personal Banking Customer", "A customer of the bank")
+System(banking_system, "Internet Banking System", "Allows customers to view information about their bank accounts")
+System_Ext(mail_system, "E-mail system", "The internal Microsoft Exchange e-mail system")
+System_Ext(mainframe, "Mainframe Banking System", "Stores all of the core banking information")
+
+Rel(customer, banking_system, "Uses")
+Rel_Back(customer, mail_system, "Sends e-mails to")
+Rel_Neighbor(banking_system, mail_system, "Sends e-mails", "SMTP")
+Rel(banking_system, mainframe, "Uses")''',
+          diagram: C4Parser.parse('''C4Context
+title System Context diagram for Internet Banking System
+
+Person(customer, "Personal Banking Customer", "A customer of the bank")
+System(banking_system, "Internet Banking System", "Allows customers to view information about their bank accounts")
+System_Ext(mail_system, "E-mail system", "The internal Microsoft Exchange e-mail system")
+System_Ext(mainframe, "Mainframe Banking System", "Stores all of the core banking information")
+
+Rel(customer, banking_system, "Uses")
+Rel_Back(customer, mail_system, "Sends e-mails to")
+Rel_Neighbor(banking_system, mail_system, "Sends e-mails", "SMTP")
+Rel(banking_system, mainframe, "Uses")'''),
+        ));
+
+  void updateCode(String newCode) {
+    try {
+      final diagram = C4Parser.parse(newCode);
+      state = C4State(code: newCode, diagram: diagram);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  void loadTemplate(String template) {
+    updateCode(template);
+  }
+}
+
+final c4Provider = StateNotifierProvider<C4Notifier, C4State>((ref) {
+  return C4Notifier();
+});
+
+final isEditModeProvider = StateProvider<bool>((ref) => true);
+
+// ==================== UI COMPONENTS ====================
+
+class C4EditorScreen extends ConsumerStatefulWidget {
+  const C4EditorScreen({super.key});
+
+  @override
+  ConsumerState<C4EditorScreen> createState() => _C4EditorScreenState();
+}
+
+class _C4EditorScreenState extends ConsumerState<C4EditorScreen> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: ref.read(c4Provider).code);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _updateDiagram() {
+    ref.read(c4Provider.notifier).updateCode(_controller.text);
+  }
+
+  void _showTemplates() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => const C4TemplateSelector(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c4State = ref.watch(c4Provider);
+    final isEditMode = ref.watch(isEditModeProvider);
+
+    ref.listen<C4State>(c4Provider, (previous, next) {
+      if (previous?.code != next.code) {
+        _controller.text = next.code;
+      }
+    });
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('C4 Model Diagram Editor'),
+        actions: [
+          IconButton(
+            icon: Icon(isEditMode ? Icons.visibility : Icons.edit),
+            onPressed: () {
+              ref.read(isEditModeProvider.notifier).state = !isEditMode;
+            },
+            tooltip: isEditMode ? 'View Only' : 'Edit Mode',
+          ),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => const C4InfoDialog(),
+              );
+            },
+            tooltip: 'C4 Info',
+          ),
+          IconButton(
+            icon: const Icon(Icons.template_outlined),
+            onPressed: _showTemplates,
+            tooltip: 'Templates',
+          ),
+        ],
+      ),
+      body: isEditMode
+          ? Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    color: Colors.grey[100],
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          color: Colors.blue[50],
+                          child: Row(
+                            children: [
+                              const Icon(Icons.account_tree, size: 20),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'C4 Model Code',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const Spacer(),
+                              ElevatedButton.icon(
+                                onPressed: _updateDiagram,
+                                icon: const Icon(Icons.refresh, size: 18),
+                                label: const Text('Render'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: TextField(
+                              controller: _controller,
+                              maxLines: null,
+                              expands: true,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 14,
+                              ),
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                filled: true,
+                                fillColor: Colors.white,
+                                hintText: 'Enter C4 Model code...',
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (c4State.error != null)
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            color: Colors.red[100],
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error, color: Colors.red),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Error: ${c4State.error}',
+                                    style: const TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    color: Colors.white,
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          color: Colors.green[50],
+                          child: Row(
+                            children: [
+                              const Icon(Icons.preview, size: 20),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Preview',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                _getDiagramTypeName(c4State.diagram.type),
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: C4DiagramViewer(diagram: c4State.diagram),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : C4DiagramViewer(diagram: c4State.diagram),
+      floatingActionButton: isEditMode
+          ? FloatingActionButton(
+              onPressed: _updateDiagram,
+              tooltip: 'Render Diagram',
+              child: const Icon(Icons.play_arrow),
+            )
+          : null,
+    );
+  }
+
+  String _getDiagramTypeName(C4DiagramType type) {
+    return switch (type) {
+      C4DiagramType.context => 'System Context',
+      C4DiagramType.container => 'Container Diagram',
+      C4DiagramType.component => 'Component Diagram',
+      C4DiagramType.dynamic => 'Dynamic Diagram',
+      C4DiagramType.deployment => 'Deployment Diagram',
+    };
+  }
+}
+
+class C4DiagramViewer extends StatelessWidget {
+  final C4Diagram diagram;
+
+  const C4DiagramViewer({super.key, required this.diagram});
+
+  @override
+  Widget build(BuildContext context) {
+    return InteractiveViewer(
+      boundaryMargin: const EdgeInsets.all(300),
+      minScale: 0.1,
+      maxScale: 4.0,
+      child: Center(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(50),
+              child: C4DiagramPainter(diagram: diagram),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== C4 PAINTER ====================
+
+class C4DiagramPainter extends StatelessWidget {
+  final C4Diagram diagram;
+
+  const C4DiagramPainter({super.key, required this.diagram});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(1400, 1000),
+      painter: _C4DiagramCustomPainter(diagram),
+    );
+  }
+}
+
+class _C4DiagramCustomPainter extends CustomPainter {
+  final C4Diagram diagram;
+
+  _C4DiagramCustomPainter(this.diagram);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Draw title
+    if (diagram.title.isNotEmpty) {
+      _drawText(
+        canvas,
+        diagram.title,
+        Offset(size.width / 2, 40),
+        size.width - 100,
+        fontSize: 24,
+        fontWeight: FontWeight.bold,
+      );
+    }
+
+    // Draw boundaries first
+    for (final boundary in diagram.boundaries) {
+      _drawBoundary(canvas, boundary);
+    }
+
+    // Draw relationships
+    for (final rel in diagram.relationships) {
+      final fromElem = diagram.elements.firstWhere(
+        (e) => e.id == rel.from || e.alias == rel.from,
+        orElse: () => diagram.elements.first,
+      );
+      final toElem = diagram.elements.firstWhere(
+        (e) => e.id == rel.to || e.alias == rel.to,
+        orElse: () => diagram.elements.first,
+      );
+      _drawRelationship(canvas, fromElem, toElem, rel);
+    }
+
+    // Draw elements
+    for (final element in diagram.elements) {
+      _drawElement(canvas, element);
+    }
+  }
+
+  void _drawBoundary(Canvas canvas, C4Boundary boundary) {
+    if (boundary.bounds == Rect.zero) return;
+
+    final paint = Paint()
+      ..color = Colors.grey[300]!.withOpacity(0.3)
+      ..style = PaintingStyle.fill;
+
+    final borderPaint = Paint()
+      ..color = Colors.grey[500]!
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke
+      ..strokeDashArray = [8, 4];
+
+    final rrect = RRect.fromRectAndRadius(boundary.bounds, const Radius.circular(12));
+    canvas.drawRRect(rrect, paint);
+    _drawDashedRRect(canvas, rrect, borderPaint);
+
+    // Draw boundary label
+    _drawText(
+      canvas,
+      boundary.label,
+      Offset(boundary.bounds.left + 20, boundary.bounds.top + 20),
+      boundary.bounds.width - 40,
+      fontSize: 16,
+      fontWeight: FontWeight.bold,
+      align: TextAlign.left,
+      textColor: Colors.grey[700]!,
+    );
+  }
+
+  void _drawElement(Canvas canvas, C4Element element) {
+    final rect = Rect.fromLTWH(
+      element.position.dx,
+      element.position.dy,
+      element.size.width,
+      element.size.height,
+    );
+
+    // Determine colors based on element type
+    Color fillColor;
+    Color borderColor;
+    IconData? icon;
+
+    if (element.isPerson) {
+      fillColor = element.isExternal ? Colors.grey[300]! : Colors.blue[300]!;
+      borderColor = element.isExternal ? Colors.grey[700]! : Colors.blue[800]!;
+      icon = Icons.person;
+    } else if (element.isDatabase) {
+      fillColor = element.isExternal ? Colors.grey[300]! : Colors.cyan[300]!;
+      borderColor = element.isExternal ? Colors.grey[700]! : Colors.cyan[800]!;
+      icon = Icons.storage;
+    } else if (element.isQueue) {
+      fillColor = element.isExternal ? Colors.grey[300]! : Colors.orange[300]!;
+      borderColor = element.isExternal ? Colors.grey[700]! : Colors.orange[800]!;
+      icon = Icons.queue;
+    } else {
+      fillColor = element.isExternal ? Colors.grey[300]! : Colors.lightBlue[200]!;
+      borderColor = element.isExternal ? Colors.grey[700]! : Colors.blue[700]!;
+      icon = Icons.apps;
+    }
+
+    final paint = Paint()..color = fillColor;
+    final borderPaint = Paint()
+      ..color = borderColor
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke;
+
+    // Draw person shape (special case)
+    if (element.isPerson) {
+      _drawPersonShape(canvas, rect, paint, borderPaint, element);
+    } else if (element.isDatabase) {
+      _drawDatabaseShape(canvas, rect, paint, borderPaint, element);
+    } else if (element.isQueue) {
+      _drawQueueShape(canvas, rect, paint, borderPaint, element);
+    } else {
+      _drawBoxShape(canvas, rect, paint, borderPaint, element);
+    }
+  }
+
+  void _drawPersonShape(Canvas canvas, Rect rect, Paint fillPaint, Paint borderPaint, C4Element element) {
+    // Draw head
+    final headCenter = Offset(rect.center.dx, rect.top + 40);
+    final headRadius = 25.0;
+    
+    canvas.drawCircle(headCenter, headRadius, fillPaint);
+    canvas.drawCircle(headCenter, headRadius, borderPaint);
+
+    // Draw body box
+    final bodyRect = Rect.fromLTWH(
+      rect.left + 20,
+      rect.top + 75,
+      rect.width - 40,
+      rect.height - 85,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bodyRect, const Radius.circular(8)),
+      fillPaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bodyRect, const Radius.circular(8)),
+      borderPaint,
+    );
+
+    // Draw labels
+    _drawElementLabels(canvas, bodyRect, element);
+  }
+
+  void _drawDatabaseShape(Canvas canvas, Rect rect, Paint fillPaint, Paint borderPaint, C4Element element) {
+    const topHeight = 20.0;
+    
+    // Draw top ellipse
+    final topRect = Rect.fromLTWH(rect.left, rect.top, rect.width, topHeight);
+    canvas.drawOval(topRect, fillPaint);
+    canvas.drawOval(topRect, borderPaint);
+
+    // Draw cylinder body
+    final path = Path()
+      ..moveTo(rect.left, rect.top + topHeight / 2)
+      ..lineTo(rect.left, rect.bottom - topHeight / 2)
+      ..arcToPoint(
+        Offset(rect.right, rect.bottom - topHeight / 2),
+        radius: Radius.circular(rect.width / 2),
+      )
+      ..lineTo(rect.right, rect.top + topHeight / 2);
+
+    canvas.drawPath(path, fillPaint);
+    canvas.drawPath(path, borderPaint);
+
+    // Draw icon
+    _drawIcon(canvas, Icons.storage, Offset(rect.center.dx, rect.top + 50), borderPaint.color);
+
+    // Draw labels
+    final labelRect = Rect.fromLTWH(rect.left + 10, rect.top + 80, rect.width - 20, rect.height - 90);
+    _drawElementLabels(canvas, labelRect, element);
+  }
+
+  void _drawQueueShape(Canvas canvas, Rect rect, Paint fillPaint, Paint borderPaint, C4Element element) {
+    // Draw main rectangle
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(8)),
+      fillPaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(8)),
+      borderPaint,
+    );
+
+    // Draw queue lines
+    const lineSpacing = 8.0;
+    final lineCount = 3;
+    final startY = rect.top + 30;
+
+    for (var i = 0; i < lineCount; i++) {
+      final y = startY + i * lineSpacing;
+      canvas.drawLine(
+        Offset(rect.left + 20, y),
+        Offset(rect.right - 20, y),
+        borderPaint,
+      );
+    }
+
+    // Draw icon
+    _drawIcon(canvas, Icons.queue, Offset(rect.center.dx, rect.top + 60), borderPaint.color);
+
+    // Draw labels
+    final labelRect = Rect.fromLTWH(rect.left + 10, rect.top + 90, rect.width - 20, rect.height - 100);
+    _drawElementLabels(canvas, labelRect, element);
+  }
+
+  void _drawBoxShape(Canvas canvas, Rect rect, Paint fillPaint, Paint borderPaint, C4Element element) {
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(8)),
+      fillPaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(8)),
+      borderPaint,
+    );
+
+    // Draw icon
+    _drawIcon(canvas, Icons.apps, Offset(rect.center.dx, rect.top + 30), borderPaint.color);
+
+    // Draw labels
+    final labelRect = Rect.fromLTWH(rect.left + 10, rect.top + 60, rect.width - 20, rect.height - 70);
+    _drawElementLabels(canvas, labelRect, element);
+  }
+
+  void _drawElementLabels(Canvas canvas, Rect rect, C4Element element) {
+    var currentY = rect.top + 10;
+
+    // Draw label (title)
+    _drawText(
+      canvas,
+      element.label,
+      Offset(rect.center.dx, currentY),
+      rect.width - 20,
+      fontSize: 14,
+      fontWeight: FontWeight.bold,
+    );
+    currentY += 30;
+
+    // Draw technology
+    if (element.technology != null && element.technology!.isNotEmpty) {
+      _drawText(
+        canvas,
+        '[${element.technology}]',
+        Offset(rect.center.dx, currentY),
+        rect.width - 20,
+        fontSize: 11,
+        textColor: Colors.grey[700]!,
+      );
+      currentY += 25;
+    }
+
+    // Draw description
+    if (element.description != null && element.description!.isNotEmpty) {
+      _drawText(
+        canvas,
+        element.description!,
+        Offset(rect.center.dx, currentY),
+        rect.width - 20,
+        fontSize: 10,
+        textColor: Colors.grey[600]!,
+      );
+    }
+  }
+
+  void _drawIcon(Canvas canvas, IconData iconData, Offset position, Color color) {
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(iconData.codePoint),
+        style: TextStyle(
+          fontFamily: iconData.fontFamily,
+          fontSize: 24,
+          color: color,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    textPainter.paint(
+      canvas,
+      Offset(position.dx - textPainter.width / 2, position.dy - textPainter.height / 2),
+    );
+  }
+
+  void _drawRelationship(Canvas canvas, C4Element from, C4Element to, C4Relationship rel) {
+    final fromCenter = Offset(
+      from.position.dx + from.size.width / 2,
+      from.position.dy + from.size.height / 2,
+    );
+    final toCenter = Offset(
+      to.position.dx + to.size.width / 2,
+      to.position.dy + to.size.height / 2,
+    );
+
+    // Calculate edge points
+    final fromPoint = _getEdgePoint(from, toCenter);
+    final toPoint = _getEdgePoint(to, fromCenter);
+
+    final paint = Paint()
+      ..color = Colors.black87
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    // Draw line
+    canvas.drawLine(fromPoint, toPoint, paint);
+
+    // Draw arrow
+    _drawArrow(canvas, fromPoint, toPoint, paint.color);
+
+    // Draw bidirectional arrow if needed
+    if (rel.type == C4RelationType.biDirectional) {
+      _drawArrow(canvas, toPoint, fromPoint, paint.color);
+    }
+
+    // Draw label
+    final midPoint = Offset(
+      (fromPoint.dx + toPoint.dx) / 2,
+      (fromPoint.dy + toPoint.dy) / 2,
+    );
+
+    final labelParts = <String>[];
+    labelParts.add(rel.label);
+    if (rel.technology != null && rel.technology!.isNotEmpty) {
+      labelParts.add('[${rel.technology}]');
+    }
+
+    final labelText = labelParts.join('\n');
+
+    _drawText(
+      canvas,
+      labelText,
+      midPoint,
+      200,
+      fontSize: 11,
+      bgColor: Colors.white,
+      textColor: Colors.black87,
+    );
+  }
+
+  Offset _getEdgePoint(C4Element element, Offset targetCenter) {
+    final elementCenter = Offset(
+      element.position.dx + element.size.width / 2,
+      element.position.dy + element.size.height / 2,
+    );
+
+    final angle = math.atan2(
+      targetCenter.dy - elementCenter.dy,
+      targetCenter.dx - elementCenter.dx,
+    );
+
+    final halfWidth = element.size.width / 2;
+    final halfHeight = element.size.height / 2;
+
+    // Determine which edge of the rectangle to use
+    final absAngle = angle.abs();
+    final threshold = math.atan2(halfHeight, halfWidth);
+
+    Offset edgePoint;
+
+    if (absAngle <= threshold) {
+      // Right edge
+      edgePoint = Offset(
+        elementCenter.dx + halfWidth,
+        elementCenter.dy + halfWidth * math.tan(angle),
+      );
+    } else if (absAngle >= math.pi - threshold) {
+      // Left edge
+      edgePoint = Offset(
+        elementCenter.dx - halfWidth,
+        elementCenter.dy - halfWidth * math.tan(angle),
+      );
+    } else if (angle > 0) {
+      // Bottom edge
+      edgePoint = Offset(
+        elementCenter.dx + halfHeight / math.tan(angle),
+        elementCenter.dy + halfHeight,
+      );
+    } else {
+      // Top edge
+      edgePoint = Offset(
+        elementCenter.dx - halfHeight / math.tan(angle),
+        elementCenter.dy - halfHeight,
+      );
+    }
+
+    return edgePoint;
+  }
+
+  void _drawArrow(Canvas canvas, Offset from, Offset to, Color color) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    const arrowSize = 12.0;
+    final angle = math.atan2(to.dy - from.dy, to.dx - from.dx);
+
+    final path = Path()
+      ..moveTo(to.dx, to.dy)
+      ..lineTo(
+        to.dx - arrowSize * math.cos(angle - math.pi / 6),
+        to.dy - arrowSize * math.sin(angle - math.pi / 6),
+      )
+      ..lineTo(
+        to.dx - arrowSize * math.cos(angle + math.pi / 6),
+        to.dy - arrowSize * math.sin(angle + math.pi / 6),
+      )
+      ..close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  void _drawDashedRRect(Canvas canvas, RRect rrect, Paint paint) {
+    const dashWidth = 8.0;
+    const dashSpace = 4.0;
+    final path = Path()..addRRect(rrect);
+    
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final start = metric.getTangentForOffset(distance);
+        final end = metric.getTangentForOffset(math.min(distance + dashWidth, metric.length));
+        if (start != null && end != null) {
+          canvas.drawLine(start.position, end.position, paint);
+        }
+        distance += dashWidth + dashSpace;
+      }
+    }
+  }
+
+  void _drawText(
+    Canvas canvas,
+    String text,
+    Offset position,
+    double maxWidth, {
+    double fontSize = 13,
+    FontWeight fontWeight = FontWeight.normal,
+    TextAlign align = TextAlign.center,
+    Color textColor = Colors.black87,
+    Color? bgColor,
+  }) {
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: textColor,
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          backgroundColor: bgColor,
+        ),
+      ),
+      textAlign: align,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: maxWidth);
+
+    final offset = align == TextAlign.center
+        ? Offset(
+            position.dx - textPainter.width / 2,
+            position.dy - textPainter.height / 2,
+          )
+        : Offset(position.dx, position.dy - textPainter.height / 2);
+
+    textPainter.paint(canvas, offset);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// ==================== TEMPLATES ====================
+
+class C4TemplateSelector extends ConsumerWidget {
+  const C4TemplateSelector({super.key});
+
+  static const templates = {
+    'System Context': {
+      'Banking System': '''C4Context
+title System Context diagram for Internet Banking System
+
+Person(customer, "Personal Banking Customer", "A customer of the bank")
+System(banking_system, "Internet Banking System", "Allows customers to view information about their bank accounts")
+System_Ext(mail_system, "E-mail system", "The internal Microsoft Exchange e-mail system")
+System_Ext(mainframe, "Mainframe Banking System", "Stores all of the core banking information")
+
+Rel(customer, banking_system, "Uses")
+Rel_Back(customer, mail_system, "Sends e-mails to")
+Rel_Neighbor(banking_system, mail_system, "Sends e-mails", "SMTP")
+Rel(banking_system, mainframe, "Uses")''',
+      'E-Commerce': '''C4Context
+title E-Commerce System Context
+
+Person(customer, "Customer", "A person who wants to buy products online")
+System(ecommerce, "E-Commerce System", "Allows customers to browse and purchase products")
+System_Ext(payment, "Payment Gateway", "Processes credit card payments")
+System_Ext(shipping, "Shipping Provider", "Handles product delivery")
+System_Ext(inventory, "Inventory System", "Manages product stock")
+
+Rel(customer, ecommerce, "Views products, places orders")
+Rel(ecommerce, payment, "Processes payments", "HTTPS/JSON")
+Rel(ecommerce, shipping, "Sends shipping info", "HTTPS")
+Rel(ecommerce, inventory, "Checks stock", "HTTPS")''',
+    },
+    'Container Diagram': {
+      'Web Application': '''C4Container
+title Container diagram for Internet Banking System
+
+Person(customer, "Personal Banking Customer", "A customer of the bank")
+
+System_Boundary(c1, "Internet Banking System") {
+    Container(web_app, "Web Application", "Java, Spring MVC", "Delivers the static content and the internet banking SPA")
+    Container(spa, "Single-Page App", "JavaScript, Angular", "Provides internet banking functionality to customers")
+    Container(mobile_app, "Mobile App", "Xamarin", "Provides limited internet banking functionality to customers")
+    ContainerDb(database, "Database", "Oracle Database", "Stores user registration information, hashed authentication credentials, access logs, etc.")
+    Container(backend_api, "API Application", "Java, Docker", "Provides internet banking functionality via API")
+}
+
+System_Ext(email_system, "E-Mail System", "The internal Microsoft Exchange system")
+System_Ext(banking_system, "Mainframe Banking System", "Stores all of the core banking information")
+
+Rel(customer, web_app, "Uses", "HTTPS")
+Rel(customer, spa, "Uses", "HTTPS")
+Rel(customer, mobile_app, "Uses")
+
+Rel_Neighbor(web_app, spa, "Delivers")
+Rel(spa, backend_api, "Uses", "async, JSON/HTTPS")
+Rel(mobile_app, backend_api, "Uses", "async, JSON/HTTPS")
+Rel_Back_Neighbor(database, backend_api, "Reads from and writes to", "sync, JDBC")
+
+Rel_Back(customer, email_system, "Sends e-mails to")
+Rel_Back(email_system, backend_api, "Sends e-mails using", "sync, SMTP")
+Rel_Neighbor(backend_api, banking_system, "Uses", "sync/async, XML/HTTPS")''',
+      'Microservices': '''C4Container
+title Microservices Architecture
+
+Person(user, "User", "System user")
+
+System_Boundary(system, "Application System") {
+    Container(api_gateway, "API Gateway", "Kong", "Routes requests to microservices")
+    Container(auth_service, "Auth Service", "Node.js", "Handles authentication")
+    Container(user_service, "User Service", "Java Spring", "Manages user data")
+    Container(order_service, "Order Service", "Python Flask", "Processes orders")
+    ContainerDb(user_db, "User Database", "PostgreSQL", "Stores user data")
+    ContainerDb(order_db, "Order Database", "MongoDB", "Stores orders")
+    ContainerQueue(message_queue, "Message Queue", "RabbitMQ", "Async communication")
+}
+
+Rel(user, api_gateway, "Makes API calls", "HTTPS")
+Rel(api_gateway, auth_service, "Authenticates")
+Rel(api_gateway, user_service, "Routes to")
+Rel(api_gateway, order_service, "Routes to")
+Rel(user_service, user_db, "Reads/Writes")
+Rel(order_service, order_db, "Reads/Writes")
+Rel(order_service, message_queue, "Publishes events")''',
+    },
+    'Component Diagram': {
+      'MVC Application': '''C4Component
+title Component diagram for Internet Banking System - API Application
+
+Container_Boundary(api, "API Application") {
+    Component(signin, "Sign In Controller", "Spring MVC Rest Controller", "Allows users to sign in")
+    Component(accounts, "Accounts Summary Controller", "Spring MVC Rest Controller", "Provides customers with account summaries")
+    Component(security, "Security Component", "Spring Bean", "Provides functionality related to signing in, changing passwords, etc.")
+    Component(mbsfacade, "Mainframe Banking System Facade", "Spring Bean", "A facade onto the mainframe banking system")
+}
+
+ContainerDb(database, "Database", "Oracle", "Stores user info, access logs, etc.")
+System_Ext(mbs, "Mainframe Banking System", "Stores all core banking information")
+
+Rel(signin, security, "Uses")
+Rel(accounts, mbsfacade, "Uses")
+Rel(security, database, "Reads from and writes to")
+Rel(mbsfacade, mbs, "Uses", "XML/HTTPS")''',
+    },
+    'Advanced Examples': {
+      'Cloud Architecture': '''C4Context
+title Cloud-Native Application Architecture
+
+Person(developer, "Developer", "Application developer")
+Person(user, "End User", "Application user")
+
+System_Boundary(cloud, "Cloud Platform") {
+    System(webapp, "Web Application", "React SPA hosted on CDN")
+    System(api, "API Gateway", "Manages API traffic")
+    SystemDb(cache, "Redis Cache", "Session and data caching")
+    SystemQueue(queue, "Message Queue", "Event processing")
+}
+
+System_Ext(auth, "Auth Provider", "OAuth 2.0 authentication")
+System_Ext(storage, "Object Storage", "File storage service")
+System_Ext(monitoring, "Monitoring Service", "Application monitoring")
+
+Rel(user, webapp, "Uses", "HTTPS")
+Rel(developer, api, "Deploys to")
+Rel(webapp, api, "Makes API calls", "HTTPS/REST")
+Rel(api, cache, "Caches data")
+Rel(api, queue, "Publishes events")
+Rel(api, auth, "Authenticates", "OAuth")
+Rel(api, storage, "Stores files")
+Rel(api, monitoring, "Sends metrics")''',
+      'Database System': '''C4Container
+title Database System Architecture
+
+Person(admin, "System Admin", "Manages the database")
+Person(app_user, "Application", "Uses the database")
+
+System_Boundary(db_system, "Database System") {
+    Container(primary, "Primary DB", "PostgreSQL", "Main database instance")
+    Container(replica1, "Read Replica 1", "PostgreSQL", "Read-only replica")
+    Container(replica2, "Read Replica 2", "PostgreSQL", "Read-only replica")
+    Container(backup, "Backup Service", "pgBackRest", "Handles backups")
+    ContainerDb(archive, "Archive Storage", "S3", "Long-term backup storage")
+}
+
+System_Ext(monitoring, "Monitoring", "Database monitoring")
+
+Rel(app_user, primary, "Writes to", "SQL")
+Rel(app_user, replica1, "Reads from", "SQL")
+Rel(app_user, replica2, "Reads from", "SQL")
+Rel(admin, primary, "Manages")
+Rel(primary, replica1, "Replicates to", "Streaming")
+Rel(primary, replica2, "Replicates to", "Streaming")
+Rel(backup, primary, "Backs up")
+Rel(backup, archive, "Stores in")
+Rel(primary, monitoring, "Sends metrics")''',
+    },
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.8,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'C4 Model Templates',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: ListView.builder(
+              itemCount: templates.length,
+              itemBuilder: (context, index) {
+                final category = templates.keys.elementAt(index);
+                final categoryTemplates = templates[category]!;
+
+                return ExpansionTile(
+                  title: Text(
+                    category,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  children: categoryTemplates.entries.map((entry) {
+                    return ListTile(
+                      leading: const Icon(Icons.architecture, color: Colors.blue),
+                      title: Text(entry.key),
+                      subtitle: Text(_getTemplateDescription(entry.key)),
+                      onTap: () {
+                        ref.read(c4Provider.notifier).loadTemplate(entry.value);
+                        Navigator.pop(context);
+                      },
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getTemplateDescription(String name) {
+    final descriptions = {
+      'Banking System': 'Internet banking system context',
+      'E-Commerce': 'Online shopping platform',
+      'Web Application': 'Full web application stack',
+      'Microservices': 'Microservices architecture',
+      'MVC Application': 'Model-View-Controller pattern',
+      'Cloud Architecture': 'Cloud-native application',
+      'Database System': 'Database replication setup',
+    };
+    return descriptions[name] ?? 'C4 diagram template';
+  }
+}
+
+class C4InfoDialog extends StatelessWidget {
+  const C4InfoDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('C4 Model Diagrams'),
+      content: SizedBox(
+        width: 500,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'The C4 model visualizes software architecture at different levels:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              _buildInfoSection('Context', 'System Context diagram shows how your system fits into the world'),
+              _buildInfoSection('Container', 'Shows the high-level technology choices and responsibilities'),
+              _buildInfoSection('Component', 'Zooms into an individual container to show components'),
+              _buildInfoSection('Dynamic', 'Shows how elements collaborate at runtime'),
+              _buildInfoSection('Deployment', 'Shows how containers are deployed'),
+              const SizedBox(height: 16),
+              const Text(
+                'Supported Elements:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              _buildElementItem('Person / Person_Ext', 'Users of the system'),
+              _buildElementItem('System / System_Ext', 'Software systems'),
+              _buildElementItem('Container / Container_Ext', 'Applications and services'),
+              _buildElementItem('Component / Component_Ext', 'Components within containers'),
+              _buildElementItem('SystemDb / ContainerDb', 'Databases'),
+              _buildElementItem('SystemQueue / ContainerQueue', 'Message queues'),
+              const SizedBox(height: 16),
+              const Text(
+                'Relationships:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              _buildElementItem('Rel()', 'Standard relationship'),
+              _buildElementItem('BiRel()', 'Bi-directional relationship'),
+              _buildElementItem('Rel_Down/Up/Left/Right()', 'Directional relationships'),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoSection(String title, String description) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.check_circle, color: Colors.green, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  description,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildElementItem(String syntax, String description) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          const SizedBox(width: 24),
+          Text(
+            syntax,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '- $description',
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Extension for dashed border
+extension PaintExtension on Paint {
+  set strokeDashArray(List<double> dashArray) {
+    // This is a placeholder - actual implementation would need custom drawing
+  }
+}

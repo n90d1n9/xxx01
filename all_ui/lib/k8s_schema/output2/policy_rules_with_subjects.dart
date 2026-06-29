@@ -1,0 +1,41 @@
+import 'non_resource_policy_rule.dart';
+import 'policy_rule.dart';
+import 'subject.dart';
+
+class PolicyRulesWithSubjects {
+  final List<Subject> subjects;
+  final List<PolicyRule>? resourceRules;
+  final List<NonResourcePolicyRule>? nonResourceRules;
+  PolicyRulesWithSubjects({
+    required this.subjects,
+    this.resourceRules,
+    this.nonResourceRules,
+  });
+  factory PolicyRulesWithSubjects.fromJson(Map<String, dynamic> json) {
+    return PolicyRulesWithSubjects(
+      subjects:
+          (json['subjects'] as List).map((e) => Subject.fromJson(e)).toList(),
+      resourceRules:
+          json['resourceRules'] != null
+              ? (json['resourceRules'] as List)
+                  .map((e) => PolicyRule.fromJson(e))
+                  .toList()
+              : null,
+      nonResourceRules:
+          json['nonResourceRules'] != null
+              ? (json['nonResourceRules'] as List)
+                  .map((e) => NonResourcePolicyRule.fromJson(e))
+                  .toList()
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'subjects': subjects.map((e) => e.toJson()).toList(),
+      if (resourceRules != null)
+        'resourceRules': resourceRules!.map((e) => e.toJson()).toList(),
+      if (nonResourceRules != null)
+        'nonResourceRules': nonResourceRules!.map((e) => e.toJson()).toList(),
+    };
+  }
+}

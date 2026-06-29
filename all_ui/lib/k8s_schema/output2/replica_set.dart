@@ -1,0 +1,39 @@
+import 'replica_set_spec.dart';
+import 'replica_set_status.dart';
+import 'object_meta.dart';
+
+class ReplicaSet {
+  final String apiVersion;
+  final String kind;
+  final ObjectMeta metadata;
+  final ReplicaSetSpec spec;
+  final ReplicaSetStatus? status;
+  ReplicaSet({
+    this.apiVersion = 'apps/v1',
+    this.kind = 'ReplicaSet',
+    required this.metadata,
+    required this.spec,
+    this.status,
+  });
+  factory ReplicaSet.fromJson(Map<String, dynamic> json) {
+    return ReplicaSet(
+      apiVersion: json['apiVersion'] ?? 'apps/v1',
+      kind: json['kind'] ?? 'ReplicaSet',
+      metadata: ObjectMeta.fromJson(json['metadata']),
+      spec: ReplicaSetSpec.fromJson(json['spec']),
+      status:
+          json['status'] != null
+              ? ReplicaSetStatus.fromJson(json['status'])
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      'metadata': metadata.toJson(),
+      'spec': spec.toJson(),
+      if (status != null) 'status': status!.toJson(),
+    };
+  }
+}

@@ -1,0 +1,43 @@
+import 'priority_level_configuration_reference.dart';
+import 'flow_distinguisher_method.dart';
+import 'policy_rules_with_subjects.dart';
+
+class FlowSchemaSpec {
+  final PriorityLevelConfigurationReference priorityLevelConfiguration;
+  final int? matchingPrecedence;
+  final FlowDistinguisherMethod? distinguisherMethod;
+  final List<PolicyRulesWithSubjects>? rules;
+  FlowSchemaSpec({
+    required this.priorityLevelConfiguration,
+    this.matchingPrecedence,
+    this.distinguisherMethod,
+    this.rules,
+  });
+  factory FlowSchemaSpec.fromJson(Map<String, dynamic> json) {
+    return FlowSchemaSpec(
+      priorityLevelConfiguration: PriorityLevelConfigurationReference.fromJson(
+        json['priorityLevelConfiguration'],
+      ),
+      matchingPrecedence: json['matchingPrecedence'],
+      distinguisherMethod:
+          json['distinguisherMethod'] != null
+              ? FlowDistinguisherMethod.fromJson(json['distinguisherMethod'])
+              : null,
+      rules:
+          json['rules'] != null
+              ? (json['rules'] as List)
+                  .map((e) => PolicyRulesWithSubjects.fromJson(e))
+                  .toList()
+              : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'priorityLevelConfiguration': priorityLevelConfiguration.toJson(),
+      if (matchingPrecedence != null) 'matchingPrecedence': matchingPrecedence,
+      if (distinguisherMethod != null)
+        'distinguisherMethod': distinguisherMethod!.toJson(),
+      if (rules != null) 'rules': rules!.map((e) => e.toJson()).toList(),
+    };
+  }
+}

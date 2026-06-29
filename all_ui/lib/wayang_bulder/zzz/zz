@@ -1,0 +1,1536 @@
+class HuggingFaceExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final apiKey = context.secrets['HUGGINGFACE_API_KEY'];
+    final modelId = config['modelId'] ?? 'gpt2';
+    final task = config['task'] ?? 'text-generation';
+    final input = inputs['input'] ?? '';
+
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    return {
+      'output': 'HuggingFace output for: $input',
+      'model': modelId,
+      'task': task,
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'input', 'type': 'string', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'output', 'type': 'any'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['HUGGINGFACE_API_KEY'];
+}
+
+class EmbeddingExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final text = inputs['text'] ?? '';
+    final model = config['model'] ?? 'text-embedding-ada-002';
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Simulate embedding vector
+    final vector = List.generate(1536, (i) => (i * 0.001) % 1.0);
+
+    return {
+      'embedding': vector,
+      'dimensions': 1536,
+      'model': model,
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'text', 'type': 'string', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'embedding', 'type': 'array'},
+          {'name': 'dimensions', 'type': 'number'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['OPENAI_API_KEY'];
+}
+
+class ImageGenerationExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final prompt = inputs['prompt'] ?? '';
+    final size = config['size'] ?? '1024x1024';
+    final quality = config['quality'] ?? 'standard';
+
+    await Future.delayed(const Duration(milliseconds: 2000));
+
+    return {
+      'url': 'https://example.com/generated-image.png',
+      'revised_prompt': prompt,
+      'size': size,
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'prompt', 'type': 'string', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'url', 'type': 'string'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['OPENAI_API_KEY'];
+}
+
+// ==================== DATABASE EXECUTORS ====================
+
+class PostgreSQLExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final connectionString = context.secrets['POSTGRESQL_URL'];
+    final query = config['query'] ?? '';
+    final params = inputs['params'] ?? {};
+
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    return {
+      'rows': [
+        {'id': 1, 'name': 'John Doe', 'email': 'john@example.com'},
+        {'id': 2, 'name': 'Jane Smith', 'email': 'jane@example.com'},
+      ],
+      'rowCount': 2,
+      'command': 'SELECT',
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'params', 'type': 'object', 'required': false},
+        ],
+        'outputs': [
+          {'name': 'rows', 'type': 'array'},
+          {'name': 'rowCount', 'type': 'number'},
+        ],
+        'config': [
+          {'name': 'query', 'type': 'text', 'required': true},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['POSTGRESQL_URL'];
+}
+
+class MongoDBExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final connectionString = context.secrets['MONGODB_URL'];
+    final collection = config['collection'] ?? '';
+    final operation = config['operation'] ?? 'find';
+    final query = inputs['query'] ?? {};
+
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    return {
+      'documents': [
+        {'_id': '507f1f77bcf86cd799439011', 'name': 'Document 1'},
+        {'_id': '507f1f77bcf86cd799439012', 'name': 'Document 2'},
+      ],
+      'count': 2,
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'query', 'type': 'object', 'required': false},
+          {'name': 'document', 'type': 'object', 'required': false},
+        ],
+        'outputs': [
+          {'name': 'documents', 'type': 'array'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['MONGODB_URL'];
+}
+
+class RedisExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final url = context.secrets['REDIS_URL'];
+    final operation = config['operation'] ?? 'GET';
+    final key = inputs['key'] ?? '';
+    final value = inputs['value'];
+
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    if (operation == 'GET') {
+      return {'value': 'cached_value', 'exists': true};
+    } else if (operation == 'SET') {
+      return {'success': true, 'key': key};
+    }
+
+    return {'success': true};
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'key', 'type': 'string', 'required': true},
+          {'name': 'value', 'type': 'any', 'required': false},
+        ],
+        'outputs': [
+          {'name': 'value', 'type': 'any'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['REDIS_URL'];
+}
+
+class ElasticsearchExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final url = context.secrets['ELASTICSEARCH_URL'];
+    final index = config['index'] ?? '';
+    final query = inputs['query'] ?? {};
+
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    return {
+      'hits': [
+        {'_id': '1', '_score': 1.5, '_source': {'title': 'Result 1'}},
+        {'_id': '2', '_score': 1.2, '_source': {'title': 'Result 2'}},
+      ],
+      'total': 2,
+      'max_score': 1.5,
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'query', 'type': 'object', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'hits', 'type': 'array'},
+          {'name': 'total', 'type': 'number'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['ELASTICSEARCH_URL'];
+}
+
+// ==================== CLOUD SERVICE EXECUTORS ====================
+
+class AWSS3Executor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final operation = config['operation'] ?? 'upload';
+    final bucket = config['bucket'] ?? '';
+    final key = inputs['key'] ?? '';
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    if (operation == 'upload') {
+      return {
+        'success': true,
+        'url': 'https://$bucket.s3.amazonaws.com/$key',
+        'etag': '"abc123"',
+      };
+    } else if (operation == 'download') {
+      return {
+        'success': true,
+        'data': 'file content',
+        'contentType': 'application/octet-stream',
+      };
+    }
+
+    return {'success': true};
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'key', 'type': 'string', 'required': true},
+          {'name': 'data', 'type': 'any', 'required': false},
+        ],
+        'outputs': [
+          {'name': 'url', 'type': 'string'},
+          {'name': 'success', 'type': 'boolean'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'];
+}
+
+class AWSLambdaExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final functionName = config['functionName'] ?? '';
+    final payload = inputs['payload'] ?? {};
+
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    return {
+      'statusCode': 200,
+      'payload': {'result': 'Lambda executed successfully'},
+      'executedVersion': '\$LATEST',
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'payload', 'type': 'object', 'required': false},
+        ],
+        'outputs': [
+          {'name': 'payload', 'type': 'object'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'];
+}
+
+class GCPStorageExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final bucket = config['bucket'] ?? '';
+    final operation = config['operation'] ?? 'upload';
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    return {
+      'success': true,
+      'url': 'https://storage.googleapis.com/$bucket/file.txt',
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'file', 'type': 'any', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'url', 'type': 'string'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['GCP_SERVICE_ACCOUNT_KEY'];
+}
+
+class AzureBlobExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final container = config['container'] ?? '';
+    final blobName = inputs['blobName'] ?? '';
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    return {
+      'success': true,
+      'url': 'https://account.blob.core.windows.net/$container/$blobName',
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'blobName', 'type': 'string', 'required': true},
+          {'name': 'data', 'type': 'any', 'required': false},
+        ],
+        'outputs': [
+          {'name': 'url', 'type': 'string'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['AZURE_STORAGE_CONNECTION_STRING'];
+}
+
+// ==================== COMMUNICATION EXECUTORS ====================
+
+class EmailSMTPExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final to = inputs['to'] ?? '';
+    final subject = inputs['subject'] ?? '';
+    final body = inputs['body'] ?? '';
+    final html = config['html'] ?? false;
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    return {
+      'success': true,
+      'messageId': 'msg_${DateTime.now().millisecondsSinceEpoch}',
+      'recipients': [to],
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'to', 'type': 'string', 'required': true},
+          {'name': 'subject', 'type': 'string', 'required': true},
+          {'name': 'body', 'type': 'string', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'success', 'type': 'boolean'},
+          {'name': 'messageId', 'type': 'string'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USERNAME', 'SMTP_PASSWORD'];
+}
+
+class SlackExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final channel = config['channel'] ?? '#general';
+    final message = inputs['message'] ?? '';
+
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    return {
+      'ok': true,
+      'channel': channel,
+      'ts': '${DateTime.now().millisecondsSinceEpoch / 1000}',
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'message', 'type': 'string', 'required': true},
+          {'name': 'attachments', 'type': 'array', 'required': false},
+        ],
+        'outputs': [
+          {'name': 'ok', 'type': 'boolean'},
+          {'name': 'ts', 'type': 'string'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['SLACK_BOT_TOKEN'];
+}
+
+class DiscordExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final channelId = config['channelId'] ?? '';
+    final content = inputs['content'] ?? '';
+
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    return {
+      'id': '${DateTime.now().millisecondsSinceEpoch}',
+      'channel_id': channelId,
+      'content': content,
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'content', 'type': 'string', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'id', 'type': 'string'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['DISCORD_BOT_TOKEN'];
+}
+
+class TelegramExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final chatId = config['chatId'] ?? '';
+    final text = inputs['text'] ?? '';
+
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    return {
+      'ok': true,
+      'result': {
+        'message_id': DateTime.now().millisecondsSinceEpoch,
+        'chat': {'id': chatId},
+      },
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'text', 'type': 'string', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'result', 'type': 'object'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['TELEGRAM_BOT_TOKEN'];
+}
+
+class TwilioSMSExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final to = inputs['to'] ?? '';
+    final body = inputs['body'] ?? '';
+    final from = config['from'] ?? '';
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    return {
+      'sid': 'SM${DateTime.now().millisecondsSinceEpoch}',
+      'status': 'sent',
+      'to': to,
+      'from': from,
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'to', 'type': 'string', 'required': true},
+          {'name': 'body', 'type': 'string', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'sid', 'type': 'string'},
+          {'name': 'status', 'type': 'string'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'];
+}
+
+// ==================== DATA PROCESSING EXECUTORS ====================
+
+class CSVParserExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final csv = inputs['csv'] ?? '';
+    final delimiter = config['delimiter'] ?? ',';
+
+    await Future.delayed(const Duration(milliseconds: 200));
+
+    return {
+      'rows': [
+        {'id': '1', 'name': 'John', 'email': 'john@example.com'},
+        {'id': '2', 'name': 'Jane', 'email': 'jane@example.com'},
+      ],
+      'rowCount': 2,
+      'headers': ['id', 'name', 'email'],
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'csv', 'type': 'string', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'rows', 'type': 'array'},
+          {'name': 'rowCount', 'type': 'number'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => [];
+}
+
+// ==================== NODE TEMPLATES ====================
+
+
+// ==================== COMPREHENSIVE NODE LIBRARY ====================
+
+class NodeLibrary {
+  static final List<NodeTemplate> templates = [
+    // AI/ML
+    NodeTemplate(
+      id: 'openai_chat',
+      name: 'OpenAI Chat',
+      description: 'Use GPT models for chat completion',
+      category: 'AI/ML',
+      icon: Icons.chat_bubble,
+      color: Colors.purple,
+      nodeType: 'openai_chat',
+      tags: ['ai', 'llm', 'openai', 'gpt'],
+    ),
+    NodeTemplate(
+      id: 'anthropic_claude',
+      name: 'Claude',
+      description: 'Use Anthropic Claude models',
+      category: 'AI/ML',
+      icon: Icons.psychology,
+      color: Colors.deepPurple,
+      nodeType: 'anthropic_claude',
+      tags: ['ai', 'llm', 'anthropic', 'claude'],
+    ),
+    NodeTemplate(
+      id: 'huggingface',
+      name: 'HuggingFace',
+      description: 'Access HuggingFace models',
+      category: 'AI/ML',
+      icon: Icons.hub,
+      color: Colors.amber,
+      nodeType: 'huggingface',
+      tags: ['ai', 'ml', 'huggingface'],
+    ),
+    NodeTemplate(
+      id: 'embedding',
+      name: 'Text Embedding',
+      description: 'Generate text embeddings',
+      category: 'AI/ML',
+      icon: Icons.dynamic_feed,
+      color: Colors.indigo,
+      nodeType: 'embedding',
+      tags: ['ai', 'embedding', 'vector'],
+    ),
+    NodeTemplate(
+      id: 'image_generation',
+      name: 'Image Generation',
+      description: 'Generate images from text',
+      category: 'AI/ML',
+      icon: Icons.image,
+      color: Colors.pink,
+      nodeType: 'image_generation',
+      tags: ['ai', 'image', 'dall-e'],
+    ),
+
+    // Databases
+    NodeTemplate(
+      id: 'postgresql',
+      name: 'PostgreSQL',
+      description: 'Execute PostgreSQL queries',
+      category: 'Database',
+      icon: Icons.storage,
+      color: Colors.blue,
+      nodeType: 'postgresql',
+      tags: ['database', 'sql', 'postgres'],
+    ),
+    NodeTemplate(
+      id: 'mongodb',
+      name: 'MongoDB',
+      description: 'Perform MongoDB operations',
+      category: 'Database',
+      icon: Icons.dataset,
+      color: Colors.green,
+      nodeType: 'mongodb',
+      tags: ['database', 'nosql', 'mongo'],
+    ),
+    NodeTemplate(
+      id: 'redis',
+      name: 'Redis',
+      description: 'Cache operations with Redis',
+      category: 'Database',
+      icon: Icons.speed,
+      color: Colors.red,
+      nodeType: 'redis',
+      tags: ['cache', 'redis', 'memory'],
+    ),
+    NodeTemplate(
+      id: 'elasticsearch',
+      name: 'Elasticsearch',
+      description: 'Search with Elasticsearch',
+      category: 'Database',
+      icon: Icons.search,
+      color: Colors.teal,
+      nodeType: 'elasticsearch',
+      tags: ['search', 'elasticsearch', 'index'],
+    ),
+
+    // Cloud Services
+    NodeTemplate(
+      id: 'aws_s3',
+      name: 'AWS S3',
+      description: 'Upload/download from S3',
+      category: 'Cloud',
+      icon: Icons.cloud_upload,
+      color: Colors.orange,
+      nodeType: 'aws_s3',
+      tags: ['aws', 's3', 'storage', 'cloud'],
+    ),
+    NodeTemplate(
+      id: 'aws_lambda',
+      name: 'AWS Lambda',
+      description: 'Invoke Lambda functions',
+      category: 'Cloud',
+      icon: Icons.functions,
+      color: Colors.deepOrange,
+      nodeType: 'aws_lambda',
+      tags: ['aws', 'lambda', 'serverless'],
+    ),
+    NodeTemplate(
+      id: 'gcp_storage',
+      name: 'GCP Storage',
+      description: 'Google Cloud Storage operations',
+      category: 'Cloud',
+      icon: Icons.cloud,
+      color: Colors.blue,
+      nodeType: 'gcp_storage',
+      tags: ['gcp', 'storage', 'google', 'cloud'],
+    ),
+    NodeTemplate(
+      id: 'azure_blob',
+      name: 'Azure Blob',
+      description: 'Azure Blob Storage operations',
+      category: 'Cloud',
+      icon: Icons.cloud_circle,
+      color: Colors.lightBlue,
+      nodeType: 'azure_blob',
+      tags: ['azure', 'storage', 'blob', 'cloud'],
+    ),
+
+    // Communication
+    NodeTemplate(
+      id: 'email_smtp',
+      name: 'Send Email',
+      description: 'Send emails via SMTP',
+      category: 'Communication',
+      icon: Icons.email,
+      color: Colors.red,
+      nodeType: 'email_smtp',
+      tags: ['email', 'smtp', 'notification'],
+    ),
+    NodeTemplate(
+      id: 'slack',
+      name: 'Slack',
+      description: 'Send Slack messages',
+      category: 'Communication',
+      icon: Icons.chat,
+      color: Colors.purple.shade300,
+      nodeType: 'slack',
+      tags: ['slack', 'chat', 'notification'],
+    ),
+    NodeTemplate(
+      id: 'discord',
+      name: 'Discord',
+      description: 'Send Discord messages',
+      category: 'Communication',
+      icon: Icons.games,
+      color: Colors.indigo,
+      nodeType: 'discord',
+      tags: ['discord', 'chat', 'notification'],
+    ),
+    NodeTemplate(
+      id: 'telegram',
+      name: 'Telegram',
+      description: 'Send Telegram messages',
+      category: 'Communication',
+      icon: Icons.send,
+      color: Colors.blue,
+      nodeType: 'telegram',
+      tags: ['telegram', 'chat', 'notification'],
+    ),
+    NodeTemplate(
+      id: 'sms_twilio',
+      name: 'SMS (Twilio)',
+      description: 'Send SMS via Twilio',
+      category: 'Communication',
+      icon: Icons.sms,
+      color: Colors.red.shade400,
+      nodeType: 'sms_twilio',
+      tags: ['sms', 'twilio', 'notification'],
+    ),
+
+    // Data Processing
+    NodeTemplate(
+      id: 'csv_parser',
+      name: 'CSV Parser',
+      description: 'Parse CSV files',
+      category: 'Data',
+      icon: Icons.table_chart,
+      color: Colors.green,
+      nodeType: 'csv_parser',
+      tags: ['csv', 'parser', 'data'],
+    ),
+    NodeTemplate(
+      id: 'excel_parser',
+      name: 'Excel Parser',
+      description: 'Parse Excel files',
+      category: 'Data',
+      icon: Icons.grid_on,
+      color: Colors.green.shade700,
+      nodeType: 'excel_parser',
+      tags: ['excel', 'xlsx', 'parser', 'data'],
+    ),
+    NodeTemplate(
+      id: 'json_transform',
+      name: 'JSON Transform',
+      description: 'Transform JSON data',
+      category: 'Data',
+      icon: Icons.transform,
+      color: Colors.blue,
+      nodeType: 'json_transform',
+      tags: ['json', 'transform', 'data'],
+    ),
+    NodeTemplate(
+      id: 'xml_parser',
+      name: 'XML Parser',
+      description: 'Parse XML documents',
+      category: 'Data',
+      icon: Icons.code,
+      color: Colors.orange,
+      nodeType: 'xml_parser',
+      tags: ['xml', 'parser', 'data'],
+    ),
+    NodeTemplate(
+      id: 'pdf_extract',
+      name: 'PDF Extract',
+      description: 'Extract text from PDFs',
+      category: 'Data',
+      icon: Icons.picture_as_pdf,
+      color: Colors.red,
+      nodeType: 'pdf_extract',
+      tags: ['pdf', 'extract', 'text'],
+    ),
+
+    // Vector Databases
+    NodeTemplate(
+      id: 'pinecone',
+      name: 'Pinecone',
+      description: 'Pinecone vector operations',
+      category: 'Vector DB',
+      icon: Icons.share,
+      color: Colors.teal,
+      nodeType: 'pinecone',
+      tags: ['vector', 'pinecone', 'search'],
+    ),
+    NodeTemplate(
+      id: 'weaviate',
+      name: 'Weaviate',
+      description: 'Weaviate vector operations',
+      category: 'Vector DB',
+      icon: Icons.hub_outlined,
+      color: Colors.green,
+      nodeType: 'weaviate',
+      tags: ['vector', 'weaviate', 'search'],
+    ),
+    NodeTemplate(
+      id: 'chromadb',
+      name: 'ChromaDB',
+      description: 'ChromaDB vector operations',
+      category: 'Vector DB',
+      icon: Icons.color_lens,
+      color: Colors.purple,
+      nodeType: 'chromadb',
+      tags: ['vector', 'chroma', 'search'],
+    ),
+
+    // Authentication
+    NodeTemplate(
+      id: 'oauth2',
+      name: 'OAuth2',
+      description: 'OAuth2 authentication',
+      category: 'Auth',
+      icon: Icons.lock,
+      color: Colors.blue,
+      nodeType: 'oauth2',
+      tags: ['auth', 'oauth', 'security'],
+    ),
+    NodeTemplate(
+      id: 'jwt_verify',
+      name: 'JWT Verify',
+      description: 'Verify JWT tokens',
+      category: 'Auth',
+      icon: Icons.verified_user,
+      color: Colors.green,
+      nodeType: 'jwt_verify',
+      tags: ['auth', 'jwt', 'token'],
+    ),
+    NodeTemplate(
+      id: 'api_key_auth',
+      name: 'API Key Auth',
+      description: 'Authenticate with API keys',
+      category: 'Auth',
+      icon: Icons.key,
+      color: Colors.orange,
+      nodeType: 'api_key_auth',
+      tags: ['auth', 'api-key', 'security'],
+    ),
+  ];
+
+  static List<NodeTemplate> getByCategory(String category) {
+    return templates.where((t) => t.category == category).toList();
+  }
+
+  static List<String> getCategories() {
+    return templates.map((t) => t.category).toSet().toList()..sort();
+  }
+
+  static List<NodeTemplate> search(String query) {
+    final lowerQuery = query.toLowerCase();
+    return templates.where((t) {
+      return t.name.toLowerCase().contains(lowerQuery) ||
+             t.description.toLowerCase().contains(lowerQuery) ||
+             t.tags.any((tag) => tag.contains(lowerQuery));
+    }).toList();
+  }
+
+  static NodeTemplate? getById(String id) {
+    try {
+      return templates.firstWhere((t) => t.id == id);
+    } catch (e) {
+      return null;
+    }
+  }
+}
+
+// ==================== SECRET MANAGER ====================
+
+// ==================== NODE CONFIGURATION UI ====================
+
+
+// Required imports
+import 'package:flutter/material.dart';
+}
+
+class ExcelParserExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final file = inputs['file'];
+    final sheetName = config['sheetName'] ?? 'Sheet1';
+
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    return {
+      'sheets': ['Sheet1', 'Sheet2'],
+      'data': [
+        {'A': 'Header1', 'B': 'Header2'},
+        {'A': 'Data1', 'B': 'Data2'},
+      ],
+      'rowCount': 2,
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'file', 'type': 'any', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'data', 'type': 'array'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => [];
+}
+
+class JSONTransformExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final data = inputs['data'] ?? {};
+    final transformScript = config['transformScript'] ?? '';
+
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    // Simple transformation simulation
+    return {
+      'transformed': data,
+      'metadata': {'transformedAt': DateTime.now().toIso8601String()},
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'data', 'type': 'object', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'transformed', 'type': 'object'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => [];
+}
+
+class XMLParserExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final xml = inputs['xml'] ?? '';
+
+    await Future.delayed(const Duration(milliseconds: 200));
+
+    return {
+      'parsed': {
+        'root': {
+          'child1': 'value1',
+          'child2': 'value2',
+        },
+      },
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'xml', 'type': 'string', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'parsed', 'type': 'object'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => [];
+}
+
+class PDFExtractExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final file = inputs['file'];
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    return {
+      'text': 'Extracted PDF text content...',
+      'pages': 10,
+      'metadata': {
+        'title': 'Document Title',
+        'author': 'Author Name',
+      },
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'file', 'type': 'any', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'text', 'type': 'string'},
+          {'name': 'pages', 'type': 'number'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => [];
+}
+
+// ==================== VECTOR DATABASE EXECUTORS ====================
+
+class PineconeExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final operation = config['operation'] ?? 'query';
+    final vector = inputs['vector'] as List?;
+    final topK = config['topK'] ?? 10;
+
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    if (operation == 'query') {
+      return {
+        'matches': [
+          {'id': 'vec1', 'score': 0.95, 'metadata': {'text': 'Similar document 1'}},
+          {'id': 'vec2', 'score': 0.88, 'metadata': {'text': 'Similar document 2'}},
+        ],
+      };
+    } else if (operation == 'upsert') {
+      return {
+        'upsertedCount': 1,
+      };
+    }
+
+    return {'success': true};
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'vector', 'type': 'array', 'required': false},
+          {'name': 'id', 'type': 'string', 'required': false},
+        ],
+        'outputs': [
+          {'name': 'matches', 'type': 'array'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['PINECONE_API_KEY'];
+}
+
+class WeaviateExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final className = config['className'] ?? '';
+    final query = inputs['query'] ?? '';
+
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    return {
+      'data': [
+        {'text': 'Result 1', '_additional': {'distance': 0.15}},
+        {'text': 'Result 2', '_additional': {'distance': 0.22}},
+      ],
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'query', 'type': 'string', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'data', 'type': 'array'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['WEAVIATE_URL', 'WEAVIATE_API_KEY'];
+}
+
+class ChromaDBExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final collection = config['collection'] ?? '';
+    final query = inputs['query'];
+
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    return {
+      'results': [
+        {'id': 'doc1', 'document': 'Document 1', 'distance': 0.1},
+        {'id': 'doc2', 'document': 'Document 2', 'distance': 0.15},
+      ],
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'query', 'type': 'any', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'results', 'type': 'array'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => [];
+}
+
+// ==================== AUTHENTICATION EXECUTORS ====================
+
+class OAuth2Executor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final grantType = config['grantType'] ?? 'authorization_code';
+    final code = inputs['code'] ?? '';
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    return {
+      'access_token': 'ya29.a0AfH6SMBx...',
+      'token_type': 'Bearer',
+      'expires_in': 3600,
+      'refresh_token': 'refresh_token_here',
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'code', 'type': 'string', 'required': false},
+        ],
+        'outputs': [
+          {'name': 'access_token', 'type': 'string'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET'];
+}
+
+class JWTVerifyExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final token = inputs['token'] ?? '';
+    final secret = context.secrets['JWT_SECRET'];
+
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    return {
+      'valid': true,
+      'payload': {
+        'sub': 'user_id',
+        'exp': DateTime.now().add(const Duration(hours: 1)).millisecondsSinceEpoch ~/ 1000,
+      },
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'token', 'type': 'string', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'valid', 'type': 'boolean'},
+          {'name': 'payload', 'type': 'object'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['JWT_SECRET'];
+}
+
+class APIKeyAuthExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final apiKey = inputs['apiKey'] ?? '';
+    final validKeys = config['validKeys'] as List? ?? [];
+
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    return {
+      'valid': validKeys.contains(apiKey),
+      'keyInfo': {
+        'name': 'Test API Key',
+        'permissions': ['read', 'write'],
+      },
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'apiKey', 'type': 'string', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'valid', 'type': 'boolean'},
+        ],
+      };
+
+  @override
+  List// ==================== STEP 5: Expanded Node Library ====================
+// Comprehensive node library with real integration templates
+
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+
+// ==================== NODE EXECUTOR REGISTRY ====================
+
+class NodeExecutorRegistry {
+  static final Map<String, NodeExecutor> _executors = {};
+
+  static void register(String nodeType, NodeExecutor executor) {
+    _executors[nodeType] = executor;
+  }
+
+  static NodeExecutor? getExecutor(String nodeType) {
+    return _executors[nodeType];
+  }
+
+  static void registerAll() {
+    // AI/ML Nodes
+    register('openai_chat', OpenAIChatExecutor());
+    register('anthropic_claude', AnthropicClaudeExecutor());
+    register('huggingface', HuggingFaceExecutor());
+    register('embedding', EmbeddingExecutor());
+    register('image_generation', ImageGenerationExecutor());
+    
+    // Database Nodes
+    register('postgresql', PostgreSQLExecutor());
+    register('mongodb', MongoDBExecutor());
+    register('redis', RedisExecutor());
+    register('elasticsearch', ElasticsearchExecutor());
+    
+    // Cloud Services
+    register('aws_s3', AWSS3Executor());
+    register('aws_lambda', AWSLambdaExecutor());
+    register('gcp_storage', GCPStorageExecutor());
+    register('azure_blob', AzureBlobExecutor());
+    
+    // Communication
+    register('email_smtp', EmailSMTPExecutor());
+    register('slack', SlackExecutor());
+    register('discord', DiscordExecutor());
+    register('telegram', TelegramExecutor());
+    register('sms_twilio', TwilioSMSExecutor());
+    
+    // Data Processing
+    register('csv_parser', CSVParserExecutor());
+    register('excel_parser', ExcelParserExecutor());
+    register('json_transform', JSONTransformExecutor());
+    register('xml_parser', XMLParserExecutor());
+    register('pdf_extract', PDFExtractExecutor());
+    
+    // Vector Databases
+    register('pinecone', PineconeExecutor());
+    register('weaviate', WeaviateExecutor());
+    register('chromadb', ChromaDBExecutor());
+    
+    // Authentication
+    register('oauth2', OAuth2Executor());
+    register('jwt_verify', JWTVerifyExecutor());
+    register('api_key_auth', APIKeyAuthExecutor());
+  }
+}
+
+// ==================== NODE EXECUTOR INTERFACE ====================
+
+abstract class NodeExecutor {
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  );
+
+  Map<String, dynamic> getSchema();
+  List<String> getRequiredSecrets();
+}
+
+class NodeExecutionContext {
+  final String workflowId;
+  final String executionId;
+  final String nodeId;
+  final Map<String, dynamic> variables;
+  final Map<String, String> secrets;
+
+  NodeExecutionContext({
+    required this.workflowId,
+    required this.executionId,
+    required this.nodeId,
+    required this.variables,
+    required this.secrets,
+  });
+}
+
+// ==================== AI/ML EXECUTORS ====================
+
+class OpenAIChatExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final apiKey = context.secrets['OPENAI_API_KEY'];
+    if (apiKey == null) throw Exception('OpenAI API key not found');
+
+    final model = config['model'] ?? 'gpt-4';
+    final temperature = config['temperature'] ?? 0.7;
+    final maxTokens = config['maxTokens'] ?? 1000;
+    final systemPrompt = config['systemPrompt'] ?? '';
+    final prompt = inputs['prompt'] ?? '';
+
+    // Simulate API call
+    await Future.delayed(const Duration(milliseconds: 1000));
+
+    return {
+      'response': 'AI response to: $prompt (model: $model)',
+      'usage': {
+        'prompt_tokens': 50,
+        'completion_tokens': 100,
+        'total_tokens': 150,
+      },
+      'model': model,
+      'finish_reason': 'stop',
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'prompt', 'type': 'string', 'required': true},
+          {'name': 'context', 'type': 'array', 'required': false},
+        ],
+        'outputs': [
+          {'name': 'response', 'type': 'string'},
+          {'name': 'usage', 'type': 'object'},
+        ],
+        'config': [
+          {'name': 'model', 'type': 'select', 'options': ['gpt-4', 'gpt-3.5-turbo']},
+          {'name': 'temperature', 'type': 'number', 'min': 0, 'max': 2},
+          {'name': 'maxTokens', 'type': 'number'},
+          {'name': 'systemPrompt', 'type': 'text'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['OPENAI_API_KEY'];
+}
+
+class AnthropicClaudeExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+  ) async {
+    final apiKey = context.secrets['ANTHROPIC_API_KEY'];
+    if (apiKey == null) throw Exception('Anthropic API key not found');
+
+    final model = config['model'] ?? 'claude-3-sonnet-20240229';
+    final maxTokens = config['maxTokens'] ?? 1024;
+    final prompt = inputs['prompt'] ?? '';
+
+    await Future.delayed(const Duration(milliseconds: 1000));
+
+    return {
+      'response': 'Claude response to: $prompt',
+      'stop_reason': 'end_turn',
+      'usage': {
+        'input_tokens': 45,
+        'output_tokens': 95,
+      },
+    };
+  }
+
+  @override
+  Map<String, dynamic> getSchema() => {
+        'inputs': [
+          {'name': 'prompt', 'type': 'string', 'required': true},
+        ],
+        'outputs': [
+          {'name': 'response', 'type': 'string'},
+          {'name': 'usage', 'type': 'object'},
+        ],
+      };
+
+  @override
+  List<String> getRequiredSecrets() => ['ANTHROPIC_API_KEY'];
+}
+
+class HuggingFaceExecutor implements NodeExecutor {
+  @override
+  Future<Map<String, dynamic>> execute(
+    NodeExecutionContext context,
+    Map<String, dynamic> config,
+    Map<String, dynamic> inputs,
+
+
+
+
+
+

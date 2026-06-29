@@ -1,0 +1,69 @@
+version: '3.9'
+
+services:
+  # ─── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: postfix-db
+    environment:
+      POSTGRES_USER: postfix
+      POSTGRES_PASSWORD: postfix
+      POSTGRES_DB: postfix
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postfix"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Quarkus Backend ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./quarkus_backend
+      dockerfile: Dockerfile
+    container_name: postfix-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postfix
+      DB_PASS: postfix
+      DB_NAME: postfix
+      POSTFIX_MAIN_CF: /etc/postfix/main.cf
+      POSTFIX_MASTER_CF: /etc/postfix/master.cf
+      POSTFIX_LOG: /var/log/mail.log
+      POSTFIX_QUEUE: /var/spool/postfix
+      POSTFIX_TRANSPORT: /etc/postfix/transport
+      POSTFIX_ACCESS: /etc/postfix/access
+      POSTFIX_TLS_DIR: /etc/postfix/ssl
+      POSTFIX_BACKUP_DIR: /var/backups/postfix
+    volumes:
+      - /etc/postfix:/etc/postfix:ro
+      - /var/log:/var/log:ro
+      - /var/spool/postfix:/var/spool/postfix:ro
+      - backup_data:/var/backups/postfix
+    restart: unless-stopped
+
+  # ─── Flutter Web Frontend ─────────────────────────────────────────────────────
+  frontend:
+    image: nginx:alpine
+    container_name: postfix-frontend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./flutter_app/build/web:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  backup_data:

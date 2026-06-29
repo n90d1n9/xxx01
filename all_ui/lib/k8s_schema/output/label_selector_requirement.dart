@@ -1,0 +1,24 @@
+class LabelSelectorRequirement {
+  final String key;
+  final String operator;
+  final List<String>? values;
+  LabelSelectorRequirement({
+    required this.key,
+    required this.operator,
+    this.values,
+  });
+  factory LabelSelectorRequirement.fromJson(Map<String, dynamic> json) {
+    return LabelSelectorRequirement(
+      key: json['key'],
+      operator: json['operator'],
+      values: json['values'] != null ? List<String>.from(json['values']) : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'key': key,
+      'operator': operator,
+      if (values != null) 'values': values,
+    };
+  }
+}

@@ -1,0 +1,661 @@
+
+
+// ==================== ASSETS DIALOG ====================
+
+// ==================== CUSTOM PAINTERS ====================
+class FamilyTreePainter extends CustomPainter {
+  final List<FamilyMember> members;
+  final bool showGrid;
+
+  FamilyTreePainter(this.members, this.showGrid);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (showGrid) _drawGrid(canvas, size);
+    _drawConnections(canvas);
+  }
+
+  void _drawGrid(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey.withOpacity(0.15)
+      ..strokeWidth = 1;
+
+    for (double i = 0; i < size.width; i += 50) {
+      canvas.drawLine(Offset(i, 0), Offset(i, size.height), paint);
+    }
+    for (double i = 0; i < size.height; i += 50) {
+      canvas.drawLine(Offset(0, i), Offset(size.width, i), paint);
+    }
+  }
+
+  void _drawConnections(Canvas canvas) {
+    final deceased = members.where((m) => m.relation == RelationType.deceased).firstOrNull;
+    if (deceased == null) return;
+
+    final paint = Paint()
+      ..color = Colors.teal.withOpacity(0.4)
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+
+    final dashedPaint = Paint()
+      ..color = Colors.grey.withOpacity(0.3)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    final deceasedPos = deceased.position + const Offset(90, 90);
+
+    for (var member in members) {
+      if (member.id == deceased.id) continue;
+
+      final memberPos = member.position + const Offset(90, 90);
+      final path = Path();
+      path.moveTo(deceasedPos.dx, deceasedPos.dy);
+
+      Paint linePaint = member.isDeceased ? dashedPaint : paint;
+
+      if (member.relation == RelationType.spouse ||
+          member.relation == RelationType.father ||
+          member.relation == RelationType.mother) {
+        path.lineTo(memberPos.dx, memberPos.dy);
+      } else {
+        final midY = (deceasedPos.dy + memberPos.dy) / 2;
+        path.cubicTo(deceasedPos.dx, midY, memberPos.dx, midY, memberPos.dx, memberPos.dy);
+      }
+
+      if (member.isDeceased) {
+        _drawDashedPath(canvas, path, dashedPaint);
+      } else {
+        canvas.drawPath(path, linePaint);
+      }
+
+      canvas.drawCircle(deceasedPos, 5, Paint()..color = Colors.teal);
+      canvas.drawCircle(memberPos, 5, Paint()..color = member.isDeceased ? Colors.grey : Colors.teal);
+    }
+  }
+
+  void _drawDashedPath(Canvas canvas, Path path, Paint paint) {
+    final dashWidth = 5.0;
+    final dashSpace = 5.0;
+    final pathMetrics = path.computeMetrics();
+
+    for (final pathMetric in pathMetrics) {
+      double distance = 0.0;
+      while (distance < pathMetric.length) {
+        final nextDistance = distance + dashWidth;
+        final segment = pathMetric.extractPath(distance, nextDistance);
+        canvas.drawPath(segment, paint);
+        distance = nextDistance + dashSpace;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(FamilyTreePainter oldDelegate) => true;
+}
+
+class MinimapPainter extends CustomPainter {
+  final List<FamilyMember> members;
+  final String? selectedMemberId;
+
+  MinimapPainter(this.members, this.selectedMemberId);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final backgroundPaint = Paint()
+      ..color = Colors.grey[100]!
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), backgroundPaint);
+
+    for (var member in members) {
+      final x = (member.position.dx / 3000) * size.width;
+      final y = (member.position.dy / 3000) * size.height;
+
+      final paint = Paint()
+        ..color = member.id == selectedMemberId
+            ? Colors.teal
+            : member.relation == RelationType.deceased
+                ? Colors.red
+                : member.faraidShare > 0
+                    ? Colors.green
+                    : Colors.grey
+        ..style = PaintingStyle.fill;
+
+      canvas.drawCircle(Offset(x, y), member.id == selectedMemberId ? 4 : 3, paint);
+
+      if (member.id == selectedMemberId) {
+        final ringPaint = Paint()
+          ..color = Colors.teal.withOpacity(0.3)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2;
+        canvas.drawCircle(Offset(x, y), 6, ringPaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(MinimapPainter oldDelegate) => oldDelegate.selectedMemberId != selectedMemberId;
+}import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:math' as math;
+import 'dart:convert';
+import 'dart:ui' as ui;
+import 'dart:typed_data';
+
+void main() {
+  runApp(const ProviderScope(child: FaraidApp()));
+}
+
+class FaraidApp extends StatelessWidget {
+  const FaraidApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Faraid Calculator Pro',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primarySwatch: Colors.teal,
+        scaffoldBackgroundColor: const Color(0xFFF5F7FA),
+        useMaterial3: true,
+      ),
+      darkTheme: ThemeData.dark().copyWith(
+        primaryColor: Colors.teal,
+        scaffoldBackgroundColor: const Color(0xFF1A1A2E),
+        useMaterial3: true,
+      ),
+      home: const FamilyTreeScreen(),
+    );
+  }
+}
+
+// ==================== MODELS ====================
+enum RelationType {
+  deceased, father, mother, spouse, son, daughter, brother, sister,
+  paternalGrandfather, paternalGrandmother, maternalGrandfather,
+  maternalGrandmother, grandson, granddaughter, uncle, aunt, nephew, niece,
+}
+
+enum Gender { male, female }
+
+class FamilyMember {
+  final String id;
+  final String name;
+  final RelationType relation;
+  final Gender gender;
+  final bool isDeceased;
+  final String? parentId;
+  final int age;
+  final String? notes;
+  final String? photoPath;
+  double faraidShare;
+  Offset position;
+  String? calculationReason;
+
+  FamilyMember({
+    required this.id, required this.name, required this.relation,
+    required this.gender, this.isDeceased = false, this.parentId,
+    this.age = 0, this.notes, this.photoPath, this.faraidShare = 0.0,
+    Offset? position, this.calculationReason,
+  }) : position = position ?? Offset.zero;
+
+  FamilyMember copyWith({
+    String? name, RelationType? relation, Gender? gender, bool? isDeceased,
+    String? parentId, int? age, String? notes, String? photoPath,
+    double? faraidShare, Offset? position, String? calculationReason,
+  }) {
+    return FamilyMember(
+      id: id, name: name ?? this.name, relation: relation ?? this.relation,
+      gender: gender ?? this.gender, isDeceased: isDeceased ?? this.isDeceased,
+      parentId: parentId ?? this.parentId, age: age ?? this.age,
+      notes: notes ?? this.notes, photoPath: photoPath ?? this.photoPath,
+      faraidShare: faraidShare ?? this.faraidShare,
+      position: position ?? this.position,
+      calculationReason: calculationReason ?? this.calculationReason,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id, 'name': name, 'relation': relation.index, 'gender': gender.index,
+    'isDeceased': isDeceased, 'parentId': parentId, 'age': age, 'notes': notes,
+    'photoPath': photoPath, 'faraidShare': faraidShare,
+    'positionX': position.dx, 'positionY': position.dy,
+    'calculationReason': calculationReason,
+  };
+
+  factory FamilyMember.fromJson(Map<String, dynamic> json) => FamilyMember(
+    id: json['id'], name: json['name'],
+    relation: RelationType.values[json['relation']],
+    gender: Gender.values[json['gender']],
+    isDeceased: json['isDeceased'] ?? false, parentId: json['parentId'],
+    age: json['age'] ?? 0, notes: json['notes'], photoPath: json['photoPath'],
+    faraidShare: json['faraidShare'] ?? 0.0,
+    position: Offset(json['positionX'] ?? 0.0, json['positionY'] ?? 0.0),
+    calculationReason: json['calculationReason'],
+  );
+}
+
+class Estate {
+  final List<Asset> assets;
+  final Map<String, double> debts;
+  final Map<String, double> expenses;
+
+  Estate({this.assets = const [], this.debts = const {}, this.expenses = const {}});
+
+  double get totalAssets => assets.fold(0.0, (sum, asset) => sum + asset.value);
+  double get totalDebts => debts.values.fold(0.0, (sum, val) => sum + val);
+  double get totalExpenses => expenses.values.fold(0.0, (sum, val) => sum + val);
+  double get netEstate => totalAssets - totalDebts - totalExpenses;
+
+  Estate copyWith({List<Asset>? assets, Map<String, double>? debts, Map<String, double>? expenses}) {
+    return Estate(
+      assets: assets ?? this.assets,
+      debts: debts ?? this.debts,
+      expenses: expenses ?? this.expenses,
+    );
+  }
+}
+
+// ==================== STATE MANAGEMENT ====================
+class FamilyTreeState {
+  final List<FamilyMember> members;
+  final Estate estate;
+  final String? selectedMemberId;
+  final bool showGrid;
+  final double scale;
+
+  FamilyTreeState({
+    this.members = const [], Estate? estate, this.selectedMemberId,
+    this.showGrid = true, this.scale = 1.0,
+  }) : estate = estate ?? Estate();
+
+  FamilyTreeState copyWith({
+    List<FamilyMember>? members, Estate? estate, String? selectedMemberId,
+    bool? clearSelection, bool? showGrid, double? scale,
+  }) {
+    return FamilyTreeState(
+      members: members ?? this.members,
+      estate: estate ?? this.estate,
+      selectedMemberId: clearSelection == true ? null : (selectedMemberId ?? this.selectedMemberId),
+      showGrid: showGrid ?? this.showGrid,
+      scale: scale ?? this.scale,
+    );
+  }
+}
+
+class FamilyTreeNotifier extends StateNotifier<FamilyTreeState> {
+  FamilyTreeNotifier() : super(FamilyTreeState());
+
+  void addMember(FamilyMember member) {
+    state = state.copyWith(members: [...state.members, member]);
+    _calculateFaraid();
+    _autoLayoutMembers();
+  }
+
+  void updateMember(String id, FamilyMember updatedMember) {
+    state = state.copyWith(
+      members: [for (final m in state.members) if (m.id == id) updatedMember else m],
+    );
+    _calculateFaraid();
+  }
+
+  void removeMember(String id) {
+    state = state.copyWith(members: state.members.where((m) => m.id != id).toList());
+    _calculateFaraid();
+  }
+
+  void selectMember(String? id) {
+    state = state.copyWith(selectedMemberId: id, clearSelection: id == null);
+  }
+
+  void updateMemberPosition(String id, Offset position) {
+    state = state.copyWith(
+      members: [for (final m in state.members) if (m.id == id) m.copyWith(position: position) else m],
+    );
+  }
+
+  void updateEstate(Estate estate) {
+    state = state.copyWith(estate: estate);
+    _calculateFaraid();
+  }
+
+  void addAsset(Asset asset) {
+    final updatedAssets = [...state.estate.assets, asset];
+    state = state.copyWith(estate: state.estate.copyWith(assets: updatedAssets));
+    _calculateFaraid();
+  }
+
+  void removeAsset(String assetId) {
+    final updatedAssets = state.estate.assets.where((a) => a.id != assetId).toList();
+    state = state.copyWith(estate: state.estate.copyWith(assets: updatedAssets));
+    _calculateFaraid();
+  }
+
+  void toggleGrid() => state = state.copyWith(showGrid: !state.showGrid);
+  void updateScale(double scale) => state = state.copyWith(scale: scale);
+  void clearAll() => state = FamilyTreeState();
+
+  void autoLayout() => _autoLayoutMembers();
+
+  
+
+  String exportToJson() {
+    final data = {
+      'members': state.members.map((m) => m.toJson()).toList(),
+      'estate': {
+        'assets': state.estate.assets.map((a) => a.toJson()).toList(),
+        'debts': state.estate.debts,
+        'expenses': state.estate.expenses,
+      },
+    };
+    return jsonEncode(data);
+  }
+
+  void importFromJson(String jsonStr) {
+    try {
+      final data = jsonDecode(jsonStr);
+      final members = (data['members'] as List).map((m) => FamilyMember.fromJson(m)).toList();
+      final assets = (data['estate']['assets'] as List).map((a) => Asset.fromJson(a)).toList();
+      final estate = Estate(
+        assets: assets,
+        debts: Map<String, double>.from(data['estate']['debts']),
+        expenses: Map<String, double>.from(data['estate']['expenses']),
+      );
+      state = FamilyTreeState(members: members, estate: estate);
+      _calculateFaraid();
+    } catch (e) {
+      print('Error importing: $e');
+    }
+  }
+}
+
+final familyTreeProvider = StateNotifierProvider<FamilyTreeNotifier, FamilyTreeState>((ref) {
+  return FamilyTreeNotifier();
+});
+
+// ==================== MAIN SCREEN ====================
+
+
+
+// ==================== MEMBER CARD WIDGET ====================
+class MemberCard extends StatelessWidget {
+  final FamilyMember member;
+  final bool isSelected;
+  final bool isDragging;
+  final VoidCallback onDelete;
+  final VoidCallback onEdit;
+
+  const MemberCard({
+    Key? key,
+    required this.member,
+    required this.isSelected,
+    this.isDragging = false,
+    required this.onDelete,
+    required this.onEdit,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 180,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: _getCardGradient(),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color:
+              isSelected
+                  ? Colors.teal
+                  : member.relation == RelationType.deceased
+                  ? Colors.red
+                  : Colors.grey[300]!,
+          width: isSelected ? 3 : 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(
+              isDragging
+                  ? 0.3
+                  : isSelected
+                  ? 0.2
+                  : 0.1,
+            ),
+            blurRadius:
+                isDragging
+                    ? 16
+                    : isSelected
+                    ? 12
+                    : 8,
+            offset: Offset(
+              0,
+              isDragging
+                  ? 6
+                  : isSelected
+                  ? 4
+                  : 2,
+            ),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors:
+                        member.gender == Gender.male
+                            ? [Colors.blue[300]!, Colors.blue[500]!]
+                            : [Colors.pink[300]!, Colors.pink[500]!],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child:
+                    member.photoPath != null
+                        ? ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(
+                            member.photoPath!,
+                            fit: BoxFit.cover,
+                            errorBuilder:
+                                (_, __, ___) => Icon(
+                                  member.gender == Gender.male
+                                      ? Icons.man
+                                      : Icons.woman,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                          ),
+                        )
+                        : Icon(
+                          member.gender == Gender.male
+                              ? Icons.man
+                              : Icons.woman,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+              ),
+              PopupMenuButton(
+                icon: Icon(Icons.more_vert, size: 20, color: Colors.grey[600]),
+                itemBuilder:
+                    (ctx) => [
+                      PopupMenuItem(
+                        onTap: onEdit,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.edit, size: 18),
+                            SizedBox(width: 8),
+                            Text('Edit'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        onTap: onDelete,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.delete, size: 18, color: Colors.red),
+                            SizedBox(width: 8),
+                            Text('Delete', style: TextStyle(color: Colors.red)),
+                          ],
+                        ),
+                      ),
+                    ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            member.name,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _getRelationLabel(member.relation),
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          if (member.age > 0) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.cake, size: 12, color: Colors.grey[500]),
+                const SizedBox(width: 4),
+                Text(
+                  '${member.age} yrs',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          ],
+          if (member.isDeceased) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey[700],
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.close, size: 10, color: Colors.white),
+                  SizedBox(width: 4),
+                  Text(
+                    'Meninggal',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (member.faraidShare > 0) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.green[400]!, Colors.green[600]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'INHERITANCE',
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Colors.white70,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${(member.faraidShare * 100).toStringAsFixed(2)}%',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (member.notes != null && member.notes!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Tooltip(
+              message: member.notes!,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.note, size: 14, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Has notes',
+                    style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  LinearGradient _getCardGradient() {
+    if (member.relation == RelationType.deceased) {
+      return LinearGradient(colors: [Colors.red[100]!, Colors.red[50]!]);
+    } else if (member.isDeceased) {
+      return LinearGradient(colors: [Colors.grey[300]!, Colors.grey[200]!]);
+    } else {
+      return LinearGradient(colors: [Colors.white, Colors.grey[50]!]);
+    }
+  }
+
+  String _getRelationLabel(RelationType relation) {
+    const labels = {
+      RelationType.deceased: 'Alamrhum',
+      RelationType.father: 'Ayah',
+      RelationType.mother: 'Ibu',
+      RelationType.spouse: 'Pasangan',
+      RelationType.son: 'Anak Laki-laki',
+      RelationType.daughter: 'Anak Perempuan',
+      RelationType.brother: 'Saudara Laki-laki',
+      RelationType.sister: 'Saudara Perempuan',
+      RelationType.paternalGrandfather: 'P. Kakek',
+      RelationType.grandson: 'Cucu',
+    };
+    return labels[relation] ?? relation.name;
+  }
+}

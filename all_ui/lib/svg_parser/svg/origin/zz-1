@@ -1,0 +1,658 @@
+import 'package:flutter/material.dart';
+import 'package:xml/xml.dart';
+import 'dart:ui' as ui;
+
+// Main parser class
+class SvgParser {
+  static SvgData parse(String svgCode) {
+    final document = XmlDocument.parse(svgCode);
+    final svgElement = document.findElements('svg').first;
+    
+    double width = _parseDouble(svgElement.getAttribute('width')) ?? 100;
+    double height = _parseDouble(svgElement.getAttribute('height')) ?? 100;
+    
+    final elements = <SvgElement>[];
+    _parseElements(svgElement, elements);
+    
+    return SvgData(width: width, height: height, elements: elements);
+  }
+  
+  static void _parseElements(XmlElement parent, List<SvgElement> elements) {
+    for (var node in parent.children) {
+      if (node is XmlElement) {
+        switch (node.name.local) {
+          case 'path':
+            elements.add(_parsePath(node));
+            break;
+          case 'rect':
+            elements.add(_parseRect(node));
+            break;
+          case 'circle':
+            elements.add(_parseCircle(node));
+            break;
+          case 'ellipse':
+            elements.add(_parseEllipse(node));
+            break;
+          case 'line':
+            elements.add(_parseLine(node));
+            break;
+          case 'polyline':
+            elements.add(_parsePolyline(node));
+            break;
+          case 'polygon':
+            elements.add(_parsePolygon(node));
+            break;
+          case 'g':
+            _parseElements(node, elements);
+            break;
+        }
+      }
+    }
+  }
+  
+  static SvgPath _parsePath(XmlElement element) {
+    return SvgPath(
+      d: element.getAttribute('d') ?? '',
+      fill: _parseColor(element.getAttribute('fill')),
+      stroke: _parseColor(element.getAttribute('stroke')),
+      strokeWidth: _parseDouble(element.getAttribute('stroke-width')) ?? 1.0,
+      opacity: _parseDouble(element.getAttribute('opacity')) ?? 1.0,
+    );
+  }
+  
+  static SvgRect _parseRect(XmlElement element) {
+    return SvgRect(
+      x: _parseDouble(element.getAttribute('x')) ?? 0,
+      y: _parseDouble(element.getAttribute('y')) ?? 0,
+      width: _parseDouble(element.getAttribute('width')) ?? 0,
+      height: _parseDouble(element.getAttribute('height')) ?? 0,
+      rx: _parseDouble(element.getAttribute('rx')) ?? 0,
+      ry: _parseDouble(element.getAttribute('ry')) ?? 0,
+      fill: _parseColor(element.getAttribute('fill')),
+      stroke: _parseColor(element.getAttribute('stroke')),
+      strokeWidth: _parseDouble(element.getAttribute('stroke-width')) ?? 1.0,
+      opacity: _parseDouble(element.getAttribute('opacity')) ?? 1.0,
+    );
+  }
+  
+  static SvgCircle _parseCircle(XmlElement element) {
+    return SvgCircle(
+      cx: _parseDouble(element.getAttribute('cx')) ?? 0,
+      cy: _parseDouble(element.getAttribute('cy')) ?? 0,
+      r: _parseDouble(element.getAttribute('r')) ?? 0,
+      fill: _parseColor(element.getAttribute('fill')),
+      stroke: _parseColor(element.getAttribute('stroke')),
+      strokeWidth: _parseDouble(element.getAttribute('stroke-width')) ?? 1.0,
+      opacity: _parseDouble(element.getAttribute('opacity')) ?? 1.0,
+    );
+  }
+  
+  static SvgEllipse _parseEllipse(XmlElement element) {
+    return SvgEllipse(
+      cx: _parseDouble(element.getAttribute('cx')) ?? 0,
+      cy: _parseDouble(element.getAttribute('cy')) ?? 0,
+      rx: _parseDouble(element.getAttribute('rx')) ?? 0,
+      ry: _parseDouble(element.getAttribute('ry')) ?? 0,
+      fill: _parseColor(element.getAttribute('fill')),
+      stroke: _parseColor(element.getAttribute('stroke')),
+      strokeWidth: _parseDouble(element.getAttribute('stroke-width')) ?? 1.0,
+      opacity: _parseDouble(element.getAttribute('opacity')) ?? 1.0,
+    );
+  }
+  
+  static SvgLine _parseLine(XmlElement element) {
+    return SvgLine(
+      x1: _parseDouble(element.getAttribute('x1')) ?? 0,
+      y1: _parseDouble(element.getAttribute('y1')) ?? 0,
+      x2: _parseDouble(element.getAttribute('x2')) ?? 0,
+      y2: _parseDouble(element.getAttribute('y2')) ?? 0,
+      stroke: _parseColor(element.getAttribute('stroke')),
+      strokeWidth: _parseDouble(element.getAttribute('stroke-width')) ?? 1.0,
+      opacity: _parseDouble(element.getAttribute('opacity')) ?? 1.0,
+    );
+  }
+  
+  static SvgPolyline _parsePolyline(XmlElement element) {
+    return SvgPolyline(
+      points: _parsePoints(element.getAttribute('points') ?? ''),
+      fill: _parseColor(element.getAttribute('fill')),
+      stroke: _parseColor(element.getAttribute('stroke')),
+      strokeWidth: _parseDouble(element.getAttribute('stroke-width')) ?? 1.0,
+      opacity: _parseDouble(element.getAttribute('opacity')) ?? 1.0,
+    );
+  }
+  
+  static SvgPolygon _parsePolygon(XmlElement element) {
+    return SvgPolygon(
+      points: _parsePoints(element.getAttribute('points') ?? ''),
+      fill: _parseColor(element.getAttribute('fill')),
+      stroke: _parseColor(element.getAttribute('stroke')),
+      strokeWidth: _parseDouble(element.getAttribute('stroke-width')) ?? 1.0,
+      opacity: _parseDouble(element.getAttribute('opacity')) ?? 1.0,
+    );
+  }
+  
+  static List<Offset> _parsePoints(String pointsStr) {
+    final points = <Offset>[];
+    final coords = pointsStr.trim().split(RegExp(r'[\s,]+'));
+    
+    for (var i = 0; i < coords.length - 1; i += 2) {
+      final x = double.tryParse(coords[i]) ?? 0;
+      final y = double.tryParse(coords[i + 1]) ?? 0;
+      points.add(Offset(x, y));
+    }
+    
+    return points;
+  }
+  
+  static Color? _parseColor(String? colorStr) {
+    if (colorStr == null || colorStr.isEmpty || colorStr == 'none') return null;
+    
+    colorStr = colorStr.trim().toLowerCase();
+    
+    // Hex colors
+    if (colorStr.startsWith('#')) {
+      colorStr = colorStr.substring(1);
+      if (colorStr.length == 3) {
+        colorStr = colorStr.split('').map((c) => c + c).join();
+      }
+      if (colorStr.length == 6) {
+        return Color(int.parse('FF$colorStr', radix: 16));
+      }
+      if (colorStr.length == 8) {
+        return Color(int.parse(colorStr, radix: 16));
+      }
+    }
+    
+    // Named colors
+    final namedColors = {
+      'black': Colors.black,
+      'white': Colors.white,
+      'red': Colors.red,
+      'green': Colors.green,
+      'blue': Colors.blue,
+      'yellow': Colors.yellow,
+      'cyan': Colors.cyan,
+      'magenta': Colors.pink,
+      'gray': Colors.grey,
+      'grey': Colors.grey,
+    };
+    
+    return namedColors[colorStr];
+  }
+  
+  static double? _parseDouble(String? value) {
+    if (value == null) return null;
+    return double.tryParse(value.replaceAll(RegExp(r'[a-zA-Z%]'), ''));
+  }
+}
+
+// Data models
+class SvgData {
+  final double width;
+  final double height;
+  final List<SvgElement> elements;
+  
+  SvgData({required this.width, required this.height, required this.elements});
+}
+
+abstract class SvgElement {
+  void paint(Canvas canvas, Size size);
+}
+
+class SvgPath extends SvgElement {
+  final String d;
+  final Color? fill;
+  final Color? stroke;
+  final double strokeWidth;
+  final double opacity;
+  
+  SvgPath({
+    required this.d,
+    this.fill,
+    this.stroke,
+    required this.strokeWidth,
+    required this.opacity,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _parsePath(d);
+    
+    if (fill != null && fill != Colors.transparent) {
+      final paint = Paint()
+        ..color = fill!.withOpacity(opacity)
+        ..style = PaintingStyle.fill;
+      canvas.drawPath(path, paint);
+    }
+    
+    if (stroke != null) {
+      final paint = Paint()
+        ..color = stroke!.withOpacity(opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth;
+      canvas.drawPath(path, paint);
+    }
+  }
+  
+  Path _parsePath(String d) {
+    final path = Path();
+    final commands = _tokenizePath(d);
+    
+    double currentX = 0, currentY = 0;
+    double startX = 0, startY = 0;
+    
+    for (var i = 0; i < commands.length; i++) {
+      final cmd = commands[i];
+      
+      switch (cmd) {
+        case 'M': // Move to (absolute)
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          startX = currentX;
+          startY = currentY;
+          path.moveTo(currentX, currentY);
+          break;
+          
+        case 'm': // Move to (relative)
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          startX = currentX;
+          startY = currentY;
+          path.moveTo(currentX, currentY);
+          break;
+          
+        case 'L': // Line to (absolute)
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          break;
+          
+        case 'l': // Line to (relative)
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          break;
+          
+        case 'H': // Horizontal line (absolute)
+          currentX = double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          break;
+          
+        case 'h': // Horizontal line (relative)
+          currentX += double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          break;
+          
+        case 'V': // Vertical line (absolute)
+          currentY = double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          break;
+          
+        case 'v': // Vertical line (relative)
+          currentY += double.parse(commands[++i]);
+          path.lineTo(currentX, currentY);
+          break;
+          
+        case 'C': // Cubic Bezier (absolute)
+          final x1 = double.parse(commands[++i]);
+          final y1 = double.parse(commands[++i]);
+          final x2 = double.parse(commands[++i]);
+          final y2 = double.parse(commands[++i]);
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          path.cubicTo(x1, y1, x2, y2, currentX, currentY);
+          break;
+          
+        case 'c': // Cubic Bezier (relative)
+          final x1 = currentX + double.parse(commands[++i]);
+          final y1 = currentY + double.parse(commands[++i]);
+          final x2 = currentX + double.parse(commands[++i]);
+          final y2 = currentY + double.parse(commands[++i]);
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          path.cubicTo(x1, y1, x2, y2, currentX, currentY);
+          break;
+          
+        case 'Q': // Quadratic Bezier (absolute)
+          final x1 = double.parse(commands[++i]);
+          final y1 = double.parse(commands[++i]);
+          currentX = double.parse(commands[++i]);
+          currentY = double.parse(commands[++i]);
+          path.quadraticBezierTo(x1, y1, currentX, currentY);
+          break;
+          
+        case 'q': // Quadratic Bezier (relative)
+          final x1 = currentX + double.parse(commands[++i]);
+          final y1 = currentY + double.parse(commands[++i]);
+          currentX += double.parse(commands[++i]);
+          currentY += double.parse(commands[++i]);
+          path.quadraticBezierTo(x1, y1, currentX, currentY);
+          break;
+          
+        case 'Z':
+        case 'z': // Close path
+          path.close();
+          currentX = startX;
+          currentY = startY;
+          break;
+      }
+    }
+    
+    return path;
+  }
+  
+  List<String> _tokenizePath(String d) {
+    final tokens = <String>[];
+    final buffer = StringBuffer();
+    
+    for (var i = 0; i < d.length; i++) {
+      final char = d[i];
+      
+      if (RegExp(r'[MmLlHhVvCcSsQqTtAaZz]').hasMatch(char)) {
+        if (buffer.isNotEmpty) {
+          tokens.add(buffer.toString().trim());
+          buffer.clear();
+        }
+        tokens.add(char);
+      } else if (char == ',' || char == ' ') {
+        if (buffer.isNotEmpty) {
+          tokens.add(buffer.toString().trim());
+          buffer.clear();
+        }
+      } else {
+        buffer.write(char);
+      }
+    }
+    
+    if (buffer.isNotEmpty) {
+      tokens.add(buffer.toString().trim());
+    }
+    
+    return tokens.where((t) => t.isNotEmpty).toList();
+  }
+}
+
+class SvgRect extends SvgElement {
+  final double x, y, width, height, rx, ry;
+  final Color? fill;
+  final Color? stroke;
+  final double strokeWidth;
+  final double opacity;
+  
+  SvgRect({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+    required this.rx,
+    required this.ry,
+    this.fill,
+    this.stroke,
+    required this.strokeWidth,
+    required this.opacity,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromLTWH(x, y, width, height);
+    final rRect = RRect.fromRectAndRadius(rect, Radius.circular(rx > 0 ? rx : ry));
+    
+    if (fill != null) {
+      final paint = Paint()
+        ..color = fill!.withOpacity(opacity)
+        ..style = PaintingStyle.fill;
+      canvas.drawRRect(rRect, paint);
+    }
+    
+    if (stroke != null) {
+      final paint = Paint()
+        ..color = stroke!.withOpacity(opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth;
+      canvas.drawRRect(rRect, paint);
+    }
+  }
+}
+
+class SvgCircle extends SvgElement {
+  final double cx, cy, r;
+  final Color? fill;
+  final Color? stroke;
+  final double strokeWidth;
+  final double opacity;
+  
+  SvgCircle({
+    required this.cx,
+    required this.cy,
+    required this.r,
+    this.fill,
+    this.stroke,
+    required this.strokeWidth,
+    required this.opacity,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (fill != null) {
+      final paint = Paint()
+        ..color = fill!.withOpacity(opacity)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(cx, cy), r, paint);
+    }
+    
+    if (stroke != null) {
+      final paint = Paint()
+        ..color = stroke!.withOpacity(opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth;
+      canvas.drawCircle(Offset(cx, cy), r, paint);
+    }
+  }
+}
+
+class SvgEllipse extends SvgElement {
+  final double cx, cy, rx, ry;
+  final Color? fill;
+  final Color? stroke;
+  final double strokeWidth;
+  final double opacity;
+  
+  SvgEllipse({
+    required this.cx,
+    required this.cy,
+    required this.rx,
+    required this.ry,
+    this.fill,
+    this.stroke,
+    required this.strokeWidth,
+    required this.opacity,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromCenter(center: Offset(cx, cy), width: rx * 2, height: ry * 2);
+    
+    if (fill != null) {
+      final paint = Paint()
+        ..color = fill!.withOpacity(opacity)
+        ..style = PaintingStyle.fill;
+      canvas.drawOval(rect, paint);
+    }
+    
+    if (stroke != null) {
+      final paint = Paint()
+        ..color = stroke!.withOpacity(opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth;
+      canvas.drawOval(rect, paint);
+    }
+  }
+}
+
+class SvgLine extends SvgElement {
+  final double x1, y1, x2, y2;
+  final Color? stroke;
+  final double strokeWidth;
+  final double opacity;
+  
+  SvgLine({
+    required this.x1,
+    required this.y1,
+    required this.x2,
+    required this.y2,
+    this.stroke,
+    required this.strokeWidth,
+    required this.opacity,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (stroke != null) {
+      final paint = Paint()
+        ..color = stroke!.withOpacity(opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth;
+      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), paint);
+    }
+  }
+}
+
+class SvgPolyline extends SvgElement {
+  final List<Offset> points;
+  final Color? fill;
+  final Color? stroke;
+  final double strokeWidth;
+  final double opacity;
+  
+  SvgPolyline({
+    required this.points,
+    this.fill,
+    this.stroke,
+    required this.strokeWidth,
+    required this.opacity,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty) return;
+    
+    final path = Path()..moveTo(points[0].dx, points[0].dy);
+    for (var i = 1; i < points.length; i++) {
+      path.lineTo(points[i].dx, points[i].dy);
+    }
+    
+    if (fill != null) {
+      final paint = Paint()
+        ..color = fill!.withOpacity(opacity)
+        ..style = PaintingStyle.fill;
+      canvas.drawPath(path, paint);
+    }
+    
+    if (stroke != null) {
+      final paint = Paint()
+        ..color = stroke!.withOpacity(opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth;
+      canvas.drawPath(path, paint);
+    }
+  }
+}
+
+class SvgPolygon extends SvgElement {
+  final List<Offset> points;
+  final Color? fill;
+  final Color? stroke;
+  final double strokeWidth;
+  final double opacity;
+  
+  SvgPolygon({
+    required this.points,
+    this.fill,
+    this.stroke,
+    required this.strokeWidth,
+    required this.opacity,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty) return;
+    
+    final path = Path()..moveTo(points[0].dx, points[0].dy);
+    for (var i = 1; i < points.length; i++) {
+      path.lineTo(points[i].dx, points[i].dy);
+    }
+    path.close();
+    
+    if (fill != null) {
+      final paint = Paint()
+        ..color = fill!.withOpacity(opacity)
+        ..style = PaintingStyle.fill;
+      canvas.drawPath(path, paint);
+    }
+    
+    if (stroke != null) {
+      final paint = Paint()
+        ..color = stroke!.withOpacity(opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth;
+      canvas.drawPath(path, paint);
+    }
+  }
+}
+
+// CustomPainter implementation
+class SvgCustomPainter extends CustomPainter {
+  final SvgData svgData;
+  
+  SvgCustomPainter(this.svgData);
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Scale to fit the available size while maintaining aspect ratio
+    final scaleX = size.width / svgData.width;
+    final scaleY = size.height / svgData.height;
+    final scale = scaleX < scaleY ? scaleX : scaleY;
+    
+    canvas.save();
+    canvas.scale(scale);
+    
+    for (var element in svgData.elements) {
+      element.paint(canvas, Size(svgData.width, svgData.height));
+    }
+    
+    canvas.restore();
+  }
+  
+  @override
+  bool shouldRepaint(SvgCustomPainter oldDelegate) {
+    return oldDelegate.svgData != svgData;
+  }
+}
+
+// Usage example widget
+class SvgPainterWidget extends StatelessWidget {
+  final String svgCode;
+  
+  const SvgPainterWidget({Key? key, required this.svgCode}) : super(key: key);
+  
+  @override
+  Widget build(BuildContext context) {
+    final svgData = SvgParser.parse(svgCode);
+    
+    return CustomPaint(
+      painter: SvgCustomPainter(svgData),
+      size: Size(svgData.width, svgData.height),
+    );
+  }
+}
+
+// Example usage:
+// const svgCode = '''
+// <svg width="100" height="100">
+//   <circle cx="50" cy="50" r="40" fill="blue" stroke="black" stroke-width="2"/>
+//   <rect x="10" y="10" width="30" height="30" fill="red"/>
+// </svg>
+// ''';
+//
+// SvgPainterWidget(svgCode: svgCode)

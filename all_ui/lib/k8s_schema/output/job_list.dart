@@ -1,0 +1,32 @@
+import 'list_meta.dart';
+import 'job.dart';
+
+class JobList {
+  final String apiVersion;
+  final String kind;
+  final ListMeta? metadata;
+  final List<Job> items;
+  JobList({
+    this.apiVersion = 'batch/v1',
+    this.kind = 'JobList',
+    this.metadata,
+    required this.items,
+  });
+  factory JobList.fromJson(Map<String, dynamic> json) {
+    return JobList(
+      apiVersion: json['apiVersion'] ?? 'batch/v1',
+      kind: json['kind'] ?? 'JobList',
+      metadata:
+          json['metadata'] != null ? ListMeta.fromJson(json['metadata']) : null,
+      items: (json['items'] as List).map((e) => Job.fromJson(e)).toList(),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      if (metadata != null) 'metadata': metadata!.toJson(),
+      'items': items.map((e) => e.toJson()).toList(),
+    };
+  }
+}

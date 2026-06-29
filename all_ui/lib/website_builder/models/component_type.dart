@@ -1,0 +1,83 @@
+enum ComponentType {
+  // Basic
+  container,
+  text,
+  button,
+  image,
+  input,
+  icon,
+  divider,
+  spacer,
+  // Layout
+  column,
+  row,
+  stack,
+  wrap,
+  center,
+  align,
+  padding,
+  expanded,
+  // Modern UI
+  card,
+  chip,
+  badge,
+  avatar,
+  hero,
+  glassmorphism,
+  neumorphism,
+  // Forms
+  checkbox,
+  radio,
+  slider,
+  switchWidget,
+  dropdown,
+  datePicker,
+  colorPicker,
+  // Media
+  video,
+  imageCarousel,
+  lottieAnimation,
+  qrCode,
+  // Data
+  dataTable,
+  chart,
+  timeline,
+  progressBar,
+  stepper,
+  // E-commerce
+  productCard,
+  priceTag,
+  addToCart,
+  rating,
+  // Effects
+  shimmer,
+  particles,
+  parallax,
+  ripple,
+  gradient,
+  blur,
+  // Navigation
+  appBar,
+  bottomNav,
+  drawer,
+  tabBar,
+  breadcrumb,
+  // Social
+  chatBubble,
+  userProfile,
+  notification,
+  statusUpdate,
+  // Advanced
+  codeEditor,
+  terminal,
+  fileExplorer,
+  dashboard,
+  calendar,
+  kanbanBoard,
+
+  navigationBar,
+  listView,
+  gridView,
+
+  radioButton,
+}

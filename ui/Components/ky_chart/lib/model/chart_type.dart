@@ -1,0 +1,17 @@
+enum ChartType {
+  bar,
+  stackedBar,
+  line,
+  pie,
+  scatter,
+  radar,
+  sankey,
+  radial,
+  lineArea,
+  candlestick,
+  boxPlot,
+  heatmap,
+  area,
+  gauge,
+  funnel,
+}

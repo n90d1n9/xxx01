@@ -1,0 +1,2050 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+void main() {
+  runApp(const ApiGatewayManagementApp());
+}
+
+class ApiGatewayManagementApp extends StatelessWidget {
+  const ApiGatewayManagementApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Iket  Management',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.light,
+        ),
+        fontFamily: GoogleFonts.inter().fontFamily,
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.dark,
+        ),
+        fontFamily: GoogleFonts.inter().fontFamily,
+      ),
+      themeMode: ThemeMode.system,
+      home: const DashboardScreen(),
+    );
+  }
+}
+
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({Key? key}) : super(key: key);
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  int _selectedIndex = 0;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    
+    return Scaffold(
+      key: _scaffoldKey,
+      appBar: AppBar(
+        title: Row(
+          children: [
+            Icon(Icons.api, color: colorScheme.primary),
+            const SizedBox(width: 12),
+            Text('Iket  Management', style: textTheme.titleLarge),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Notifications clicked')),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          const CircleAvatar(
+            backgroundImage: NetworkImage('https://i.pravatar.cc/300'),
+            radius: 16,
+          ),
+          const SizedBox(width: 16),
+        ],
+        elevation: 0,
+        backgroundColor: colorScheme.surface,
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () {
+            _scaffoldKey.currentState?.openDrawer();
+          },
+        ),
+      ),
+      drawer: NavigationDrawer(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (int index) {
+          setState(() {
+            _selectedIndex = index;
+            _scaffoldKey.currentState?.closeDrawer();
+          });
+        },
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+            child: Text(
+              'Iket ',
+              style: textTheme.titleMedium,
+            ),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard),
+            label: Text('Dashboard'),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.security_outlined),
+            selectedIcon: Icon(Icons.security),
+            label: Text('Security'),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.monitor_outlined),
+            selectedIcon: Icon(Icons.monitor),
+            label: Text('Monitoring'),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.route_outlined),
+            selectedIcon: Icon(Icons.route),
+            label: Text('Traffic'),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.build_outlined),
+            selectedIcon: Icon(Icons.build),
+            label: Text('Developer Tools'),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Divider(),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              'System',
+              style: textTheme.titleSmall,
+            ),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: Text('Settings'),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.help_outline),
+            selectedIcon: Icon(Icons.help),
+            label: Text('Help'),
+          ),
+        ],
+      ),
+      body: _buildBody(context),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    switch (_selectedIndex) {
+      case 0:
+        return const DashboardContent();
+      case 1:
+        return const SecurityFeaturesScreen();
+      case 2:
+        return const MonitoringScreen();
+      case 3:
+        return const TrafficManagementScreen();
+      case 4:
+        return const DeveloperToolsScreen();
+      default:
+        return const DashboardContent();
+    }
+  }
+}
+
+class DashboardContent extends StatelessWidget {
+  const DashboardContent({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Dashboard',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Monitor and manage your Iket  settings',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Quick Stats Cards
+          GridView.count(
+            crossAxisCount: 4,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _buildStatCard(
+                context,
+                title: 'Total APIs',
+                value: '32',
+                icon: Icons.api,
+                color: Colors.blue,
+              ),
+              _buildStatCard(
+                context,
+                title: 'Active Endpoints',
+                value: '124',
+                icon: Icons.link,
+                color: Colors.green,
+              ),
+              _buildStatCard(
+                context,
+                title: 'Security Alerts',
+                value: '3',
+                icon: Icons.security,
+                color: Colors.red,
+              ),
+              _buildStatCard(
+                context,
+                title: 'Today\'s Requests',
+                value: '1.4M',
+                icon: Icons.bar_chart,
+                color: Colors.purple,
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 32),
+          
+          // Feature Quick Access Section
+          Text(
+            'Quick Access',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 16),
+          
+          Row(
+            children: [
+              Expanded(
+                child: _buildFeatureCard(
+                  context,
+                  title: 'Security',
+                  description: 'Configure authentication, authorization, and protection',
+                  icon: Icons.shield,
+                  color: Colors.indigo,
+                  onTap: () => _navigateToFeature(context, 1),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildFeatureCard(
+                  context,
+                  title: 'Monitoring',
+                  description: 'View metrics, traces, and logs',
+                  icon: Icons.computer,
+                  color: Colors.teal,
+                  onTap: () => _navigateToFeature(context, 2),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildFeatureCard(
+                  context,
+                  title: 'Traffic Management',
+                  description: 'Configure routing, load balancing, and traffic splitting',
+                  icon: Icons.route,
+                  color: Colors.amber.shade700,
+                  onTap: () => _navigateToFeature(context, 3),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildFeatureCard(
+                  context,
+                  title: 'Developer Tools',
+                  description: 'API documentation, testing, and integration',
+                  icon: Icons.code,
+                  color: Colors.deepPurple,
+                  onTap: () => _navigateToFeature(context, 4),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 32),
+          
+          // Recent Activity
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Recent Activity',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildActivityItem(
+                    context,
+                    title: 'Rate limit updated',
+                    description: 'Changed from 100 to 200 req/s for /api/v1/users',
+                    time: '5 min ago',
+                    icon: Icons.speed,
+                  ),
+                  const Divider(),
+                  _buildActivityItem(
+                    context,
+                    title: 'New security certificate',
+                    description: 'Added new TLS certificate for api.example.com',
+                    time: '1 hour ago',
+                    icon: Icons.verified,
+                  ),
+                  const Divider(),
+                  _buildActivityItem(
+                    context,
+                    title: 'Canary release started',
+                    description: '10% traffic to new version of /api/v2/payments',
+                    time: '3 hours ago',
+                    icon: Icons.call_split,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(BuildContext context, {
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Card(
+      elevation: 0,
+      color: colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color),
+                const Spacer(),
+                Icon(Icons.more_horiz, color: colorScheme.onSurface),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureCard(
+    BuildContext context, {
+    required String title,
+    required String description,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Card(
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      color: colorScheme.surface,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Text(
+                    'Configure',
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.arrow_forward, size: 16, color: color),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityItem(
+    BuildContext context, {
+    required String title,
+    required String description,
+    required String time,
+    required IconData icon,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: colorScheme.primary, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            time,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToFeature(BuildContext context, int index) {
+    final parent = context.findAncestorStateOfType<_DashboardScreenState>();
+    if (parent != null) {
+      parent.setState(() {
+        parent._selectedIndex = index;
+      });
+    }
+  }
+}
+
+class SecurityFeaturesScreen extends StatefulWidget {
+  const SecurityFeaturesScreen({Key? key}) : super(key: key);
+
+  @override
+  State<SecurityFeaturesScreen> createState() => _SecurityFeaturesScreenState();
+}
+
+class _SecurityFeaturesScreenState extends State<SecurityFeaturesScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 5, vsync: this);
+  }
+  
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Security Features',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Configure authentication, authorization, and protection settings',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'mTLS'),
+            Tab(text: 'OAuth/OIDC'),
+            Tab(text: 'JWT'),
+            Tab(text: 'DDoS'),
+            Tab(text: 'WAF'),
+          ],
+          dividerColor: Colors.transparent,
+        ),
+        
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildMtlsTab(context),
+              _buildOAuthTab(context),
+              _buildJwtTab(context),
+              _buildDdosTab(context),
+              _buildWafTab(context),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMtlsTab(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.security, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Mutual TLS Authentication',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const Spacer(),
+              Switch(
+                value: true,
+                onChanged: (value) {},
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          Text(
+            'Configure mutual TLS to ensure both client and server authenticate each other with certificates',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Certificate Configuration',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Server Certificate',
+                    hint: 'Select or upload server certificate',
+                    icon: Icons.upload_file,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Server Private Key',
+                    hint: 'Select or upload server private key',
+                    icon: Icons.key,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Client CA Certificate',
+                    hint: 'Select or upload client CA certificate',
+                    icon: Icons.verified_user,
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  Text(
+                    'Settings',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Verify Client Certificate',
+                    subtitle: 'Enforce client certificate verification',
+                    value: true,
+                  ),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Verify Server Certificate',
+                    subtitle: 'Enforce server certificate verification',
+                    value: true,
+                  ),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Pass Client Certificate',
+                    subtitle: 'Forward client certificate to upstream services',
+                    value: false,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Certificate Revocation',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildDropdownField(
+                    context,
+                    label: 'Revocation Method',
+                    items: ['CRL', 'OCSP', 'Both', 'None'],
+                    value: 'OCSP',
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'CRL URL',
+                    hint: 'https://example.com/crl',
+                    icon: Icons.link,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton(
+                onPressed: () {},
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 16),
+              FilledButton(
+                onPressed: () {},
+                child: const Text('Save Changes'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOAuthTab(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.login, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'OAuth2/OpenID Connect',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const Spacer(),
+              Switch(
+                value: true,
+                onChanged: (value) {},
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          Text(
+            'Configure OAuth2 and OpenID Connect for secure API authentication',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0, 
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Provider Configuration',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildDropdownField(
+                    context,
+                    label: 'Provider Type',
+                    items: ['Keycloak', 'Okta', 'Auth0', 'Custom'],
+                    value: 'Keycloak',
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Authorization URL',
+                    hint: 'https://auth.example.com/oauth2/authorize',
+                    icon: Icons.link,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Token URL',
+                    hint: 'https://auth.example.com/oauth2/token',
+                    icon: Icons.vpn_key,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Client ID',
+                    hint: 'Enter client ID',
+                    icon: Icons.perm_identity,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Client Secret',
+                    hint: 'Enter client secret',
+                    isPassword: true,
+                    icon: Icons.password,
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  Text(
+                    'Scopes & Claims',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildChipField(
+                    context,
+                    label: 'Required Scopes',
+                    chips: ['api', 'read', 'write'],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildChipField(
+                    context,
+                    label: 'Required Claims',
+                    chips: ['sub', 'role', 'email'],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Advanced Settings',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Introspect Tokens',
+                    subtitle: 'Validate tokens with authorization server',
+                    value: true,
+                  ),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Cache Tokens',
+                    subtitle: 'Cache validated tokens to improve performance',
+                    value: true,
+                  ),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Cache TTL (seconds)',
+                    hint: '300',
+                    icon: Icons.timer,
+                    keyboardType: TextInputType.number,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton(
+                onPressed: () {},
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 16),
+              FilledButton(
+                onPressed: () {},
+                child: const Text('Save Changes'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJwtTab(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.verified_user, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'JWT Validation',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const Spacer(),
+              Switch(
+                value: true,
+                onChanged: (value) {},
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          Text(
+            'Configure JWT validation parameters and token blacklisting',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Signature Verification',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildDropdownField(
+                    context,
+                    label: 'Verification Method',
+                    items: ['JWKS URL', 'Public Key', 'Secret Key'],
+                    value: 'JWKS URL',
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'JWKS URL',
+                    hint: 'https://auth.example.com/.well-known/jwks.json',
+                    icon: Icons.link,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildDropdownField(
+                    context,
+                    label: 'Signing Algorithm',
+                    items: ['RS256', 'RS384', 'RS512', 'HS256', 'HS384', 'HS512', 'ES256', 'ES384', 'ES512'],
+                    value: 'RS256',
+                  ),
+                ],
+                const SizedBox(height: 24),
+                  
+                  Text(
+                    'Claim Validation',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Issuer (iss)',
+                    hint: 'https://auth.example.com/',
+                    icon: Icons.domain_verification,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Audience (aud)',
+                    hint: 'api-gateway',
+                    icon: Icons.groups,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Validate Expiration',
+                    subtitle: 'Check token expiry (exp claim)',
+                    value: true,
+                  ),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Validate Not Before',
+                    subtitle: 'Check token not-before time (nbf claim)',
+                    value: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Token Blacklisting',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildDropdownField(
+                    context,
+                    label: 'Blacklist Storage',
+                    items: ['Redis', 'etcd', 'In-memory', 'Database'],
+                    value: 'Redis',
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Storage Connection String',
+                    hint: 'redis://localhost:6379/0',
+                    icon: Icons.storage,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Blacklist TTL (seconds)',
+                    hint: '86400',
+                    icon: Icons.timer,
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Check Revoked Tokens',
+                    subtitle: 'Validate tokens against blacklist on each request',
+                    value: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton(
+                onPressed: () {},
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 16),
+              FilledButton(
+                onPressed: () {},
+                child: const Text('Save Changes'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDdosTab(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.shield, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'DDoS Protection',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const Spacer(),
+              Switch(
+                value: true,
+                onChanged: (value) {},
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          Text(
+            'Configure rate limiting and IP blacklisting to prevent DDoS attacks',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Rate Limiting',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildDropdownField(
+                    context,
+                    label: 'Rate Limit Algorithm',
+                    items: ['Token Bucket', 'Leaky Bucket', 'Fixed Window', 'Sliding Window'],
+                    value: 'Token Bucket',
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Requests per Second',
+                    hint: '100',
+                    icon: Icons.speed,
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Burst Size',
+                    hint: '200',
+                    icon: Icons.show_chart,
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildDropdownField(
+                    context,
+                    label: 'Rate Limit Key',
+                    items: ['IP Address', 'API Key', 'User ID', 'Custom Header'],
+                    value: 'IP Address',
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Include Rate Limit Headers',
+                    subtitle: 'Add X-RateLimit headers to responses',
+                    value: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'IP Blacklisting',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Auto-blacklist IPs',
+                    subtitle: 'Automatically blacklist IPs exceeding rate limits',
+                    value: true,
+                  ),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Violation Threshold',
+                    hint: '5',
+                    icon: Icons.warning,
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Blacklist Duration (minutes)',
+                    hint: '30',
+                    icon: Icons.timer,
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  Text(
+                    'IP Whitelist',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  
+                  _buildChipField(
+                    context,
+                    label: 'Whitelisted IPs',
+                    chips: ['192.168.1.1', '10.0.0.0/24'],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  Text(
+                    'Manual IP Blacklist',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  
+                  _buildChipField(
+                    context,
+                    label: 'Blacklisted IPs',
+                    chips: ['203.0.113.0/24', '198.51.100.1'],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton(
+                onPressed: () {},
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 16),
+              FilledButton(
+                onPressed: () {},
+                child: const Text('Save Changes'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWafTab(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.security_update, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'WAF Integration',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const Spacer(),
+              Switch(
+                value: true,
+                onChanged: (value) {},
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          Text(
+            'Configure Web Application Firewall (ModSecurity) integration',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'ModSecurity Configuration',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildDropdownField(
+                    context,
+                    label: 'ModSecurity Mode',
+                    items: ['On', 'DetectionOnly', 'Off'],
+                    value: 'On',
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Configuration Path',
+                    hint: '/etc/modsecurity/modsecurity.conf',
+                    icon: Icons.folder,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Enable OWASP Core Rule Set',
+                    subtitle: 'Use OWASP ModSecurity Core Rule Set (CRS)',
+                    value: true,
+                  ),
+                  
+                  _buildDropdownField(
+                    context,
+                    label: 'Paranoia Level',
+                    items: ['1 (Low)', '2 (Medium)', '3 (High)', '4 (Very High)'],
+                    value: '2 (Medium)',
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Rule Management',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'SQL Injection Protection',
+                    subtitle: 'Detect and block SQL injection attacks',
+                    value: true,
+                  ),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'XSS Protection',
+                    subtitle: 'Detect and block cross-site scripting attacks',
+                    value: true,
+                  ),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Remote File Inclusion Protection',
+                    subtitle: 'Block remote file inclusion attempts',
+                    value: true,
+                  ),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Local File Inclusion Protection',
+                    subtitle: 'Block local file inclusion attempts',
+                    value: true,
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Custom Rule'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Logging & Alerting',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildDropdownField(
+                    context,
+                    label: 'Log Level',
+                    items: ['Error', 'Warning', 'Info', 'Debug'],
+                    value: 'Warning',
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Log Path',
+                    hint: '/var/log/modsec_audit.log',
+                    icon: Icons.description,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Enable Alert Notifications',
+                    subtitle: 'Send notifications for detected attacks',
+                    value: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton(
+                onPressed: () {},
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 16),
+              FilledButton(
+                onPressed: () {},
+                child: const Text('Save Changes'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormField(
+    BuildContext context, {
+    required String label,
+    required String hint,
+    IconData? icon,
+    bool isPassword = false,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          decoration: InputDecoration(
+            hintText: hint,
+            border: const OutlineInputBorder(),
+            prefixIcon: icon != null ? Icon(icon) : null,
+            suffixIcon: isPassword ? const Icon(Icons.visibility_off) : null,
+          ),
+          obscureText: isPassword,
+          keyboardType: keyboardType,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdownField(
+    BuildContext context, {
+    required String label,
+    required List<String> items,
+    required String value,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+          ),
+          value: value,
+          items: items.map((String item) {
+            return DropdownMenuItem<String>(
+              value: item,
+              child: Text(item),
+            );
+          }).toList(),
+          onChanged: (String? newValue) {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSwitchTile(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required bool value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: (bool newValue) {},
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChipField(
+    BuildContext context, {
+    required String label,
+    required List<String> chips,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label.isNotEmpty) ...[
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ...chips.map((chip) => InputChip(
+              label: Text(chip),
+              onDeleted: () {},
+            )),
+            InputChip(
+              label: const Text('Add New...'),
+              onPressed: () {},
+              avatar: const Icon(Icons.add, size: 16),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class MonitoringScreen extends StatefulWidget {
+  const MonitoringScreen({Key? key}) : super(key: key);
+
+  @override
+  State<MonitoringScreen> createState() => _MonitoringScreenState();
+}
+
+class _MonitoringScreenState extends State<MonitoringScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 4, vsync: this);
+  }
+  
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Observability & Monitoring',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Configure metrics, tracing, logging, and debugging tools',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Metrics'),
+            Tab(text: 'Tracing'),
+            Tab(text: 'Logging'),
+            Tab(text: 'Debugging'),
+          ],
+          dividerColor: Colors.transparent,
+        ),
+        
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildMetricsTab(context),
+              _buildTracingTab(context),
+              _buildLoggingTab(context),
+              _buildDebuggingTab(context),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricsTab(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.bar_chart, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Real-time Metrics',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const Spacer(),
+              Switch(
+                value: true,
+                onChanged: (value) {},
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          Text(
+            'Configure metrics collection and visualization using Prometheus and Grafana',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Prometheus Configuration',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Prometheus Endpoint',
+                    hint: 'http://prometheus:9090',
+                    icon: Icons.link,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Metrics Endpoint Path',
+                    hint: '/metrics',
+                    icon: Icons.route,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Scrape Interval (seconds)',
+                    hint: '15',
+                    icon: Icons.timer,
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Metrics Collection',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Request Rate',
+                    subtitle: 'Track total requests per second',
+                    value: true,
+                  ),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Response Status Codes',
+                    subtitle: 'Track response status code distribution',
+                    value: true,
+                  ),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Response Latency',
+                    subtitle: 'Track response time percentiles',
+                    value: true,
+                  ),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Request Size',
+                    subtitle: 'Track request payload size',
+                    value: false,
+                  ),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Response Size',
+                    subtitle: 'Track response payload size',
+                    value: false,
+                  ),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Circuit Breaker States',
+                    subtitle: 'Track circuit breaker status',
+                    value: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Grafana Integration',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Grafana URL',
+                    hint: 'http://grafana:3000',
+                    icon: Icons.link,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Auto-provision Dashboards',
+                    subtitle: 'Automatically create default dashboards',
+                    value: true,
+                  ),
+                  
+                  _buildSwitchTile(
+                    context,
+                    title: 'Configure Alerts',
+                    subtitle: 'Setup default alerting rules',
+                    value: true,
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text('Open Grafana Dashboard'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton(
+                onPressed: () {},
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 16),
+              FilledButton(
+                onPressed: () {},
+                child: const Text('Save Changes'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTracingTab(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.timeline, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Distributed Tracing',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const Spacer(),
+              Switch(
+                value: true,
+                onChanged: (value) {},
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          Text(
+            'Configure distributed tracing with Jaeger, Zipkin, or SkyWalking',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tracing Provider',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildDropdownField(
+                    context,
+                    label: 'Provider',
+                    items: ['Jaeger', 'Zipkin', 'SkyWalking', 'OpenTelemetry'],
+                    value: 'Jaeger',
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Collector Endpoint',
+                    hint: 'http://jaeger:14268/api/traces',
+                    icon: Icons.link,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildFormField(
+                    context,
+                    label: 'Service Name',
+                    hint: 'api-gateway',
+                    icon: Icons.badge,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Sampling Configuration',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),

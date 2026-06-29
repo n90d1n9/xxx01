@@ -1,0 +1,416 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:image/image.dart' as imglib;
+import 'package:file_picker/file_picker.dart';
+import 'package:docx_template/docx_template.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdfx/pdfx.dart';
+import 'package:excel_plus/excel_plus.dart';
+import 'dart:typed_data';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+import 'package:crypto/crypto.dart';
+import 'package:pointycastle/export.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:audio_waveforms/audio_waveforms.dart';
+
+void main() {
+  runApp(const ProviderScope(child: SteganographyApp()));
+}
+
+class SteganographyApp extends StatelessWidget {
+  const SteganographyApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Advanced Steganography Suite',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+      ),
+      home: const SteganographyHome(),
+    );
+  }
+}
+
+// ============ State Models ============
+enum MediaType { image, audio }
+
+enum MessageSource { text, docx, file, pdf, excel }
+
+class StegoState {
+  final imglib.Image? image;
+  final File? audioFile;
+  final Uint8List? audioData;
+  final String message;
+  final String encryptionKey;
+  final bool useEncryption;
+  final String encryptionMethod;
+  final String result;
+  final bool isProcessing;
+  final String? extractedMessage;
+  final File? outputFile;
+  final int messageCapacity;
+  final String stegoMethod;
+  final MediaType mediaType;
+  final MessageSource messageSource;
+  final String audioDuration;
+
+  StegoState({
+    this.image,
+    this.audioFile,
+    this.audioData,
+    this.message = '',
+    this.encryptionKey = '',
+    this.useEncryption = false,
+    this.encryptionMethod = 'AES',
+    this.result = '',
+    this.isProcessing = false,
+    this.extractedMessage,
+    this.outputFile,
+    this.messageCapacity = 0,
+    this.stegoMethod = 'LSB',
+    this.mediaType = MediaType.image,
+    this.messageSource = MessageSource.text,
+    this.audioDuration = '0:00',
+  });
+
+  StegoState copyWith({
+    imglib.Image? image,
+    File? audioFile,
+    Uint8List? audioData,
+    String? message,
+    String? encryptionKey,
+    bool? useEncryption,
+    String? encryptionMethod,
+    String? result,
+    bool? isProcessing,
+    String? extractedMessage,
+    File? outputFile,
+    int? messageCapacity,
+    String? stegoMethod,
+    MediaType? mediaType,
+    MessageSource? messageSource,
+    String? audioDuration,
+  }) {
+    return StegoState(
+      image: image ?? this.image,
+      audioFile: audioFile ?? this.audioFile,
+      audioData: audioData ?? this.audioData,
+      message: message ?? this.message,
+      encryptionKey: encryptionKey ?? this.encryptionKey,
+      useEncryption: useEncryption ?? this.useEncryption,
+      encryptionMethod: encryptionMethod ?? this.encryptionMethod,
+      result: result ?? this.result,
+      isProcessing: isProcessing ?? this.isProcessing,
+      extractedMessage: extractedMessage ?? this.extractedMessage,
+      outputFile: outputFile ?? this.outputFile,
+      messageCapacity: messageCapacity ?? this.messageCapacity,
+      stegoMethod: stegoMethod ?? this.stegoMethod,
+      mediaType: mediaType ?? this.mediaType,
+      messageSource: messageSource ?? this.messageSource,
+      audioDuration: audioDuration ?? this.audioDuration,
+    );
+  }
+}
+
+final stegoStateProvider = StateNotifierProvider<StegoNotifier, StegoState>(
+  (ref) => StegoNotifier(),
+);
+
+class StegoNotifier extends StateNotifier<StegoState> {
+  StegoNotifier() : super(StegoState());
+
+  void updateMessage(String message) {
+    state = state.copyWith(message: message);
+  }
+
+  void updateEncryptionKey(String key) {
+    state = state.copyWith(encryptionKey: key);
+  }
+
+  void toggleEncryption(bool value) {
+    state = state.copyWith(useEncryption: value);
+  }
+
+  void setEncryptionMethod(String method) {
+    state = state.copyWith(encryptionMethod: method);
+  }
+
+  void setStegoMethod(String method) {
+    state = state.copyWith(stegoMethod: method);
+  }
+
+  void setMediaType(MediaType type) {
+    state = state.copyWith(mediaType: type, image: null, audioFile: null);
+  }
+
+  void setMessageSource(MessageSource source) {
+    state = state.copyWith(messageSource: source, message: '');
+  }
+
+  void setImage(img.Image image, File? file) {
+    final capacity = _calculateImageCapacity(image);
+    state = state.copyWith(
+      image: image,
+      outputFile: file,
+      messageCapacity: capacity,
+      result:
+          'Image loaded: ${image.width}x${image.height}. Capacity: $capacity chars',
+    );
+  }
+
+  void setAudio(File file, Uint8List data, String duration) {
+    final capacity = _calculateAudioCapacity(data.length);
+    state = state.copyWith(
+      audioFile: file,
+      audioData: data,
+      messageCapacity: capacity,
+      audioDuration: duration,
+      result:
+          'Audio loaded: $duration. Capacity: $capacity chars',
+    );
+  }
+
+  void setProcessing(bool processing) {
+    state = state.copyWith(isProcessing: processing);
+  }
+
+  void setResult(String result) {
+    state = state.copyWith(result: result);
+  }
+
+  void setExtractedMessage(String message) {
+    state = state.copyWith(extractedMessage: message);
+  }
+
+  int _calculateImageCapacity(img.Image image) {
+    final pixels = image.width * image.height;
+    return (pixels * 3) ~/ 8;
+  }
+
+  int _calculateAudioCapacity(int audioSize) {
+    return (audioSize * 2) ~/ 8;
+  }
+
+  void reset() {
+    state = StegoState();
+  }
+}
+
+// ============ Encryption Service ============
+class EncryptionService {
+  static String encryptAES(String message, String key) {
+    try {
+      final keyHash = sha256.convert(utf8.encode(key)).bytes;
+      final keyParam = KeyParameter(
+          Uint8List.fromList(keyHash.take(32).toList()));
+
+      final cipher = PaddedBlockCipherImpl(
+        PKCS7Padding(),
+        CBCBlockCipher(AESEngine()),
+      );
+
+      cipher.init(true, PaddedBlockCipherParameters(keyParam, null));
+      final encrypted = cipher.process(utf8.encode(message));
+      return base64.encode(encrypted);
+    } catch (e) {
+      return 'Error: $e';
+    }
+  }
+
+  static String decryptAES(String encrypted, String key) {
+    try {
+      final keyHash = sha256.convert(utf8.encode(key)).bytes;
+      final keyParam = KeyParameter(
+          Uint8List.fromList(keyHash.take(32).toList()));
+
+      final cipher = PaddedBlockCipherImpl(
+        PKCS7Padding(),
+        CBCBlockCipher(AESEngine()),
+      );
+
+      cipher.init(false, PaddedBlockCipherParameters(keyParam, null));
+      final decrypted = cipher.process(base64.decode(encrypted));
+      return utf8.decode(decrypted);
+    } catch (e) {
+      return 'Decryption failed: $e';
+    }
+  }
+
+  static String encryptXOR(String message, String key) {
+    final bytes = utf8.encode(message);
+    final keyBytes = utf8.encode(key);
+    final encrypted = List.generate(
+      bytes.length,
+      (i) => bytes[i] ^ keyBytes[i % keyBytes.length],
+    );
+    return base64.encode(encrypted);
+  }
+
+  static String decryptXOR(String encrypted, String key) {
+    try {
+      final bytes = base64.decode(encrypted);
+      final keyBytes = utf8.encode(key);
+      final decrypted = List.generate(
+        bytes.length,
+        (i) => bytes[i] ^ keyBytes[i % keyBytes.length],
+      );
+      return utf8.decode(decrypted);
+    } catch (e) {
+      return 'Decryption failed: $e';
+    }
+  }
+}
+
+// ============ Document Service ============
+
+// ============ Image Steganography Service ============
+class ImageSteganographyService {
+  static String messageToHex(String message) {
+    final bytes = utf8.encode(message);
+    return bytes
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join('');
+  }
+
+  static String hexToMessage(String hex) {
+    try {
+      final bytes = <int>[];
+      for (int i = 0; i < hex.length; i += 2) {
+        bytes.add(int.parse(hex.substring(i, i + 2), radix: 16));
+      }
+      return utf8.decode(bytes);
+    } catch (e) {
+      return 'Error: $e';
+    }
+  }
+
+  static String hexToBinary(String hex) {
+    return hex
+        .split('')
+        .map((c) =>
+            int.parse(c, radix: 16).toRadixString(2).padLeft(4, '0'))
+        .join('');
+  }
+
+  static imglib.Image embedLSB(imglib.Image image, String binaryData) {
+    final width = image.width;
+    final height = image.height;
+
+    for (int i = 0; i < binaryData.length; i++) {
+      final pixelIndex = i ~/ 3;
+      final row = pixelIndex ~/ width;
+      final col = pixelIndex % width;
+      final channel = i % 3;
+
+      if (row < height && col < width) {
+        final pixel = image.getPixel(col, row);
+        int r = pixel.r.toInt();
+        int g = pixel.g.toInt();
+        int b = pixel.b.toInt();
+        int a = pixel.a.toInt();
+
+        final bit = int.parse(binaryData[i]);
+
+        if (channel == 0) {
+          r = (r & 0xFE) | bit;
+        } else if (channel == 1) {
+          g = (g & 0xFE) | bit;
+        } else {
+          b = (b & 0xFE) | bit;
+        }
+
+        image.setPixelRgba(col, row, r, g, b, a);
+      }
+    }
+
+    return image;
+  }
+
+  static String extractLSB(imglib.Image image) {
+    final width = image.width;
+    final height = image.height;
+    String binary = '';
+
+    for (int row = 0; row < height; row++) {
+      for (int col = 0; col < width; col++) {
+        final pixel = image.getPixel(col, row);
+        binary += (pixel.r.toInt() & 1).toString();
+        binary += (pixel.g.toInt() & 1).toString();
+        binary += (pixel.b.toInt() & 1).toString();
+      }
+    }
+
+    String hex = '';
+    for (int i = 0; i < binary.length; i += 4) {
+      if (i + 4 <= binary.length) {
+        hex += int.parse(binary.substring(i, i + 4), radix: 2)
+            .toRadixString(16);
+      }
+    }
+
+    return hex;
+  }
+}
+
+// ============ Audio Steganography Service ============
+class AudioSteganographyService {
+  static Uint8List embedInAudio(Uint8List audioData, String binaryData) {
+    final workData = Uint8List.fromList(audioData);
+    final maxBits = audioData.length * 2;
+
+    if (binaryData.length > maxBits) {
+      throw Exception('Message too large for audio');
+    }
+
+    for (int i = 0; i < binaryData.length; i++) {
+      final byteIndex = i ~/ 2;
+      final bitPosition = i % 2;
+      final bit = int.parse(binaryData[i]);
+
+      if (byteIndex < workData.length) {
+        if (bitPosition == 0) {
+          workData[byteIndex] = (workData[byteIndex] & 0xFE) | bit;
+        } else {
+          workData[byteIndex] =
+              (workData[byteIndex] & 0xFD) | (bit << 1);
+        }
+      }
+    }
+
+    return workData;
+  }
+
+  static String extractFromAudio(Uint8List audioData) {
+    String binary = '';
+
+    for (int i = 0; i < audioData.length; i++) {
+      binary += (audioData[i] & 1).toString();
+      binary += ((audioData[i] >> 1) & 1).toString();
+    }
+
+    String hex = '';
+    for (int i = 0; i < binary.length; i += 4) {
+      if (i + 4 <= binary.length) {
+        hex += int.parse(binary.substring(i, i + 4), radix: 2)
+            .toRadixString(16);
+      }
+    }
+
+    try {
+      final bytes = <int>[];
+      for (int i = 0; i < hex.length; i += 2) {
+        bytes.add(int.parse(hex.substring(i, i + 2), radix: 16));
+      }
+      return utf8.decode(bytes);
+    } catch (e) {
+      return 'Error: $e';
+    }
+  }
+}
+
+// ============ UI ============

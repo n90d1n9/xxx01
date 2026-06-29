@@ -1,0 +1,535 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "Agent Orchestrator",
+  "description": "Configuration schema for AI agent orchestration system",
+  "properties": {
+    "id": {
+      "type": "string",
+      "title": "ID",
+      "description": "Unique identifier for the orchestrator",
+      "readOnly": true,
+      "x-ui": {
+        "widget": "hidden"
+      }
+    },
+    "name": {
+      "type": "string",
+      "title": "Name",
+      "description": "Display name for the orchestrator",
+      "minLength": 1,
+      "maxLength": 100,
+      "default": "New Orchestrator",
+      "x-ui": {
+        "widget": "text",
+        "placeholder": "Enter orchestrator name",
+        "section": "basic",
+        "order": 1
+      }
+    },
+    "description": {
+      "type": "string",
+      "title": "Description",
+      "description": "Detailed description of the orchestrator's purpose",
+      "maxLength": 500,
+      "default": "",
+      "x-ui": {
+        "widget": "textarea",
+        "placeholder": "Describe what this orchestrator does",
+        "rows": 3,
+        "section": "basic",
+        "order": 2
+      }
+    },
+    "enabled": {
+      "type": "boolean",
+      "title": "Enabled",
+      "description": "Whether the orchestrator is active",
+      "default": true,
+      "x-ui": {
+        "widget": "switch",
+        "section": "basic",
+        "order": 3
+      }
+    },
+    "type": {
+      "type": "string",
+      "title": "Orchestrator Type",
+      "description": "Execution pattern for agent coordination",
+      "enum": [
+        "sequential",
+        "parallel",
+        "hierarchical",
+        "dynamic",
+        "hybrid"
+      ],
+      "enumLabels": [
+        "Sequential - Execute agents one after another",
+        "Parallel - Execute agents simultaneously",
+        "Hierarchical - Master-worker coordination pattern",
+        "Dynamic - Adaptive execution based on runtime conditions",
+        "Hybrid - Mixed execution patterns"
+      ],
+      "default": "sequential",
+      "x-ui": {
+        "widget": "select",
+        "section": "configuration",
+        "order": 1,
+        "icon": "account_tree"
+      }
+    },
+    "strategy": {
+      "type": "string",
+      "title": "Execution Strategy",
+      "description": "Strategy for distributing work among agents",
+      "enum": [
+        "round_robin",
+        "priority",
+        "load_balanced",
+        "adaptive",
+        "failover"
+      ],
+      "enumLabels": [
+        "Round Robin - Distribute tasks evenly in rotation",
+        "Priority - Execute based on agent priority levels",
+        "Load Balanced - Distribute based on agent availability",
+        "Adaptive - Adjust strategy based on performance",
+        "Failover - Use backup agents on failure"
+      ],
+      "default": "round_robin",
+      "x-ui": {
+        "widget": "select",
+        "section": "configuration",
+        "order": 2,
+        "icon": "tune"
+      }
+    },
+    "maxAgents": {
+      "type": "integer",
+      "title": "Maximum Agents",
+      "description": "Maximum number of concurrent agents",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 5,
+      "x-ui": {
+        "widget": "slider",
+        "section": "configuration",
+        "order": 3,
+        "showValue": true,
+        "step": 1
+      }
+    },
+    "timeout": {
+      "type": "number",
+      "title": "Timeout",
+      "description": "Maximum execution time in seconds",
+      "minimum": 5,
+      "maximum": 300,
+      "default": 30,
+      "x-ui": {
+        "widget": "slider",
+        "section": "configuration",
+        "order": 4,
+        "showValue": true,
+        "step": 5,
+        "unit": "seconds"
+      }
+    },
+    "retryPolicy": {
+      "type": "object",
+      "title": "Retry Policy",
+      "description": "Configuration for retry behavior on failures",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "Enable Retries",
+          "default": true,
+          "x-ui": {
+            "widget": "switch"
+          }
+        },
+        "maxRetries": {
+          "type": "integer",
+          "title": "Max Retries",
+          "description": "Maximum number of retry attempts",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 3,
+          "x-ui": {
+            "widget": "number"
+          }
+        },
+        "backoffStrategy": {
+          "type": "string",
+          "title": "Backoff Strategy",
+          "enum": ["fixed", "linear", "exponential"],
+          "enumLabels": ["Fixed Delay", "Linear Backoff", "Exponential Backoff"],
+          "default": "exponential",
+          "x-ui": {
+            "widget": "radio"
+          }
+        },
+        "retryDelay": {
+          "type": "number",
+          "title": "Retry Delay",
+          "description": "Initial delay between retries in seconds",
+          "minimum": 0.1,
+          "maximum": 60,
+          "default": 1,
+          "x-ui": {
+            "widget": "number",
+            "step": 0.1,
+            "unit": "seconds"
+          }
+        }
+      },
+      "x-ui": {
+        "widget": "object",
+        "section": "configuration",
+        "order": 5,
+        "collapsible": true,
+        "collapsed": false
+      }
+    },
+    "agents": {
+      "type": "array",
+      "title": "Agents",
+      "description": "List of agents managed by this orchestrator",
+      "items": {
+        "type": "object",
+        "title": "Agent Configuration",
+        "required": ["id", "name"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Agent ID",
+            "x-ui": {
+              "widget": "hidden"
+            }
+          },
+          "name": {
+            "type": "string",
+            "title": "Agent Name",
+            "minLength": 1,
+            "maxLength": 100,
+            "x-ui": {
+              "widget": "text",
+              "placeholder": "Enter agent name"
+            }
+          },
+          "type": {
+            "type": "string",
+            "title": "Agent Type",
+            "enum": [
+              "worker",
+              "coordinator",
+              "analyzer",
+              "processor",
+              "custom"
+            ],
+            "default": "worker",
+            "x-ui": {
+              "widget": "select"
+            }
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true,
+            "x-ui": {
+              "widget": "switch"
+            }
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority",
+            "description": "Execution priority (1-10, higher = more priority)",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 5,
+            "x-ui": {
+              "widget": "slider",
+              "showValue": true
+            }
+          },
+          "model": {
+            "type": "string",
+            "title": "AI Model",
+            "enum": [
+              "gpt-4",
+              "gpt-3.5-turbo",
+              "claude-3-opus",
+              "claude-3-sonnet",
+              "llama-2",
+              "custom"
+            ],
+            "default": "gpt-3.5-turbo",
+            "x-ui": {
+              "widget": "select"
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "title": "Capabilities",
+            "description": "Specific capabilities this agent possesses",
+            "items": {
+              "type": "string",
+              "enum": [
+                "text_generation",
+                "code_generation",
+                "data_analysis",
+                "web_search",
+                "file_processing",
+                "image_generation",
+                "translation"
+              ]
+            },
+            "uniqueItems": true,
+            "default": ["text_generation"],
+            "x-ui": {
+              "widget": "multiselect",
+              "enumLabels": [
+                "Text Generation",
+                "Code Generation",
+                "Data Analysis",
+                "Web Search",
+                "File Processing",
+                "Image Generation",
+                "Translation"
+              ]
+            }
+          },
+          "parameters": {
+            "type": "object",
+            "title": "Parameters",
+            "description": "Agent-specific configuration parameters",
+            "properties": {
+              "temperature": {
+                "type": "number",
+                "title": "Temperature",
+                "minimum": 0,
+                "maximum": 2,
+                "default": 0.7,
+                "x-ui": {
+                  "widget": "slider",
+                  "step": 0.1,
+                  "showValue": true
+                }
+              },
+              "maxTokens": {
+                "type": "integer",
+                "title": "Max Tokens",
+                "minimum": 100,
+                "maximum": 8000,
+                "default": 2000,
+                "x-ui": {
+                  "widget": "number"
+                }
+              }
+            },
+            "x-ui": {
+              "widget": "object",
+              "collapsible": true,
+              "collapsed": true
+            }
+          }
+        }
+      },
+      "x-ui": {
+        "widget": "array",
+        "section": "agents",
+        "order": 1,
+        "addable": true,
+        "removable": true,
+        "orderable": true,
+        "itemTitle": "name",
+        "emptyMessage": "No agents configured. Add an agent to get started."
+      }
+    },
+    "routing": {
+      "type": "object",
+      "title": "Routing Configuration",
+      "description": "Rules for routing tasks to agents",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "title": "Routing Mode",
+          "enum": ["automatic", "manual", "conditional"],
+          "enumLabels": ["Automatic", "Manual Selection", "Conditional Rules"],
+          "default": "automatic",
+          "x-ui": {
+            "widget": "radio"
+          }
+        },
+        "rules": {
+          "type": "array",
+          "title": "Routing Rules",
+          "description": "Conditional rules for agent selection",
+          "items": {
+            "type": "object",
+            "properties": {
+              "condition": {
+                "type": "string",
+                "title": "Condition",
+                "description": "Expression to evaluate (e.g., input.type == 'text')",
+                "x-ui": {
+                  "widget": "code",
+                  "language": "javascript"
+                }
+              },
+              "targetAgent": {
+                "type": "string",
+                "title": "Target Agent",
+                "x-ui": {
+                  "widget": "agent-selector"
+                }
+              }
+            }
+          },
+          "x-ui": {
+            "widget": "array",
+            "addable": true,
+            "removable": true
+          }
+        }
+      },
+      "x-ui": {
+        "widget": "object",
+        "section": "advanced",
+        "order": 1,
+        "collapsible": true,
+        "collapsed": true
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "title": "Monitoring & Logging",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "Enable Monitoring",
+          "default": true,
+          "x-ui": {
+            "widget": "switch"
+          }
+        },
+        "logLevel": {
+          "type": "string",
+          "title": "Log Level",
+          "enum": ["debug", "info", "warn", "error"],
+          "enumLabels": ["Debug", "Info", "Warning", "Error"],
+          "default": "info",
+          "x-ui": {
+            "widget": "select"
+          }
+        },
+        "metricsCollection": {
+          "type": "boolean",
+          "title": "Collect Metrics",
+          "default": true,
+          "x-ui": {
+            "widget": "switch"
+          }
+        },
+        "alertThresholds": {
+          "type": "object",
+          "title": "Alert Thresholds",
+          "properties": {
+            "errorRate": {
+              "type": "number",
+              "title": "Error Rate (%)",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 10,
+              "x-ui": {
+                "widget": "slider",
+                "showValue": true,
+                "unit": "%"
+              }
+            },
+            "responseTime": {
+              "type": "number",
+              "title": "Response Time (seconds)",
+              "minimum": 1,
+              "maximum": 60,
+              "default": 10,
+              "x-ui": {
+                "widget": "number",
+                "unit": "seconds"
+              }
+            }
+          },
+          "x-ui": {
+            "widget": "object"
+          }
+        }
+      },
+      "x-ui": {
+        "widget": "object",
+        "section": "advanced",
+        "order": 2,
+        "collapsible": true,
+        "collapsed": true
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "title": "Metadata",
+      "description": "Additional custom metadata",
+      "additionalProperties": true,
+      "x-ui": {
+        "widget": "key-value",
+        "section": "advanced",
+        "order": 3,
+        "collapsible": true,
+        "collapsed": true
+      }
+    },
+    "tags": {
+      "type": "array",
+      "title": "Tags",
+      "description": "Labels for categorization and search",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "x-ui": {
+        "widget": "tags",
+        "section": "basic",
+        "order": 4
+      }
+    }
+  },
+  "required": ["id", "name", "type", "strategy"],
+  "x-ui": {
+    "sections": [
+      {
+        "id": "basic",
+        "title": "Basic Properties",
+        "icon": "info",
+        "description": "Essential orchestrator information"
+      },
+      {
+        "id": "configuration",
+        "title": "Configuration",
+        "icon": "settings",
+        "description": "Orchestrator behavior settings"
+      },
+      {
+        "id": "agents",
+        "title": "Agents",
+        "icon": "smart_toy",
+        "description": "Configure and manage agents"
+      },
+      {
+        "id": "advanced",
+        "title": "Advanced",
+        "icon": "tune",
+        "description": "Advanced configuration options",
+        "collapsible": true,
+        "collapsed": true
+      }
+    ],
+    "layout": "sections"
+  }
+}

@@ -1,0 +1,17 @@
+class Preconditions {
+  final String? uid;
+  final String? resourceVersion;
+  Preconditions({this.uid, this.resourceVersion});
+  factory Preconditions.fromJson(Map<String, dynamic> json) {
+    return Preconditions(
+      uid: json['uid'],
+      resourceVersion: json['resourceVersion'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (uid != null) 'uid': uid,
+      if (resourceVersion != null) 'resourceVersion': resourceVersion,
+    };
+  }
+}

@@ -1,0 +1,34 @@
+import 'label_selector.dart';
+
+class PodDisruptionBudgetSpec {
+  final dynamic minAvailable;
+  final dynamic maxUnavailable;
+  final LabelSelector? selector;
+  final int? unhealthyPodEvictionPolicy;
+  PodDisruptionBudgetSpec({
+    this.minAvailable,
+    this.maxUnavailable,
+    this.selector,
+    this.unhealthyPodEvictionPolicy,
+  });
+  factory PodDisruptionBudgetSpec.fromJson(Map<String, dynamic> json) {
+    return PodDisruptionBudgetSpec(
+      minAvailable: json['minAvailable'],
+      maxUnavailable: json['maxUnavailable'],
+      selector:
+          json['selector'] != null
+              ? LabelSelector.fromJson(json['selector'])
+              : null,
+      unhealthyPodEvictionPolicy: json['unhealthyPodEvictionPolicy'],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      if (minAvailable != null) 'minAvailable': minAvailable,
+      if (maxUnavailable != null) 'maxUnavailable': maxUnavailable,
+      if (selector != null) 'selector': selector!.toJson(),
+      if (unhealthyPodEvictionPolicy != null)
+        'unhealthyPodEvictionPolicy': unhealthyPodEvictionPolicy,
+    };
+  }
+}

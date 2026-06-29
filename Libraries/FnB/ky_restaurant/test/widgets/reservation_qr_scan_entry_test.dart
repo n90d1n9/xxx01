@@ -30,6 +30,7 @@ void main() {
     expect(submittedValues, ['https://tables.kaysir.test/qr?payload=encoded']);
     expect(changedValues.last, contains('payload=encoded'));
     expect(find.text('Scan QR handoff'), findsOneWidget);
+    expect(find.text('Ready to resolve this QR handoff.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

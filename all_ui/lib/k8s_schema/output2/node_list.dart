@@ -1,0 +1,32 @@
+import 'list_meta.dart';
+import 'node.dart';
+
+class NodeList {
+  final String apiVersion;
+  final String kind;
+  final ListMeta? metadata;
+  final List<Node> items;
+  NodeList({
+    this.apiVersion = 'v1',
+    this.kind = 'NodeList',
+    this.metadata,
+    required this.items,
+  });
+  factory NodeList.fromJson(Map<String, dynamic> json) {
+    return NodeList(
+      apiVersion: json['apiVersion'] ?? 'v1',
+      kind: json['kind'] ?? 'NodeList',
+      metadata:
+          json['metadata'] != null ? ListMeta.fromJson(json['metadata']) : null,
+      items: (json['items'] as List).map((e) => Node.fromJson(e)).toList(),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'apiVersion': apiVersion,
+      'kind': kind,
+      if (metadata != null) 'metadata': metadata!.toJson(),
+      'items': items.map((e) => e.toJson()).toList(),
+    };
+  }
+}

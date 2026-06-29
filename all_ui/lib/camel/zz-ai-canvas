@@ -1,0 +1,845 @@
+// ============================================================================
+// COMPLETE CANVAS INTEGRATION
+// ============================================================================
+
+/// Enhanced Canvas Node Widget with Configuration Support
+class CanvasNodeWidget extends ConsumerWidget {
+  final NodeCard node;
+  final String routeId;
+
+  const CanvasNodeWidget({
+    super.key,
+    required this.node,
+    required this.routeId,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final transform = ref.watch(canvasTransformProvider);
+    final isSelected = ref.watch(selectedNodesProvider).contains(node.id);
+    final connectionState = ref.watch(canvasConnectionStateProvider);
+    final isConnecting = connectionState.isConnecting;
+    final isConnectionSource = connectionState.sourceNodeId == node.id;
+
+    return Positioned(
+      left: node.position.dx * transform.scale + transform.offset.dx,
+      top: node.position.dy * transform.scale + transform.offset.dy,
+      child: GestureDetector(
+        onTap: () => _handleTap(context, ref),
+        onDoubleTap: () => _handleDoubleTap(context, ref),
+        child: Container(
+          width: 180 * transform.scale,
+          decoration: BoxDecoration(
+            color: node.color.withOpacity(0.1),
+            border: Border.all(
+              color: isSelected ? Colors.blue : node.color,
+              width: isSelected ? 3 : 2,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.blue.withOpacity(0.3),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Stack(
+            children: [
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildHeader(context, transform.scale),
+                  _buildBody(context, transform.scale),
+                  _buildConnectionPoints(context, ref, transform.scale),
+                ],
+              ),
+              if (isConnectionSource)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.link,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              _buildValidationIndicator(ref),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, double scale) {
+    return Container(
+      padding: EdgeInsets.all(12 * scale),
+      decoration: BoxDecoration(
+        color: node.color,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(12 * scale),
+          topRight: Radius.circular(12 * scale),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            node.icon,
+            color: Colors.white,
+            size: 20 * scale,
+          ),
+          SizedBox(width: 8 * scale),
+          Expanded(
+            child: Text(
+              node.name,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13 * scale,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, double scale) {
+    return Padding(
+      padding: EdgeInsets.all(12 * scale),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            node.type.replaceAll('-', ' ').toUpperCase(),
+            style: TextStyle(
+              fontSize: 10 * scale,
+              color: Colors.grey[600],
+            ),
+          ),
+          if (node.config.isNotEmpty) ...[
+            SizedBox(height: 4 * scale),
+            Text(
+              _getConfigSummary(),
+              style: TextStyle(
+                fontSize: 11 * scale,
+                color: Colors.grey[800],
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConnectionPoints(
+    BuildContext context,
+    WidgetRef ref,
+    double scale,
+  ) {
+    final connectionManager = ref.read(connectionManagerProvider);
+    final connectionState = ref.watch(canvasConnectionStateProvider);
+    
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 8 * scale, vertical: 4 * scale),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Input connection point
+          _buildConnectionPoint(
+            Icons.arrow_downward,
+            Colors.green,
+            scale,
+            onTap: () {
+              if (connectionState.isConnecting &&
+                  connectionState.sourceNodeId != node.id) {
+                final canConnect = connectionManager.canConnect(
+                  routeId,
+                  connectionState.sourceNodeId!,
+                  node.id,
+                );
+                
+                if (canConnect) {
+                  connectionManager.createConnection(
+                    routeId,
+                    connectionState.sourceNodeId!,
+                    node.id,
+                  );
+                  ref
+                      .read(canvasConnectionStateProvider.notifier)
+                      .completeConnection();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cannot connect these nodes'),
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+          // Output connection point
+          _buildConnectionPoint(
+            Icons.arrow_upward,
+            Colors.blue,
+            scale,
+            onTap: () {
+              ref
+                  .read(canvasConnectionStateProvider.notifier)
+                  .startConnection(node.id);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConnectionPoint(
+    IconData icon,
+    Color color,
+    double scale, {
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 24 * scale,
+        height: 24 * scale,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 2),
+        ),
+        child: Icon(
+          icon,
+          size: 14 * scale,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildValidationIndicator(WidgetRef ref) {
+    final validation = ref.watch(routeValidationProvider(routeId));
+    
+    if (validation == null) return const SizedBox.shrink();
+    
+    final nodeIssues = validation.issues.where((i) => i.nodeId == node.id);
+    if (nodeIssues.isEmpty) return const SizedBox.shrink();
+    
+    final hasErrors = nodeIssues.any((i) => i.severity == IssueSeverity.error);
+    final hasWarnings = nodeIssues.any((i) => i.severity == IssueSeverity.warning);
+    
+    return Positioned(
+      top: 8,
+      right: 8,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: hasErrors ? Colors.red : Colors.orange,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          hasErrors ? Icons.error : Icons.warning,
+          size: 16,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  String _getConfigSummary() {
+    if (node.config.isEmpty) return 'Not configured';
+    
+    // Show key configuration values
+    final key = node.config.keys.first;
+    final value = node.config[key];
+    return '$key: ${value.toString()}';
+  }
+
+  void _handleTap(BuildContext context, WidgetRef ref) {
+    final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+    
+    if (isShiftPressed) {
+      // Add to selection
+      ref.read(selectedNodesProvider.notifier).update(
+            (state) => {...state, node.id},
+          );
+    } else {
+      // Single selection
+      ref.read(selectedNodesProvider.notifier).state = {node.id};
+      ref.read(selectedNodeIdProvider.notifier).state = node.id;
+    }
+  }
+
+  void _handleDoubleTap(BuildContext context, WidgetRef ref) async {
+    final configManager = ref.read(nodeConfigDialogProvider);
+    final newConfig = await configManager.showConfigDialog(context, node);
+    
+    if (newConfig != null) {
+      final updatedNode = node.copyWith(
+        config: newConfig,
+        name: newConfig['name'] ?? node.name,
+      );
+      
+      ref
+          .read(integrationRoutesProvider.notifier)
+          .updateNodeInRoute(routeId, node.id, updatedNode);
+    }
+  }
+}
+
+// ============================================================================
+// ENHANCED TOOLBAR WITH ALL ACTIONS
+// ============================================================================
+
+class EnhancedToolbar extends ConsumerWidget {
+  const EnhancedToolbar({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final route = ref.watch(selectedRouteProvider);
+    final selectedNodes = ref.watch(selectedNodesProvider);
+    final canUndo = ref.watch(integrationHistoryProvider).canUndo;
+    final canRedo = ref.watch(integrationHistoryProvider).canRedo;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        border: Border(
+          bottom: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Undo/Redo
+          IconButton(
+            icon: const Icon(Icons.undo),
+            onPressed: canUndo ? () => _handleUndo(ref) : null,
+            tooltip: 'Undo (Ctrl+Z)',
+          ),
+          IconButton(
+            icon: const Icon(Icons.redo),
+            onPressed: canRedo ? () => _handleRedo(ref) : null,
+            tooltip: 'Redo (Ctrl+Y)',
+          ),
+          const VerticalDivider(),
+          
+          // Validation
+          IconButton(
+            icon: const Icon(Icons.check_circle_outline),
+            onPressed: route != null
+                ? () => _handleValidation(context, ref, route.id)
+                : null,
+            tooltip: 'Validate Route',
+          ),
+          
+          // Testing
+          IconButton(
+            icon: const Icon(Icons.play_arrow),
+            onPressed: route != null
+                ? () => _handleTest(context, ref, route)
+                : null,
+            tooltip: 'Test Route',
+          ),
+          
+          const VerticalDivider(),
+          
+          // Code Generation
+          PopupMenuButton<GenerationTarget>(
+            icon: const Icon(Icons.code),
+            tooltip: 'Generate Code',
+            onSelected: (target) => _handleCodeGeneration(context, ref, target),
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: GenerationTarget.camelJava,
+                child: Text('Java DSL'),
+              ),
+              const PopupMenuItem(
+                value: GenerationTarget.camelYaml,
+                child: Text('YAML DSL'),
+              ),
+              const PopupMenuItem(
+                value: GenerationTarget.camelXml,
+                child: Text('XML DSL'),
+              ),
+              const PopupMenuItem(
+                value: GenerationTarget.camelSpringBoot,
+                child: Text('Spring Boot Project'),
+              ),
+            ],
+          ),
+          
+          const VerticalDivider(),
+          
+          // Data Mapper
+          IconButton(
+            icon: const Icon(Icons.transform),
+            onPressed: () => _showDataMapper(context, ref),
+            tooltip: 'Data Mapper',
+          ),
+          
+          // Expression Builder
+          IconButton(
+            icon: const Icon(Icons.functions),
+            onPressed: () => _showExpressionBuilder(context, ref),
+            tooltip: 'Expression Builder',
+          ),
+          
+          const VerticalDivider(),
+          
+          // Route Configuration
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: route != null
+                ? () => _showRouteConfig(context, ref, route)
+                : null,
+            tooltip: 'Route Configuration',
+          ),
+          
+          // Templates
+          IconButton(
+            icon: const Icon(Icons.library_books),
+            onPressed: () => _showTemplates(context, ref),
+            tooltip: 'Templates',
+          ),
+          
+          const Spacer(),
+          
+          // Node Operations (when nodes selected)
+          if (selectedNodes.isNotEmpty) ...[
+            Text('${selectedNodes.length} selected'),
+            const SizedBox(width: 16),
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: () => _deleteSelectedNodes(ref, route!.id),
+              tooltip: 'Delete Selected',
+            ),
+            IconButton(
+              icon: const Icon(Icons.content_copy),
+              onPressed: () => _copySelectedNodes(ref),
+              tooltip: 'Copy',
+            ),
+            IconButton(
+              icon: const Icon(Icons.group_work),
+              onPressed: () => _groupSelectedNodes(context, ref, route!.id),
+              tooltip: 'Create Group',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _handleUndo(WidgetRef ref) {
+    final previousState = ref.read(integrationHistoryProvider.notifier).undo();
+    if (previousState != null) {
+      ref.read(integrationRoutesProvider.notifier).state = previousState;
+    }
+  }
+
+  void _handleRedo(WidgetRef ref) {
+    final nextState = ref.read(integrationHistoryProvider.notifier).redo();
+    if (nextState != null) {
+      ref.read(integrationRoutesProvider.notifier).state = nextState;
+    }
+  }
+
+  void _handleValidation(BuildContext context, WidgetRef ref, String routeId) {
+    ref.read(routeValidationProvider(routeId).notifier).validate();
+    final validation = ref.read(routeValidationProvider(routeId));
+    
+    showDialog(
+      context: context,
+      builder: (context) => ValidationResultDialog(result: validation!),
+    );
+  }
+
+  void _handleTest(BuildContext context, WidgetRef ref, IntegrationRoute route) {
+    showDialog(
+      context: context,
+      builder: (context) => RouteTestDialog(route: route),
+    );
+  }
+
+  void _handleCodeGeneration(
+    BuildContext context,
+    WidgetRef ref,
+    GenerationTarget target,
+  ) {
+    final route = ref.read(selectedRouteProvider);
+    if (route == null) return;
+    
+    final codeGenerator = ref.read(codeGeneratorProvider);
+    final code = codeGenerator.generateCode(route.id, target);
+    
+    showDialog(
+      context: context,
+      builder: (context) => CodeGenerationDialog(
+        route: route,
+        target: target,
+        generatedCode: code,
+      ),
+    );
+  }
+
+  void _showDataMapper(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => const DataMapperDialog(),
+    );
+  }
+
+  void _showExpressionBuilder(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => const ExpressionBuilderDialog(),
+    );
+  }
+
+  void _showRouteConfig(
+    BuildContext context,
+    WidgetRef ref,
+    IntegrationRoute route,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => RouteConfigurationDialog(route: route),
+    );
+  }
+
+  void _showTemplates(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => const TemplatesDialog(),
+    );
+  }
+
+  void _deleteSelectedNodes(WidgetRef ref, String routeId) {
+    final selectedNodes = ref.read(selectedNodesProvider);
+    ref
+        .read(integrationRoutesProvider.notifier)
+        .deleteNodeFromRoute(routeId, selectedNodes.first);
+    ref.read(selectedNodesProvider.notifier).state = {};
+  }
+
+  void _copySelectedNodes(WidgetRef ref) {
+    // TODO: Implement copy to clipboard
+  }
+
+  void _groupSelectedNodes(
+    BuildContext context,
+    WidgetRef ref,
+    String routeId,
+  ) {
+    final selectedNodes = ref.read(selectedNodesProvider);
+    // TODO: Show group creation dialog
+  }
+}
+
+// ============================================================================
+// CODE GENERATION DISPLAY DIALOG
+// ============================================================================
+
+class CodeGenerationDialog extends StatelessWidget {
+  final IntegrationRoute route;
+  final GenerationTarget target;
+  final String generatedCode;
+
+  const CodeGenerationDialog({
+    super.key,
+    required this.route,
+    required this.target,
+    required this.generatedCode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      maxWidth: 1000,
+      maxHeight: 800,
+      child: Column(
+        children: [
+          _buildHeader(context),
+          Expanded(child: _buildCodeView()),
+          _buildFooter(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.code),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Generated Code - ${_getTargetName()}',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  route.name,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).disabledColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCodeView() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      color: Colors.grey[900],
+      child: SingleChildScrollView(
+        child: SelectableText(
+          generatedCode,
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 13,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooter(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '${generatedCode.split('\n').length} lines',
+            style: TextStyle(color: Theme.of(context).disabledColor),
+          ),
+          const Spacer(),
+          OutlinedButton.icon(
+            onPressed: _copyToClipboard,
+            icon: const Icon(Icons.copy),
+            label: const Text('Copy'),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            onPressed: _downloadCode,
+            icon: const Icon(Icons.download),
+            label: const Text('Download'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getTargetName() {
+    switch (target) {
+      case GenerationTarget.camelJava:
+        return 'Java DSL';
+      case GenerationTarget.camelYaml:
+        return 'YAML DSL';
+      case GenerationTarget.camelXml:
+        return 'XML DSL';
+      case GenerationTarget.camelSpringBoot:
+        return 'Spring Boot';
+      case GenerationTarget.camelQuarkus:
+        return 'Quarkus';
+    }
+  }
+
+  void _copyToClipboard() {
+    // TODO: Implement clipboard
+    // Clipboard.setData(ClipboardData(text: generatedCode));
+  }
+
+  void _downloadCode() {
+    // TODO: Implement download
+  }
+}
+
+// ============================================================================
+// TEMPLATES DIALOG
+// ============================================================================
+
+class TemplatesDialog extends ConsumerWidget {
+  const TemplatesDialog({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final templates = ref.read(templateLibraryProvider).getTemplates();
+    
+    return Dialog(
+      maxWidth: 900,
+      maxHeight: 700,
+      child: Column(
+        children: [
+          _buildHeader(context),
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.all(24),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 1.5,
+              ),
+              itemCount: templates.length,
+              itemBuilder: (context, index) {
+                return _buildTemplateCard(context, ref, templates[index]);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.library_books),
+          const SizedBox(width: 12),
+          const Text(
+            'Route Templates',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTemplateCard(
+    BuildContext context,
+    WidgetRef ref,
+    RouteTemplate template,
+  ) {
+    return Card(
+      child: InkWell(
+        onTap: () => _useTemplate(context, ref, template),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.route, color: Colors.blue),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      template.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                template.description,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Theme.of(context).disabledColor,
+                ),
+              ),
+              const Spacer(),
+              Chip(
+                label: Text(template.category),
+                backgroundColor: Colors.blue.withOpacity(0.1),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _useTemplate(
+    BuildContext context,
+    WidgetRef ref,
+    RouteTemplate template,
+  ) {
+    // Create new route from template
+    final route = IntegrationRoute(
+      id: 'route_${DateTime.now().millisecondsSinceEpoch}',
+      name: template.name,
+      description: template.description,
+      nodes: template.nodes,
+      connections: const [],
+      transformations: const [],
+      metadata: {},
+    );
+    
+    ref.read(integrationRoutesProvider.notifier).addRoute(route);
+    ref.read(selectedRouteIdProvider.notifier).state = route.id;
+    
+    Navigator.pop(context);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Template "${template.name}" applied')),
+    );
+  }
+}

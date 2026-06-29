@@ -1,0 +1,1368 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AI Agent Builder Schema with Enterprise Integration Patterns",
+  "description": "Complete framework-agnostic schema for building AI agents with visual/low-code tools and EIP support",
+  "version": "2.0.0",
+  
+  "definitions": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    
+    "position": {
+      "type": "object",
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "z": {"type": "number", "description": "Layer depth for complex diagrams"}
+      },
+      "required": ["x", "y"]
+    },
+    
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "createdAt": {"type": "string", "format": "date-time"},
+        "updatedAt": {"type": "string", "format": "date-time"},
+        "createdBy": {"type": "string"},
+        "version": {"type": "string"},
+        "tags": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "description": {"type": "string"},
+        "notes": {"type": "string"},
+        "color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+        "icon": {"type": "string"}
+      }
+    },
+    
+    "variable": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "name": {"type": "string"},
+        "type": {
+          "enum": ["string", "number", "boolean", "array", "object", "null", "any", "binary", "json", "xml"]
+        },
+        "defaultValue": {},
+        "scope": {
+          "enum": ["global", "agent", "workflow", "node", "local", "exchange"]
+        },
+        "persistent": {"type": "boolean"},
+        "encrypted": {"type": "boolean"},
+        "validation": {
+          "type": "object",
+          "properties": {
+            "required": {"type": "boolean"},
+            "min": {"type": "number"},
+            "max": {"type": "number"},
+            "pattern": {"type": "string"},
+            "custom": {"type": "string"}
+          }
+        }
+      },
+      "required": ["id", "name", "type"]
+    },
+    
+    "dataFormat": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": ["json", "xml", "csv", "yaml", "avro", "protobuf", "text", "binary", "custom"]
+        },
+        "schema": {"type": "string"},
+        "charset": {"type": "string"},
+        "compression": {
+          "enum": ["none", "gzip", "zip", "lz4", "snappy"]
+        }
+      }
+    },
+    
+    "messagePattern": {
+      "type": "object",
+      "properties": {
+        "pattern": {
+          "enum": [
+            "point_to_point",
+            "publish_subscribe",
+            "request_reply",
+            "fire_and_forget",
+            "polling_consumer",
+            "event_driven_consumer",
+            "competing_consumers",
+            "message_dispatcher",
+            "selective_consumer",
+            "durable_subscriber"
+          ]
+        },
+        "config": {
+          "type": "object",
+          "properties": {
+            "queueName": {"type": "string"},
+            "topicName": {"type": "string"},
+            "exchangeName": {"type": "string"},
+            "routingKey": {"type": "string"},
+            "replyTo": {"type": "string"},
+            "timeout": {"type": "integer"},
+            "persistent": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    
+    "routingPattern": {
+      "type": "object",
+      "properties": {
+        "pattern": {
+          "enum": [
+            "content_based_router",
+            "message_filter",
+            "dynamic_router",
+            "recipient_list",
+            "splitter",
+            "aggregator",
+            "resequencer",
+            "composed_message_processor",
+            "scatter_gather",
+            "routing_slip",
+            "process_manager",
+            "message_broker"
+          ]
+        },
+        "config": {
+          "type": "object",
+          "properties": {
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "condition": {"type": "string"},
+                  "destination": {"type": "string"},
+                  "priority": {"type": "integer"}
+                }
+              }
+            },
+            "defaultRoute": {"type": "string"},
+            "parallelProcessing": {"type": "boolean"},
+            "aggregationStrategy": {
+              "enum": ["first", "last", "all", "custom"]
+            },
+            "completionSize": {"type": "integer"},
+            "completionTimeout": {"type": "integer"},
+            "correlationExpression": {"type": "string"}
+          }
+        }
+      }
+    },
+    
+    "transformationPattern": {
+      "type": "object",
+      "properties": {
+        "pattern": {
+          "enum": [
+            "message_translator",
+            "content_enricher",
+            "content_filter",
+            "claim_check",
+            "normalizer",
+            "canonical_data_model",
+            "validator",
+            "sorter"
+          ]
+        },
+        "config": {
+          "type": "object",
+          "properties": {
+            "mappingType": {
+              "enum": ["xslt", "jsonpath", "xpath", "velocity", "freemarker", "groovy", "javascript", "python", "custom"]
+            },
+            "mappingScript": {"type": "string"},
+            "mappingRules": {"type": "object"},
+            "enrichmentSource": {
+              "type": "object",
+              "properties": {
+                "type": {"enum": ["database", "api", "cache", "file"]},
+                "endpoint": {"type": "string"},
+                "query": {"type": "string"}
+              }
+            },
+            "validationSchema": {"type": "string"},
+            "onValidationFailure": {
+              "enum": ["stop", "route_to_error", "log_and_continue", "dead_letter_queue"]
+            }
+          }
+        }
+      }
+    },
+    
+    "endpointPattern": {
+      "type": "object",
+      "properties": {
+        "pattern": {
+          "enum": [
+            "messaging_gateway",
+            "messaging_mapper",
+            "transactional_client",
+            "polling_consumer",
+            "event_driven_consumer",
+            "service_activator",
+            "messaging_adapter"
+          ]
+        },
+        "config": {
+          "type": "object",
+          "properties": {
+            "pollingInterval": {"type": "integer"},
+            "maxMessagesPerPoll": {"type": "integer"},
+            "transactionManager": {"type": "string"},
+            "errorHandler": {"type": "string"}
+          }
+        }
+      }
+    },
+    
+    "integrationConnector": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "name": {"type": "string"},
+        "type": {
+          "enum": [
+            "http", "rest", "soap", "graphql", "grpc",
+            "kafka", "rabbitmq", "activemq", "mqtt", "amqp",
+            "database", "sql", "mongodb", "redis", "elasticsearch",
+            "file", "ftp", "sftp", "s3", "azure_blob",
+            "email", "smtp", "imap",
+            "websocket", "sse",
+            "slack", "discord", "telegram",
+            "salesforce", "hubspot", "stripe",
+            "custom"
+          ]
+        },
+        "direction": {
+          "enum": ["inbound", "outbound", "bidirectional"]
+        },
+        "connectionConfig": {
+          "type": "object",
+          "properties": {
+            "uri": {"type": "string"},
+            "host": {"type": "string"},
+            "port": {"type": "integer"},
+            "protocol": {"type": "string"},
+            "authentication": {
+              "type": "object",
+              "properties": {
+                "type": {"enum": ["none", "basic", "bearer", "apiKey", "oauth2", "jwt", "certificate", "custom"]},
+                "credentials": {"type": "object"}
+              }
+            },
+            "headers": {"type": "object"},
+            "queryParameters": {"type": "object"},
+            "timeout": {"type": "integer"},
+            "retryPolicy": {
+              "type": "object",
+              "properties": {
+                "maxAttempts": {"type": "integer"},
+                "backoffStrategy": {"enum": ["fixed", "exponential", "random"]},
+                "initialDelay": {"type": "integer"},
+                "maxDelay": {"type": "integer"},
+                "multiplier": {"type": "number"}
+              }
+            },
+            "circuitBreaker": {
+              "type": "object",
+              "properties": {
+                "enabled": {"type": "boolean"},
+                "failureThreshold": {"type": "integer"},
+                "successThreshold": {"type": "integer"},
+                "timeout": {"type": "integer"},
+                "halfOpenRequests": {"type": "integer"}
+              }
+            },
+            "connectionPool": {
+              "type": "object",
+              "properties": {
+                "minSize": {"type": "integer"},
+                "maxSize": {"type": "integer"},
+                "maxIdleTime": {"type": "integer"}
+              }
+            }
+          }
+        },
+        "dataFormat": {"$ref": "#/definitions/dataFormat"},
+        "messagePattern": {"$ref": "#/definitions/messagePattern"},
+        "errorHandling": {
+          "type": "object",
+          "properties": {
+            "deadLetterQueue": {"type": "string"},
+            "errorChannel": {"type": "string"},
+            "maxRedeliveries": {"type": "integer"},
+            "redeliveryDelay": {"type": "integer"},
+            "onException": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "exceptionType": {"type": "string"},
+                  "handler": {"type": "string"},
+                  "retryable": {"type": "boolean"}
+                }
+              }
+            }
+          }
+        },
+        "monitoring": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "metrics": {
+              "type": "array",
+              "items": {"enum": ["throughput", "latency", "errors", "retries", "circuit_breaker_state"]}
+            },
+            "healthCheck": {
+              "type": "object",
+              "properties": {
+                "enabled": {"type": "boolean"},
+                "interval": {"type": "integer"},
+                "endpoint": {"type": "string"}
+              }
+            }
+          }
+        }
+      },
+      "required": ["id", "name", "type", "direction"]
+    },
+    
+    "llmConfig": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "enum": ["openai", "anthropic", "google", "cohere", "azure", "aws", "huggingface", "ollama", "custom"]
+        },
+        "model": {"type": "string"},
+        "apiKey": {"type": "string"},
+        "apiEndpoint": {"type": "string"},
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "temperature": {"type": "number", "minimum": 0, "maximum": 2},
+            "maxTokens": {"type": "integer", "minimum": 1},
+            "topP": {"type": "number", "minimum": 0, "maximum": 1},
+            "topK": {"type": "integer"},
+            "frequencyPenalty": {"type": "number"},
+            "presencePenalty": {"type": "number"},
+            "stopSequences": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "systemPrompt": {"type": "string"}
+          }
+        },
+        "fallbackModels": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "retryConfig": {
+          "type": "object",
+          "properties": {
+            "maxRetries": {"type": "integer"},
+            "backoffMultiplier": {"type": "number"},
+            "timeout": {"type": "integer"}
+          }
+        }
+      },
+      "required": ["provider", "model"]
+    },
+    
+    "tool": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "name": {"type": "string"},
+        "type": {
+          "enum": ["function", "api", "database", "mcp", "web_search", "code_execution", "integration", "custom"]
+        },
+        "description": {"type": "string"},
+        "enabled": {"type": "boolean"},
+        "connector": {"$ref": "#/definitions/integrationConnector"},
+        "config": {
+          "type": "object",
+          "properties": {
+            "endpoint": {"type": "string"},
+            "method": {"enum": ["GET", "POST", "PUT", "DELETE", "PATCH"]},
+            "headers": {"type": "object"},
+            "authentication": {
+              "type": "object",
+              "properties": {
+                "type": {"enum": ["none", "basic", "bearer", "apiKey", "oauth2", "custom"]},
+                "credentials": {"type": "object"}
+              }
+            },
+            "inputSchema": {"type": "object"},
+            "outputSchema": {"type": "object"},
+            "timeout": {"type": "integer"},
+            "rateLimit": {
+              "type": "object",
+              "properties": {
+                "requests": {"type": "integer"},
+                "period": {"type": "integer"},
+                "unit": {"enum": ["second", "minute", "hour", "day"]}
+              }
+            }
+          }
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"type": "string"},
+              "required": {"type": "boolean"},
+              "description": {"type": "string"},
+              "defaultValue": {}
+            }
+          }
+        }
+      },
+      "required": ["id", "name", "type"]
+    },
+    
+    "memoryConfig": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": ["none", "buffer", "window", "summary", "vector", "entity", "knowledge_graph"]
+        },
+        "storageBackend": {
+          "enum": ["in_memory", "sqlite", "postgres", "redis", "mongodb", "pinecone", "weaviate", "custom"]
+        },
+        "config": {
+          "type": "object",
+          "properties": {
+            "maxMessages": {"type": "integer"},
+            "windowSize": {"type": "integer"},
+            "summaryInterval": {"type": "integer"},
+            "embeddingModel": {"type": "string"},
+            "similarityThreshold": {"type": "number"},
+            "connectionString": {"type": "string"}
+          }
+        },
+        "retention": {
+          "type": "object",
+          "properties": {
+            "duration": {"type": "integer"},
+            "unit": {"enum": ["minutes", "hours", "days", "weeks", "months"]},
+            "autoCleanup": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    
+    "node": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "type": {
+          "enum": [
+            "start", "end", "llm", "tool", "decision", "loop", "parallel", 
+            "merge", "human_input", "code_execution", "webhook", "schedule",
+            "condition", "switch", "delay", "transform", "validator", "router",
+            "splitter", "aggregator", "enricher", "filter", "resequencer",
+            "dead_letter_channel", "wire_tap", "throttler", "idempotent_receiver",
+            "multicast", "recipient_list", "load_balancer", "service_activator"
+          ]
+        },
+        "category": {
+          "enum": ["ai", "integration", "logic", "transformation", "endpoint", "routing", "monitoring"]
+        },
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "position": {"$ref": "#/definitions/position"},
+        "integrationPattern": {
+          "type": "object",
+          "properties": {
+            "routing": {"$ref": "#/definitions/routingPattern"},
+            "transformation": {"$ref": "#/definitions/transformationPattern"},
+            "endpoint": {"$ref": "#/definitions/endpointPattern"},
+            "message": {"$ref": "#/definitions/messagePattern"}
+          }
+        },
+        "connector": {"$ref": "#/definitions/integrationConnector"},
+        "config": {
+          "type": "object",
+          "properties": {
+            "llmConfig": {"$ref": "#/definitions/llmConfig"},
+            "tool": {"$ref": "#/definitions/tool"},
+            "prompt": {"type": "string"},
+            "promptTemplate": {
+              "type": "object",
+              "properties": {
+                "template": {"type": "string"},
+                "variables": {
+                  "type": "array",
+                  "items": {"type": "string"}
+                }
+              }
+            },
+            "condition": {
+              "type": "object",
+              "properties": {
+                "expression": {"type": "string"},
+                "language": {"enum": ["simple", "jsonpath", "xpath", "spel", "groovy", "javascript"]},
+                "operator": {"enum": ["==", "!=", ">", "<", ">=", "<=", "contains", "startsWith", "endsWith", "regex", "custom"]},
+                "value": {},
+                "logic": {"enum": ["and", "or", "not"]}
+              }
+            },
+            "loopConfig": {
+              "type": "object",
+              "properties": {
+                "maxIterations": {"type": "integer"},
+                "breakCondition": {"type": "string"},
+                "iterateOver": {"type": "string"}
+              }
+            },
+            "parallelConfig": {
+              "type": "object",
+              "properties": {
+                "maxConcurrency": {"type": "integer"},
+                "waitForAll": {"type": "boolean"},
+                "aggregationStrategy": {"enum": ["merge", "array", "first", "custom"]},
+                "executorService": {"type": "string"}
+              }
+            },
+            "transformConfig": {
+              "type": "object",
+              "properties": {
+                "type": {"enum": ["javascript", "python", "jinja2", "jsonpath", "xpath", "xslt", "custom"]},
+                "script": {"type": "string"},
+                "mapping": {"type": "object"},
+                "inputFormat": {"$ref": "#/definitions/dataFormat"},
+                "outputFormat": {"$ref": "#/definitions/dataFormat"}
+              }
+            },
+            "validationConfig": {
+              "type": "object",
+              "properties": {
+                "schema": {"type": "object"},
+                "onFailure": {"enum": ["stop", "retry", "skip", "fallback", "dead_letter"]},
+                "fallbackValue": {}
+              }
+            },
+            "splitterConfig": {
+              "type": "object",
+              "properties": {
+                "strategy": {"enum": ["token", "line", "xpath", "jsonpath", "custom"]},
+                "expression": {"type": "string"},
+                "streaming": {"type": "boolean"},
+                "parallelProcessing": {"type": "boolean"}
+              }
+            },
+            "aggregatorConfig": {
+              "type": "object",
+              "properties": {
+                "correlationExpression": {"type": "string"},
+                "completionSize": {"type": "integer"},
+                "completionTimeout": {"type": "integer"},
+                "aggregationStrategy": {"type": "string"},
+                "discardOnTimeout": {"type": "boolean"}
+              }
+            },
+            "enricherConfig": {
+              "type": "object",
+              "properties": {
+                "resourceUri": {"type": "string"},
+                "enrichmentExpression": {"type": "string"},
+                "aggregationStrategy": {"type": "string"},
+                "cacheResults": {"type": "boolean"}
+              }
+            },
+            "filterConfig": {
+              "type": "object",
+              "properties": {
+                "expression": {"type": "string"},
+                "language": {"type": "string"},
+                "action": {"enum": ["keep", "discard"]}
+              }
+            },
+            "throttlerConfig": {
+              "type": "object",
+              "properties": {
+                "maximumRequests": {"type": "integer"},
+                "timePeriod": {"type": "integer"},
+                "rejectExecution": {"type": "boolean"}
+              }
+            },
+            "loadBalancerConfig": {
+              "type": "object",
+              "properties": {
+                "strategy": {"enum": ["round_robin", "random", "sticky", "topic", "weighted", "custom"]},
+                "weights": {"type": "object"}
+              }
+            },
+            "humanInputConfig": {
+              "type": "object",
+              "properties": {
+                "formSchema": {"type": "object"},
+                "timeout": {"type": "integer"},
+                "notificationChannels": {
+                  "type": "array",
+                  "items": {"enum": ["email", "sms", "push", "webhook"]}
+                }
+              }
+            }
+          }
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"type": "string"},
+              "source": {"type": "string"},
+              "required": {"type": "boolean"},
+              "format": {"$ref": "#/definitions/dataFormat"}
+            }
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"type": "string"},
+              "mapping": {"type": "string"},
+              "format": {"$ref": "#/definitions/dataFormat"}
+            }
+          }
+        },
+        "errorHandling": {
+          "type": "object",
+          "properties": {
+            "strategy": {"enum": ["stop", "retry", "skip", "fallback", "dead_letter", "custom"]},
+            "maxRetries": {"type": "integer"},
+            "retryDelay": {"type": "integer"},
+            "fallbackNode": {"type": "string"},
+            "deadLetterChannel": {"type": "string"},
+            "onException": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "exceptionType": {"type": "string"},
+                  "handled": {"type": "boolean"},
+                  "continued": {"type": "boolean"},
+                  "redeliveryPolicy": {"type": "object"}
+                }
+              }
+            }
+          }
+        },
+        "metadata": {"$ref": "#/definitions/metadata"}
+      },
+      "required": ["id", "type", "name", "position"]
+    },
+    
+    "edge": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "source": {"type": "string"},
+        "target": {"type": "string"},
+        "sourceHandle": {"type": "string"},
+        "targetHandle": {"type": "string"},
+        "type": {
+          "enum": ["default", "conditional", "fallback", "loop", "error", "wire_tap", "multicast"]
+        },
+        "channelType": {
+          "enum": ["direct", "queue", "topic", "pubsub", "request_reply"]
+        },
+        "condition": {
+          "type": "object",
+          "properties": {
+            "expression": {"type": "string"},
+            "language": {"type": "string"},
+            "priority": {"type": "integer"}
+          }
+        },
+        "interceptors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {"enum": ["logging", "tracing", "transformation", "validation", "custom"]},
+              "config": {"type": "object"}
+            }
+          }
+        },
+        "label": {"type": "string"},
+        "animated": {"type": "boolean"},
+        "metadata": {"$ref": "#/definitions/metadata"}
+      },
+      "required": ["id", "source", "target"]
+    },
+    
+    "workflow": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "type": {
+          "enum": ["sequential", "parallel", "event_driven", "saga", "choreography", "orchestration"]
+        },
+        "nodes": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/node"}
+        },
+        "edges": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/edge"}
+        },
+        "variables": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/variable"}
+        },
+        "connectors": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/integrationConnector"}
+        },
+        "transactionConfig": {
+          "type": "object",
+          "properties": {
+            "transactionManager": {"type": "string"},
+            "propagation": {"enum": ["required", "requires_new", "supports", "not_supported", "never", "nested"]},
+            "isolation": {"enum": ["default", "read_uncommitted", "read_committed", "repeatable_read", "serializable"]},
+            "timeout": {"type": "integer"},
+            "rollbackOn": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          }
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {"enum": ["manual", "schedule", "webhook", "event", "message", "file_watcher", "database_poll"]},
+              "config": {"type": "object"},
+              "connector": {"$ref": "#/definitions/integrationConnector"}
+            }
+          }
+        },
+        "globalErrorHandler": {
+          "type": "object",
+          "properties": {
+            "deadLetterQueue": {"type": "string"},
+            "errorWorkflow": {"type": "string"},
+            "logErrors": {"type": "boolean"}
+          }
+        },
+        "metadata": {"$ref": "#/definitions/metadata"}
+      },
+      "required": ["id", "name", "nodes"]
+    },
+    
+    "agent": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "type": {
+          "enum": ["conversational", "task", "autonomous", "reactive", "multi_agent", "integration"]
+        },
+        "status": {
+          "enum": ["draft", "active", "paused", "archived"]
+        },
+        "llmConfig": {"$ref": "#/definitions/llmConfig"},
+        "memoryConfig": {"$ref": "#/definitions/memoryConfig"},
+        "tools": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/tool"}
+        },
+        "workflows": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/workflow"}
+        },
+        "connectors": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/integrationConnector"}
+        },
+        "personality": {
+          "type": "object",
+          "properties": {
+            "tone": {"enum": ["professional", "casual", "friendly", "formal", "humorous", "custom"]},
+            "style": {"type": "string"},
+            "guidelines": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "exampleConversations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "user": {"type": "string"},
+                  "assistant": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "multimodal": {"type": "boolean"},
+            "streaming": {"type": "boolean"},
+            "functionCalling": {"type": "boolean"},
+            "codeExecution": {"type": "boolean"},
+            "webBrowsing": {"type": "boolean"},
+            "enterpriseIntegration": {"type": "boolean"},
+            "fileHandling": {
+              "type": "object",
+              "properties": {
+                "upload": {"type": "boolean"},
+                "supportedTypes": {
+                  "type": "array",
+                  "items": {"type": "string"}
+                },
+                "maxSize": {"type": "integer"}
+              }
+            }
+          }
+        },
+        "safety": {
+          "type": "object",
+          "properties": {
+            "contentFiltering": {"type": "boolean"},
+            "piiDetection": {"type": "boolean"},
+            "toxicityThreshold": {"type": "number"},
+            "allowedTopics": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "blockedTopics": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "moderationRules": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          }
+        },
+        "analytics": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "metrics": {
+              "type": "array",
+              "items": {"enum": ["latency", "tokens", "cost", "success_rate", "user_satisfaction", "integration_health"]}
+            },
+            "logging": {
+              "type": "object",
+              "properties": {
+                "level": {"enum": ["none", "error", "warn", "info", "debug", "trace"]},
+                "destination": {"type": "string"},
+                "includePayload": {"type": "boolean"}
+              }
+            },
+            "tracing": {
+              "type": "object",
+              "properties": {
+                "enabled": {"type": "boolean"},
+                "provider": {"enum": ["opentelemetry", "jaeger", "zipkin", "custom"]},
+                "samplingRate": {"type": "number"}
+              }
+            }
+          }
+        },
+        "deployment": {
+          "type": "object",
+          "properties": {
+            "environment": {"enum": ["development", "staging", "production"]},
+            "scalingConfig": {
+              "type": "object",
+              "properties": {
+                "minInstances": {"type": "integer"},
+                "maxInstances": {"type": "integer"},
+                "autoscale": {"type": "boolean"},
+                "targetCPU": {"type": "number"},
+                "targetMemory": {"type": "number"}
+              }
+            },
+            "endpoints": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {"enum": ["rest", "graphql", "websocket", "grpc", "camel"]},
+                  "url": {"type": "string"},
+                  "authentication": {"type": "object"}
+                }
+              }
+            }
+          }
+        },
+        "integrations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {"type": "string"},
+              "name": {"type": "string"},
+              "config": {"type": "object"},
+              "enabled": {"type": "boolean"}
+            }
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "properties": {
+            "roles": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string"},
+                  "permissions": {
+                    "type": "array",
+                    "items": {"enum": ["read", "write", "execute", "delete", "admin"]}
+                  }
+                }
+              }
+            },
+            "users": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "userId": {"type": "string"},
+                  "role": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "metadata": {"$ref": "#/definitions/metadata"}
+      },
+      "required": ["id", "name", "type", "llmConfig"]
+    },
+    
+    "camelRoute": {
+      "type": "object",
+      "description": "Apache Camel route definition for backend integration",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "from": {
+          "type": "object",
+          "properties": {
+            "uri": {"type": "string", "description": "Camel endpoint URI (e.g., 'timer://foo', 'kafka://topic')"},
+            "parameters": {"type": "object"}
+          },
+          "required": ["uri"]
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "enum": [
+                  "to", "choice", "when", "otherwise", "split", "aggregate",
+                  "enrich", "filter", "transform", "setHeader", "setProperty",
+                  "removeHeader", "log", "throttle", "delay", "loop", "wireTap",
+                  "multicast", "loadBalance", "recipientList", "dynamicRouter",
+                  "process", "bean", "script", "marshal", "unmarshal", "validate",
+                  "errorHandler", "onException", "onCompletion", "intercept"
+                ]
+              },
+              "config": {"type": "object"},
+              "nested": {
+                "type": "array",
+                "items": {"$ref": "#/definitions/camelRoute/properties/steps/items"}
+              }
+            }
+          }
+        },
+        "errorHandler": {
+          "type": "object",
+          "properties": {
+            "type": {"enum": ["defaultErrorHandler", "deadLetterChannel", "noErrorHandler"]},
+            "deadLetterUri": {"type": "string"},
+            "redeliveryPolicy": {
+              "type": "object",
+              "properties": {
+                "maximumRedeliveries": {"type": "integer"},
+                "redeliveryDelay": {"type": "integer"},
+                "backOffMultiplier": {"type": "number"},
+                "useExponentialBackOff": {"type": "boolean"}
+              }
+            }
+          }
+        }
+      },
+      "required": ["id", "name", "from"]
+    },
+    
+    "integrationPattern": {
+      "type": "object",
+      "description": "Reusable integration pattern template",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "name": {"type": "string"},
+        "category": {
+          "enum": [
+            "messaging",
+            "routing",
+            "transformation",
+            "endpoint",
+            "system_management"
+          ]
+        },
+        "pattern": {
+          "enum": [
+            "content_based_router",
+            "message_filter",
+            "splitter",
+            "aggregator",
+            "resequencer",
+            "composed_message_processor",
+            "scatter_gather",
+            "routing_slip",
+            "process_manager",
+            "message_translator",
+            "content_enricher",
+            "content_filter",
+            "claim_check",
+            "normalizer",
+            "canonical_data_model",
+            "messaging_gateway",
+            "messaging_adapter",
+            "polling_consumer",
+            "event_driven_consumer",
+            "competing_consumers",
+            "message_dispatcher",
+            "selective_consumer",
+            "durable_subscriber",
+            "idempotent_receiver",
+            "service_activator",
+            "wire_tap",
+            "message_broker",
+            "dead_letter_channel",
+            "guaranteed_delivery",
+            "channel_adapter",
+            "channel_purger",
+            "control_bus",
+            "detour",
+            "test_message"
+          ]
+        },
+        "description": {"type": "string"},
+        "icon": {"type": "string"},
+        "color": {"type": "string"},
+        "template": {
+          "type": "object",
+          "description": "Node/workflow template configuration",
+          "properties": {
+            "nodes": {
+              "type": "array",
+              "items": {"$ref": "#/definitions/node"}
+            },
+            "edges": {
+              "type": "array",
+              "items": {"$ref": "#/definitions/edge"}
+            },
+            "configSchema": {"type": "object"}
+          }
+        },
+        "camelImplementation": {
+          "type": "object",
+          "description": "How this pattern maps to Camel routes",
+          "properties": {
+            "routeTemplate": {"type": "string"},
+            "components": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          }
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "description": {"type": "string"},
+              "config": {"type": "object"}
+            }
+          }
+        },
+        "metadata": {"$ref": "#/definitions/metadata"}
+      },
+      "required": ["id", "name", "category", "pattern"]
+    }
+  },
+  
+  "type": "object",
+  "properties": {
+    "project": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/definitions/uuid"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "metadata": {"$ref": "#/definitions/metadata"}
+      },
+      "required": ["id", "name"]
+    },
+    "agents": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/agent"}
+    },
+    "sharedResources": {
+      "type": "object",
+      "properties": {
+        "variables": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/variable"}
+        },
+        "tools": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/tool"}
+        },
+        "llmConfigs": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/llmConfig"}
+        },
+        "connectors": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/integrationConnector"}
+        },
+        "integrationPatterns": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/integrationPattern"}
+        },
+        "camelRoutes": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/camelRoute"}
+        }
+      }
+    },
+    "integrationConfig": {
+      "type": "object",
+      "description": "Global integration and Apache Camel configuration",
+      "properties": {
+        "backend": {
+          "type": "object",
+          "properties": {
+            "type": {"enum": ["camel", "spring_integration", "mulesoft", "node_red", "custom"]},
+            "version": {"type": "string"},
+            "runtime": {"enum": ["spring_boot", "quarkus", "karaf", "standalone"]},
+            "baseUrl": {"type": "string"}
+          }
+        },
+        "camelContext": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "properties": {"type": "object"},
+            "globalOptions": {
+              "type": "object",
+              "properties": {
+                "tracing": {"type": "boolean"},
+                "messageHistory": {"type": "boolean"},
+                "logMask": {"type": "boolean"},
+                "streamCaching": {"type": "boolean"},
+                "autoStartup": {"type": "boolean"}
+              }
+            },
+            "threadPoolProfile": {
+              "type": "object",
+              "properties": {
+                "poolSize": {"type": "integer"},
+                "maxPoolSize": {"type": "integer"},
+                "keepAliveTime": {"type": "integer"},
+                "maxQueueSize": {"type": "integer"}
+              }
+            },
+            "errorHandlerFactory": {
+              "type": "object",
+              "properties": {
+                "type": {"type": "string"},
+                "deadLetterUri": {"type": "string"},
+                "useOriginalMessage": {"type": "boolean"}
+              }
+            }
+          }
+        },
+        "components": {
+          "type": "array",
+          "description": "Camel components to enable",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "version": {"type": "string"},
+              "config": {"type": "object"}
+            }
+          }
+        },
+        "dataFormats": {
+          "type": "array",
+          "description": "Data format configurations",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"type": "string"},
+              "config": {"type": "object"}
+            }
+          }
+        },
+        "restConfiguration": {
+          "type": "object",
+          "properties": {
+            "component": {"type": "string"},
+            "host": {"type": "string"},
+            "port": {"type": "integer"},
+            "contextPath": {"type": "string"},
+            "apiContextPath": {"type": "string"},
+            "enableCORS": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    "visualConfig": {
+      "type": "object",
+      "description": "Visual editor configuration",
+      "properties": {
+        "theme": {
+          "enum": ["light", "dark", "auto"]
+        },
+        "gridSize": {"type": "integer"},
+        "snapToGrid": {"type": "boolean"},
+        "showGrid": {"type": "boolean"},
+        "nodeCategories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "icon": {"type": "string"},
+              "color": {"type": "string"},
+              "nodes": {
+                "type": "array",
+                "items": {"type": "string"}
+              }
+            }
+          }
+        },
+        "customNodeTypes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {"type": "string"},
+              "label": {"type": "string"},
+              "icon": {"type": "string"},
+              "color": {"type": "string"},
+              "category": {"type": "string"},
+              "configSchema": {"type": "object"}
+            }
+          }
+        },
+        "palette": {
+          "type": "object",
+          "description": "Visual editor palette configuration",
+          "properties": {
+            "visible": {"type": "boolean"},
+            "position": {"enum": ["left", "right"]},
+            "collapsible": {"type": "boolean"},
+            "sections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string"},
+                  "expanded": {"type": "boolean"},
+                  "items": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "canvas": {
+          "type": "object",
+          "properties": {
+            "zoom": {"type": "number"},
+            "panX": {"type": "number"},
+            "panY": {"type": "number"},
+            "minZoom": {"type": "number"},
+            "maxZoom": {"type": "number"}
+          }
+        }
+      }
+    },
+    "codeGeneration": {
+      "type": "object",
+      "description": "Code generation configuration",
+      "properties": {
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "platform": {"enum": ["flutter", "react", "angular", "vue", "python", "nodejs", "java", "springboot"]},
+              "version": {"type": "string"},
+              "outputPath": {"type": "string"},
+              "templates": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {"type": "string"},
+                    "template": {"type": "string"},
+                    "outputFile": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "mappings": {
+          "type": "object",
+          "description": "How visual elements map to code",
+          "properties": {
+            "nodeToCode": {"type": "object"},
+            "workflowToCode": {"type": "object"},
+            "connectorToCode": {"type": "object"}
+          }
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "version": {"type": "string"},
+        "schemaVersion": {"type": "string"},
+        "exportFormat": {"enum": ["flutter", "react", "python", "nodejs", "camel_xml", "camel_yaml", "generic"]},
+        "customSettings": {"type": "object"}
+      }
+    }
+  },
+  "required": ["project", "agents"]
+}

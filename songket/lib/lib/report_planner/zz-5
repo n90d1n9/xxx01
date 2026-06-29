@@ -1,0 +1,2214 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// Models
+class AgendaItem {
+  final String id;
+  final String title;
+  final String description;
+  final DateTime startTime;
+  final DateTime endTime;
+  final Color color;
+  final String category;
+  final bool isCompleted;
+  final String? location;
+  final List<String> tags;
+  final Priority priority;
+
+  AgendaItem({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.startTime,
+    required this.endTime,
+    required this.color,
+    required this.category,
+    this.isCompleted = false,
+    this.location,
+    this.tags = const [],
+    this.priority = Priority.medium,
+  });
+
+  AgendaItem copyWith({
+    String? id,
+    String? title,
+    String? description,
+    DateTime? startTime,
+    DateTime? endTime,
+    Color? color,
+    String? category,
+    bool? isCompleted,
+    String? location,
+    List<String>? tags,
+    Priority? priority,
+  }) {
+    return AgendaItem(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      color: color ?? this.color,
+      category: category ?? this.category,
+      isCompleted: isCompleted ?? this.isCompleted,
+      location: location ?? this.location,
+      tags: tags ?? this.tags,
+      priority: priority ?? this.priority,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'startTime': startTime.toIso8601String(),
+      'endTime': endTime.toIso8601String(),
+      'color': color.value,
+      'category': category,
+      'isCompleted': isCompleted,
+      'location': location,
+      'tags': tags,
+      'priority': priority.toString(),
+    };
+  }
+
+  factory AgendaItem.fromJson(Map<String, dynamic> json) {
+    return AgendaItem(
+      id: json['id'],
+      title: json['title'],
+      description: json['description'],
+      startTime: DateTime.parse(json['startTime']),
+      endTime: DateTime.parse(json['endTime']),
+      color: Color(json['color']),
+      category: json['category'],
+      isCompleted: json['isCompleted'] ?? false,
+      location: json['location'],
+      tags: List<String>.from(json['tags'] ?? []),
+      priority: Priority.values.firstWhere(
+        (e) => e.toString() == json['priority'],
+        orElse: () => Priority.medium,
+      ),
+    );
+  }
+}
+
+enum ViewMode { day, week, month, agenda }
+enum Priority { low, medium, high, urgent }
+
+// Category Model
+class Category {
+  final String name;
+  final IconData icon;
+  final Color color;
+
+  Category({required this.name, required this.icon, required this.color});
+}
+
+// Predefined Categories
+final categories = [
+  Category(name: 'Work', icon: Icons.work_outline, color: Colors.blue),
+  Category(name: 'Personal', icon: Icons.person_outline, color: Colors.purple),
+  Category(name: 'Health', icon: Icons.favorite_outline, color: Colors.red),
+  Category(name: 'Study', icon: Icons.school_outlined, color: Colors.green),
+  Category(name: 'Meeting', icon: Icons.groups_outlined, color: Colors.orange),
+  Category(name: 'Travel', icon: Icons.flight_outlined, color: Colors.teal),
+  Category(name: 'Other', icon: Icons.more_horiz, color: Colors.grey),
+];
+
+// State Providers
+final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
+final viewModeProvider = StateProvider<ViewMode>((ref) => ViewMode.day);
+final searchQueryProvider = StateProvider<String>((ref) => '');
+final selectedCategoriesProvider = StateProvider<Set<String>>((ref) => {});
+final showCompletedProvider = StateProvider<bool>((ref) => true);
+
+final agendaItemsProvider =
+    StateNotifierProvider<AgendaItemsNotifier, AsyncValue<List<AgendaItem>>>(
+  (ref) => AgendaItemsNotifier(ref.read(storageServiceProvider)),
+);
+
+class AgendaItemsNotifier extends StateNotifier<AsyncValue<List<AgendaItem>>> {
+  final StorageService _storage;
+
+  AgendaItemsNotifier(this._storage) : super(const AsyncValue.loading()) {
+    _loadItems();
+  }
+
+  Future<void> _loadItems() async {
+    try {
+      final items = await _storage.loadItems();
+      if (items.isEmpty) {
+        state = AsyncValue.data(_getInitialItems());
+        await _saveItems();
+      } else {
+        state = AsyncValue.data(items);
+      }
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
+
+  List<AgendaItem> _getInitialItems() {
+    final now = DateTime.now();
+    return [
+      AgendaItem(
+        id: '1',
+        title: 'Team Standup',
+        description: 'Daily team sync meeting',
+        startTime: DateTime(now.year, now.month, now.day, 9, 0),
+        endTime: DateTime(now.year, now.month, now.day, 9, 30),
+        color: Colors.blue,
+        category: 'Meeting',
+        location: 'Conference Room A',
+        tags: ['recurring', 'team'],
+        priority: Priority.high,
+      ),
+      AgendaItem(
+        id: '2',
+        title: 'Lunch with Sarah',
+        description: 'Catch up lunch',
+        startTime: DateTime(now.year, now.month, now.day, 12, 30),
+        endTime: DateTime(now.year, now.month, now.day, 13, 30),
+        color: Colors.purple,
+        category: 'Personal',
+        location: 'Downtown Cafe',
+        tags: ['social'],
+        priority: Priority.medium,
+      ),
+      AgendaItem(
+        id: '3',
+        title: 'Gym Workout',
+        description: 'Leg day training',
+        startTime: DateTime(now.year, now.month, now.day, 18, 0),
+        endTime: DateTime(now.year, now.month, now.day, 19, 30),
+        color: Colors.red,
+        category: 'Health',
+        location: 'Fitness Center',
+        tags: ['exercise', 'routine'],
+        priority: Priority.medium,
+      ),
+    ];
+  }
+
+  Future<void> _saveItems() async {
+    final items = state.valueOrNull ?? [];
+    await _storage.saveItems(items);
+  }
+
+  Future<void> addItem(AgendaItem item) async {
+    state = AsyncValue.data([...?state.valueOrNull, item]);
+    await _saveItems();
+  }
+
+  Future<void> updateItem(AgendaItem item) async {
+    final items = state.valueOrNull ?? [];
+    state = AsyncValue.data([
+      for (final i in items)
+        if (i.id == item.id) item else i,
+    ]);
+    await _saveItems();
+  }
+
+  Future<void> deleteItem(String id) async {
+    final items = state.valueOrNull ?? [];
+    state = AsyncValue.data(items.where((item) => item.id != id).toList());
+    await _saveItems();
+  }
+
+  Future<void> toggleComplete(String id) async {
+    final items = state.valueOrNull ?? [];
+    state = AsyncValue.data([
+      for (final item in items)
+        if (item.id == id)
+          item.copyWith(isCompleted: !item.isCompleted)
+        else
+          item,
+    ]);
+    await _saveItems();
+  }
+}
+
+// Filtered Items Provider
+final filteredItemsProvider = Provider<List<AgendaItem>>((ref) {
+  final itemsAsync = ref.watch(agendaItemsProvider);
+  final searchQuery = ref.watch(searchQueryProvider).toLowerCase();
+  final selectedCategories = ref.watch(selectedCategoriesProvider);
+  final showCompleted = ref.watch(showCompletedProvider);
+
+  return itemsAsync.when(
+    data: (items) {
+      var filtered = items;
+
+      if (searchQuery.isNotEmpty) {
+        filtered = filtered.where((item) {
+          return item.title.toLowerCase().contains(searchQuery) ||
+              item.description.toLowerCase().contains(searchQuery) ||
+              item.tags.any((tag) => tag.toLowerCase().contains(searchQuery));
+        }).toList();
+      }
+
+      if (selectedCategories.isNotEmpty) {
+        filtered =
+            filtered.where((item) => selectedCategories.contains(item.category)).toList();
+      }
+
+      if (!showCompleted) {
+        filtered = filtered.where((item) => !item.isCompleted).toList();
+      }
+
+      return filtered;
+    },
+    loading: () => [],
+    error: (_, __) => [],
+  );
+});
+
+// Statistics Provider
+final statisticsProvider = Provider<Map<String, dynamic>>((ref) {
+  final items = ref.watch(agendaItemsProvider).valueOrNull ?? [];
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+
+  final todayItems = items.where((item) {
+    final itemDate = DateTime(
+      item.startTime.year,
+      item.startTime.month,
+      item.startTime.day,
+    );
+    return itemDate == today;
+  }).toList();
+
+  final completedToday = todayItems.where((item) => item.isCompleted).length;
+  final totalToday = todayItems.length;
+  final upcomingToday = todayItems.where((item) {
+    return item.startTime.isAfter(now) && !item.isCompleted;
+  }).length;
+
+  return {
+    'totalToday': totalToday,
+    'completedToday': completedToday,
+    'upcomingToday': upcomingToday,
+    'completionRate': totalToday > 0 ? (completedToday / totalToday) * 100 : 0.0,
+  };
+});
+
+// Main App
+void main() {
+  runApp(const ProviderScope(child: AgendaPlannerApp()));
+}
+
+class AgendaPlannerApp extends StatelessWidget {
+  const AgendaPlannerApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Agenda Planner Pro',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.light,
+        ),
+        fontFamily: 'SF Pro Display',
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.dark,
+        ),
+        fontFamily: 'SF Pro Display',
+      ),
+      themeMode: ThemeMode.system,
+      home: const AgendaPlannerHome(),
+    );
+  }
+}
+
+class AgendaPlannerHome extends ConsumerWidget {
+  const AgendaPlannerHome({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final viewMode = ref.watch(viewModeProvider);
+    final selectedDate = ref.watch(selectedDateProvider);
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.background,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              DateFormat('MMMM yyyy').format(selectedDate),
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              DateFormat('EEEE, d').format(selectedDate),
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () => _showSearchSheet(context, ref),
+          ),
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: () => _showFilterSheet(context, ref),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: () => _showAddEventDialog(context, ref),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Column(
+        children: [
+          _buildStatisticsBar(context, ref),
+          _buildViewModeSelector(context, ref, viewMode),
+          Expanded(
+            child: _buildViewContent(context, ref, viewMode),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatisticsBar(BuildContext context, WidgetRef ref) {
+    final stats = ref.watch(statisticsProvider);
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).colorScheme.primary,
+            Theme.of(context).colorScheme.secondary,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildStatItem(
+            context,
+            Icons.event_note,
+            '${stats['totalToday']}',
+            'Total',
+          ),
+          _buildStatItem(
+            context,
+            Icons.check_circle_outline,
+            '${stats['completedToday']}',
+            'Done',
+          ),
+          _buildStatItem(
+            context,
+            Icons.schedule,
+            '${stats['upcomingToday']}',
+            'Upcoming',
+          ),
+          _buildStatItem(
+            context,
+            Icons.trending_up,
+            '${stats['completionRate'].toStringAsFixed(0)}%',
+            'Rate',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(BuildContext context, IconData icon, String value, String label) {
+    return Column(
+      children: [
+        Icon(icon, color: Colors.white, size: 24),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.8),
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildViewModeSelector(BuildContext context, WidgetRef ref, ViewMode viewMode) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          _viewModeButton(context, ref, ViewMode.day, 'Day', viewMode),
+          _viewModeButton(context, ref, ViewMode.week, 'Week', viewMode),
+          _viewModeButton(context, ref, ViewMode.month, 'Month', viewMode),
+          _viewModeButton(context, ref, ViewMode.agenda, 'List', viewMode),
+        ],
+      ),
+    );
+  }
+
+  Widget _viewModeButton(
+    BuildContext context,
+    WidgetRef ref,
+    ViewMode mode,
+    String label,
+    ViewMode currentMode,
+  ) {
+    final isSelected = mode == currentMode;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => ref.read(viewModeProvider.notifier).state = mode,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : Theme.of(context).colorScheme.onSurface,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewContent(BuildContext context, WidgetRef ref, ViewMode viewMode) {
+    switch (viewMode) {
+      case ViewMode.day:
+        return const DayView();
+      case ViewMode.week:
+        return const WeekView();
+      case ViewMode.month:
+        return const MonthView();
+      case ViewMode.agenda:
+        return const AgendaListView();
+    }
+  }
+
+  void _showEventDetails(BuildContext context, WidgetRef ref, AgendaItem item) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => EventDetailsSheet(item: item),
+    );
+  }
+}
+
+
+// Add/Edit Event Sheet
+class AddEventSheet extends ConsumerStatefulWidget {
+  final AgendaItem? editItem;
+
+  const AddEventSheet({Key? key, this.editItem}) : super(key: key);
+
+  @override
+  ConsumerState<AddEventSheet> createState() => _AddEventSheetState();
+}
+
+class _AddEventSheetState extends ConsumerState<AddEventSheet> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _locationController;
+  late DateTime _startTime;
+  late DateTime _endTime;
+  late Color _selectedColor;
+  late String _selectedCategory;
+  late Priority _selectedPriority;
+  late List<String> _tags;
+
+  final List<Color> _colors = [
+    Colors.blue,
+    Colors.purple,
+    Colors.green,
+    Colors.orange,
+    Colors.red,
+    Colors.teal,
+    Colors.pink,
+    Colors.indigo,
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.editItem?.title ?? '');
+    _descriptionController = TextEditingController(text: widget.editItem?.description ?? '');
+    _locationController = TextEditingController(text: widget.editItem?.location ?? '');
+    _startTime = widget.editItem?.startTime ?? DateTime.now();
+    _endTime = widget.editItem?.endTime ?? DateTime.now().add(const Duration(hours: 1));
+    _selectedColor = widget.editItem?.color ?? Colors.blue;
+    _selectedCategory = widget.editItem?.category ?? 'Work';
+    _selectedPriority = widget.editItem?.priority ?? Priority.medium;
+    _tags = List.from(widget.editItem?.tags ?? []);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                widget.editItem != null ? 'Edit Event' : 'New Event',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _titleController,
+                decoration: InputDecoration(
+                  labelText: 'Title *',
+                  prefixIcon: const Icon(Icons.title),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _descriptionController,
+                decoration: InputDecoration(
+                  labelText: 'Description',
+                  prefixIcon: const Icon(Icons.description_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _locationController,
+                decoration: InputDecoration(
+                  labelText: 'Location',
+                  prefixIcon: const Icon(Icons.location_on_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                decoration: InputDecoration(
+                  labelText: 'Category',
+                  prefixIcon: Icon(
+                    categories.firstWhere((c) => c.name == _selectedCategory).icon,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                items: categories.map((cat) {
+                  return DropdownMenuItem(
+                    value: cat.name,
+                    child: Row(
+                      children: [
+                        Icon(cat.icon, size: 20, color: cat.color),
+                        const SizedBox(width: 8),
+                        Text(cat.name),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) setState(() => _selectedCategory = value);
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<Priority>(
+                value: _selectedPriority,
+                decoration: InputDecoration(
+                  labelText: 'Priority',
+                  prefixIcon: const Icon(Icons.flag_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                items: Priority.values.map((priority) {
+                  return DropdownMenuItem(
+                    value: priority,
+                    child: Text(priority.toString().split('.').last.toUpperCase()),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) setState(() => _selectedPriority = value);
+                },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => _selectDateTime(context, true),
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Start Time',
+                          prefixIcon: const Icon(Icons.access_time),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          DateFormat('MMM d, HH:mm').format(_startTime),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => _selectDateTime(context, false),
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'End Time',
+                          prefixIcon: const Icon(Icons.access_time),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          DateFormat('MMM d, HH:mm').format(_endTime),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Color',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                children: _colors.map((color) {
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedColor = color),
+                    child: Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: _selectedColor == color
+                            ? Border.all(
+                                color: Theme.of(context).colorScheme.primary,
+                                width: 3,
+                              )
+                            : null,
+                        boxShadow: _selectedColor == color
+                            ? [
+                                BoxShadow(
+                                  color: color.withOpacity(0.4),
+                                  blurRadius: 8,
+                                  spreadRadius: 2,
+                                )
+                              ]
+                            : null,
+                      ),
+                      child: _selectedColor == color
+                          ? const Icon(Icons.check, color: Colors.white)
+                          : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Tags (press enter to add)',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 12),
+              if (_tags.isNotEmpty)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _tags.map((tag) {
+                    return Chip(
+                      label: Text(tag),
+                      deleteIcon: const Icon(Icons.close, size: 18),
+                      onDeleted: () {
+                        setState(() => _tags.remove(tag));
+                      },
+                    );
+                  }).toList(),
+                ),
+              const SizedBox(height: 8),
+              TextField(
+                decoration: InputDecoration(
+                  hintText: 'Add tag...',
+                  prefixIcon: const Icon(Icons.label_outline),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onSubmitted: (value) {
+                  if (value.isNotEmpty && !_tags.contains(value)) {
+                    setState(() => _tags.add(value));
+                  }
+                },
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saveEvent,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    widget.editItem != null ? 'Update Event' : 'Create Event',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectDateTime(BuildContext context, bool isStart) async {
+    final DateTime? date = await showDatePicker(
+      context: context,
+      initialDate: isStart ? _startTime : _endTime,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+
+    if (date != null) {
+      final TimeOfDay? time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(isStart ? _startTime : _endTime),
+      );
+
+      if (time != null) {
+        final newDateTime = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          time.hour,
+          time.minute,
+        );
+
+        setState(() {
+          if (isStart) {
+            _startTime = newDateTime;
+            if (_startTime.isAfter(_endTime)) {
+              _endTime = _startTime.add(const Duration(hours: 1));
+            }
+          } else {
+            _endTime = newDateTime;
+          }
+        });
+      }
+    }
+  }
+
+  void _saveEvent() {
+    if (_titleController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a title')),
+      );
+      return;
+    }
+
+    final item = AgendaItem(
+      id: widget.editItem?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      title: _titleController.text,
+      description: _descriptionController.text,
+      startTime: _startTime,
+      endTime: _endTime,
+      color: _selectedColor,
+      category: _selectedCategory,
+      location: _locationController.text.isEmpty ? null : _locationController.text,
+      tags: _tags,
+      priority: _selectedPriority,
+      isCompleted: widget.editItem?.isCompleted ?? false,
+    );
+
+    if (widget.editItem != null) {
+      ref.read(agendaItemsProvider.notifier).updateItem(item);
+    } else {
+      ref.read(agendaItemsProvider.notifier).addItem(item);
+    }
+
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(widget.editItem != null ? 'Event updated' : 'Event created'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    super.dispose();
+  }
+}dDate = ref.watch(selectedDateProvider);
+    final items = ref.watch(filteredItemsProvider);
+
+    final startOfWeek = selectedDate.subtract(Duration(days: selectedDate.weekday - 1));
+    final weekDays = List.generate(7, (i) => startOfWeek.add(Duration(days: i)));
+
+    return Column(
+      children: [
+        _buildWeekNavigator(context, ref, selectedDate),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: 7,
+            itemBuilder: (context, index) {
+              final day = weekDays[index];
+              final dayItems = items.where((item) {
+                return item.startTime.year == day.year &&
+                    item.startTime.month == day.month &&
+                    item.startTime.day == day.day;
+              }).toList()..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+              return _buildWeekDayCard(context, ref, day, dayItems);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWeekNavigator(BuildContext context, WidgetRef ref, DateTime date) {
+    final startOfWeek = date.subtract(Duration(days: date.weekday - 1));
+    final endOfWeek = startOfWeek.add(const Duration(days: 6));
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left),
+            onPressed: () {
+              ref.read(selectedDateProvider.notifier).state =
+                  date.subtract(const Duration(days: 7));
+            },
+          ),
+          Text(
+            '${DateFormat('MMM d').format(startOfWeek)} - ${DateFormat('MMM d').format(endOfWeek)}',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            onPressed: () {
+              ref.read(selectedDateProvider.notifier).state =
+                  date.add(const Duration(days: 7));
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeekDayCard(BuildContext context, WidgetRef ref, DateTime day, List<AgendaItem> items) {
+    final isToday = DateFormat('yyyy-MM-dd').format(day) ==
+        DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    return GestureDetector(
+      onTap: () {
+        ref.read(selectedDateProvider.notifier).state = day;
+        ref.read(viewModeProvider.notifier).state = ViewMode.day;
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: isToday
+              ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
+              : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    DateFormat('EEE').format(day),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: isToday ? Theme.of(context).colorScheme.primary : null,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isToday
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.surfaceVariant,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      DateFormat('d').format(day),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isToday
+                            ? Theme.of(context).colorScheme.onPrimary
+                            : Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${items.length} events',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                ],
+              ),
+              if (items.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ...items.take(3).map((item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 4,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: item.color,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.title,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    decoration: item.isCompleted
+                                        ? TextDecoration.lineThrough
+                                        : null,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  DateFormat('HH:mm').format(item.startTime),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withOpacity(0.6),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (item.isCompleted)
+                            Icon(
+                              Icons.check_circle,
+                              size: 20,
+                              color: Colors.green,
+                            ),
+                        ],
+                      ),
+                    )),
+                if (items.length > 3)
+                  Text(
+                    '+${items.length - 3} more',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Month View
+class MonthView extends ConsumerWidget {
+  const MonthView({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedDate = ref.watch(selectedDateProvider);
+    final items = ref.watch(filteredItemsProvider);
+
+    return Column(
+      children: [
+        _buildMonthNavigator(context, ref, selectedDate),
+        _buildWeekdayHeader(context),
+        Expanded(
+          child: _buildMonthCalendar(context, ref, selectedDate, items),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMonthNavigator(BuildContext context, WidgetRef ref, DateTime date) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left),
+            onPressed: () {
+              ref.read(selectedDateProvider.notifier).state =
+                  DateTime(date.year, date.month - 1, 1);
+            },
+          ),
+          Text(
+            DateFormat('MMMM yyyy').format(date),
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            onPressed: () {
+              ref.read(selectedDateProvider.notifier).state =
+                  DateTime(date.year, date.month + 1, 1);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeekdayHeader(BuildContext context) {
+    final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: weekdays.map((day) {
+          return Expanded(
+            child: Center(
+              child: Text(
+                day,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildMonthCalendar(BuildContext context, WidgetRef ref, DateTime date, List<AgendaItem> items) {
+    final firstDayOfMonth = DateTime(date.year, date.month, 1);
+    final lastDayOfMonth = DateTime(date.year, date.month + 1, 0);
+    final daysInMonth = lastDayOfMonth.day;
+    final firstWeekday = firstDayOfMonth.weekday;
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 7,
+        childAspectRatio: 0.8,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: daysInMonth + firstWeekday - 1,
+      itemBuilder: (context, index) {
+        if (index < firstWeekday - 1) {
+          return const SizedBox();
+        }
+
+        final day = index - firstWeekday + 2;
+        final currentDate = DateTime(date.year, date.month, day);
+        final dayItems = items.where((item) {
+          return item.startTime.year == currentDate.year &&
+              item.startTime.month == currentDate.month &&
+              item.startTime.day == currentDate.day;
+        }).toList();
+
+        final isToday = DateFormat('yyyy-MM-dd').format(currentDate) ==
+            DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+        return GestureDetector(
+          onTap: () {
+            ref.read(selectedDateProvider.notifier).state = currentDate;
+            ref.read(viewModeProvider.notifier).state = ViewMode.day;
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: isToday
+                  ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                  : Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: isToday
+                  ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
+                  : null,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '$day',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                    color: isToday ? Theme.of(context).colorScheme.primary : null,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (dayItems.isNotEmpty)
+                  Wrap(
+                    spacing: 2,
+                    runSpacing: 2,
+                    alignment: WrapAlignment.center,
+                    children: dayItems.take(3).map((item) {
+                      return Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: item.color,
+                          shape: BoxShape.circle,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Agenda List View
+class AgendaListView extends ConsumerWidget {
+  const AgendaListView({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = ref.watch(filteredItemsProvider);
+    final groupedItems = _groupItemsByDate(items);
+
+    if (groupedItems.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.event_busy_outlined,
+              size: 80,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No events found',
+              style: TextStyle(
+                fontSize: 18,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: groupedItems.length,
+      itemBuilder: (context, index) {
+        final entry = groupedItems.entries.elementAt(index);
+        final date = entry.key;
+        final dateItems = entry.value;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                _formatDateHeader(date),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+            ...dateItems.map((item) => _buildCompactAgendaCard(context, ref, item)),
+            const SizedBox(height: 8),
+          ],
+        );
+      },
+    );
+  }
+
+  Map<DateTime, List<AgendaItem>> _groupItemsByDate(List<AgendaItem> items) {
+    final Map<DateTime, List<AgendaItem>> grouped = {};
+    for (final item in items) {
+      final date = DateTime(
+        item.startTime.year,
+        item.startTime.month,
+        item.startTime.day,
+      );
+      if (!grouped.containsKey(date)) {
+        grouped[date] = [];
+      }
+      grouped[date]!.add(item);
+    }
+    final sortedKeys = grouped.keys.toList()..sort();
+    return Map.fromEntries(
+      sortedKeys.map((key) => MapEntry(key, grouped[key]!..sort((a, b) => a.startTime.compareTo(b.startTime)))),
+    );
+  }
+
+  String _formatDateHeader(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+
+    if (date == today) {
+      return 'Today - ${DateFormat('MMM d, yyyy').format(date)}';
+    } else if (date == tomorrow) {
+      return 'Tomorrow - ${DateFormat('MMM d, yyyy').format(date)}';
+    } else {
+      return DateFormat('EEEE, MMM d, yyyy').format(date);
+    }
+  }
+
+  Widget _buildCompactAgendaCard(BuildContext context, WidgetRef ref, AgendaItem item) {
+    final category = categories.firstWhere(
+      (cat) => cat.name == item.category,
+      orElse: () => categories.last,
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ListTile(
+        leading: Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            color: item.color.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(category.icon, color: item.color),
+        ),
+        title: Text(
+          item.title,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            decoration: item.isCompleted ? TextDecoration.lineThrough : null,
+          ),
+        ),
+        subtitle: Text(
+          '${DateFormat('HH:mm').format(item.startTime)} - ${DateFormat('HH:mm').format(item.endTime)}',
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+          ),
+        ),
+        trailing: item.isCompleted
+            ? const Icon(Icons.check_circle, color: Colors.green)
+            : null,
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => EventDetailsSheet(item: item),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// Event Details Sheet
+class EventDetailsSheet extends ConsumerWidget {
+  final AgendaItem item;
+
+  const EventDetailsSheet({Key? key, required this.item}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final category = categories.firstWhere(
+      (cat) => cat.name == item.category,
+      orElse: () => categories.last,
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: item.color.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(category.icon, color: item.color, size: 30),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          item.category,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: item.color,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              _buildDetailRow(
+                context,
+                Icons.description_outlined,
+                'Description',
+                item.description,
+              ),
+              const SizedBox(height: 16),
+              _buildDetailRow(
+                context,
+                Icons.calendar_today_outlined,
+                'Date',
+                DateFormat('EEEE, MMMM d, yyyy').format(item.startTime),
+              ),
+              const SizedBox(height: 16),
+              _buildDetailRow(
+                context,
+                Icons.access_time,
+                'Time',
+                '${DateFormat('HH:mm').format(item.startTime)} - ${DateFormat('HH:mm').format(item.endTime)}',
+              ),
+              if (item.location != null) ...[
+                const SizedBox(height: 16),
+                _buildDetailRow(
+                  context,
+                  Icons.location_on_outlined,
+                  'Location',
+                  item.location!,
+                ),
+              ],
+              const SizedBox(height: 16),
+              _buildDetailRow(
+                context,
+                Icons.flag_outlined,
+                'Priority',
+                item.priority.toString().split('.').last.toUpperCase(),
+              ),
+              if (item.tags.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.label_outline,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Tags',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: item.tags.map((tag) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: item.color.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '#$tag',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: item.color,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) => AddEventSheet(editItem: item),
+                        );
+                      },
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Edit'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        ref.read(agendaItemsProvider.notifier).toggleComplete(item.id);
+                        Navigator.pop(context);
+                      },
+                      icon: Icon(item.isCompleted ? Icons.close : Icons.check),
+                      label: Text(item.isCompleted ? 'Undo' : 'Complete'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: item.isCompleted ? Colors.orange : Colors.green,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Delete Event'),
+                        content: const Text('Are you sure you want to delete this event?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: TextButton.styleFrom(foregroundColor: Colors.red),
+                            child: const Text('Delete'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      ref.read(agendaItemsProvider.notifier).deleteItem(item.id);
+                      Navigator.pop(context);
+                    }
+                  },
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  label: const Text('Delete Event', style: TextStyle(color: Colors.red)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: const BorderSide(color: Colors.red),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(BuildContext context, IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          size: 20,
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Search Sheet
+class SearchSheet extends ConsumerStatefulWidget {
+  const SearchSheet({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<SearchSheet> createState() => _SearchSheetState();
+}
+
+class _SearchSheetState extends ConsumerState<SearchSheet> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Search events, tags, or descriptions...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _controller.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _controller.clear();
+                          ref.read(searchQueryProvider.notifier).state = '';
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              onChanged: (value) {
+                ref.read(searchQueryProvider.notifier).state = value;
+              },
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Search'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Filter Sheet
+class FilterSheet extends ConsumerWidget {
+  const FilterSheet({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selecteSearchSheet(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const SearchSheet(),
+    );
+  }
+
+  void _showFilterSheet(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const FilterSheet(),
+    );
+  }
+
+  void _showAddEventDialog(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const AddEventSheet(),
+    );
+  }
+}
+
+// Day View with enhanced features
+class DayView extends ConsumerWidget {
+  const DayView({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedDate = ref.watch(selectedDateProvider);
+    final items = ref.watch(filteredItemsProvider);
+
+    final dayItems = items.where((item) {
+      return item.startTime.year == selectedDate.year &&
+          item.startTime.month == selectedDate.month &&
+          item.startTime.day == selectedDate.day;
+    }).toList()
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+    return Column(
+      children: [
+        _buildDateNavigator(context, ref, selectedDate),
+        Expanded(
+          child: dayItems.isEmpty
+              ? _buildEmptyState(context)
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: dayItems.length,
+                  itemBuilder: (context, index) {
+                    return _buildAgendaCard(context, ref, dayItems[index]);
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateNavigator(BuildContext context, WidgetRef ref, DateTime date) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left),
+            onPressed: () {
+              ref.read(selectedDateProvider.notifier).state =
+                  date.subtract(const Duration(days: 1));
+            },
+          ),
+          TextButton.icon(
+            onPressed: () {
+              ref.read(selectedDateProvider.notifier).state = DateTime.now();
+            },
+            icon: const Icon(Icons.today),
+            label: const Text('Today'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            onPressed: () {
+              ref.read(selectedDateProvider.notifier).state =
+                  date.add(const Duration(days: 1));
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAgendaCard(BuildContext context, WidgetRef ref, AgendaItem item) {
+    final category = categories.firstWhere(
+      (cat) => cat.name == item.category,
+      orElse: () => categories.last,
+    );
+
+    return Dismissible(
+      key: Key(item.id),
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.green,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
+        child: const Icon(Icons.check, color: Colors.white, size: 32),
+      ),
+      secondaryBackground: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white, size: 32),
+      ),
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          ref.read(agendaItemsProvider.notifier).toggleComplete(item.id);
+          return false;
+        } else {
+          return await showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Delete Event'),
+              content: const Text('Are you sure you want to delete this event?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Delete'),
+                ),
+              ],
+            ),
+          );
+        }
+      },
+      onDismissed: (direction) {
+        if (direction == DismissDirection.endToStart) {
+          ref.read(agendaItemsProvider.notifier).deleteItem(item.id);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Event deleted'),
+              action: SnackBarAction(
+                label: 'Undo',
+                onPressed: () {
+                  ref.read(agendaItemsProvider.notifier).addItem(item);
+                },
+              ),
+            ),
+          );
+        }
+      },
+      child: GestureDetector(
+        onTap: () => _showEventDetails(context, ref, item),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: item.isCompleted
+                ? Border.all(
+                    color: Colors.green.withOpacity(0.5),
+                    width: 2,
+                  )
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              children: [
+                Container(
+                  width: 6,
+                  decoration: BoxDecoration(
+                    color: item.color,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              category.icon,
+                              size: 20,
+                              color: item.color,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                item.title,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: item.isCompleted
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                ),
+                              ),
+                            ),
+                            if (item.priority == Priority.urgent)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'URGENT',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          item.description,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.7),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              size: 16,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.5),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${DateFormat('HH:mm').format(item.startTime)} - ${DateFormat('HH:mm').format(item.endTime)}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withOpacity(0.7),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (item.location != null) ...[
+                              const SizedBox(width: 12),
+                              Icon(
+                                Icons.location_on_outlined,
+                                size: 16,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withOpacity(0.5),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  item.location!,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withOpacity(0.7),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (item.tags.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            children: item.tags.map((tag) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: item.color.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '#$tag',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: item.color,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.event_available_outlined,
+            size: 80,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No events scheduled',
+            style: TextStyle(
+              fontSize: 18,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Tap + to add a new event',
+            style: TextStyle(
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _show

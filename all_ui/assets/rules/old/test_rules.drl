@@ -1,0 +1,33 @@
+package com.estate.faraid
+
+global Map shares;
+global Map reasons;
+global List executionLog;
+
+rule "Simple Son Inheritance"
+    salience 100
+    agenda-group "fixed-shares"
+    no-loop true
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+        $son: FamilyMember(relationName == "son", isDeceased == false)
+    then
+        print("🎯 SIMPLE SON RULE FIRED!");
+        shares[$son.id] = 1.0;
+        reasons[$son.id] = "Simple rule: Son gets all inheritance";
+        executionLog.add("Simple son rule executed");
+end
+
+rule "Debug Print Shares"
+    salience 0
+    agenda-group "completion"
+    no-loop true
+    when
+        $deceased: FamilyMember(relationName == "deceased")
+    then
+        print("=== FINAL SHARES ===");
+        for (String key : shares.keySet()) {
+            print("  " + key + ": " + shares[key]);
+        }
+        print("====================");
+end

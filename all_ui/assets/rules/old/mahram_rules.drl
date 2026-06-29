@@ -1,0 +1,634 @@
+
+// ============================================================================
+// ATURAN MAHRAM DALAM ISLAM (HUBUNGAN YANG MENGHARAMKAN PERNIKAHAN)
+// Berdasarkan Quran Surah An-Nisa ayat 22-23 dan hadist-hadist shahih
+// ============================================================================
+
+package com.estate.mahram
+
+import 'family_member.dart'
+
+// ============================================================================
+// DEKLARASI GLOBAL
+// ============================================================================
+
+global List mahramRelationships;
+global List forbiddenMarriages;
+global List validationErrors;
+global String calculationMethod;
+
+// ============================================================================
+// MAHRAM NASAB (KETURUNAN) - QURAN AN-NISA:23
+// ============================================================================
+
+rule "Ibu dan Nenek Mahram"
+    salience 100
+    agenda-group "mahram-nasab"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, relation in (RelationType.MOTHER, RelationType.MATERNAL_GRANDMOTHER, RelationType.PATERNAL_GRANDMOTHER))
+        $man: FamilyMember(gender == Gender.MALE)
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (ibu/nenek)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram nasab (QS. An-Nisa:23)");
+        executionLog.add("Mahram terdeteksi: Ibu/nenek");
+end
+
+rule "Anak Perempuan dan Cucu Perempuan Mahram"
+    salience 100
+    agenda-group "mahram-nasab"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, relation in (RelationType.DAUGHTER, RelationType.GRANDDAUGHTER))
+        $man: FamilyMember(gender == Gender.MALE, relation in (RelationType.FATHER, RelationType.GRANDFATHER))
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (anak/cucu perempuan)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram nasab keturunan (QS. An-Nisa:23)");
+        executionLog.add("Mahram terdeteksi: Anak/cucu perempuan");
+end
+
+rule "Saudara Perempuan Mahram"
+    salience 95
+    agenda-group "mahram-nasab"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, relation in (RelationType.SISTER))
+        $man: FamilyMember(gender == Gender.MALE, relation in (RelationType.BROTHER))
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (saudara kandung)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram saudara kandung (QS. An-Nisa:23)");
+        executionLog.add("Mahram terdeteksi: Saudara kandung");
+end
+
+rule "Bibi Mahram (Saudara Perempuan Ayah/Ibu)"
+    salience 95
+    agenda-group "mahram-nasab"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, relation in (RelationType.AUNT))
+        $man: FamilyMember(gender == Gender.MALE, relation in (RelationType.NEPHEW))
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (bibi)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram bibi (QS. An-Nisa:23)");
+        executionLog.add("Mahram terdeteksi: Bibi");
+end
+
+rule "Keponakan Perempuan Mahram"
+    salience 95
+    agenda-group "mahram-nasab"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, relation in (RelationType.NIECE))
+        $man: FamilyMember(gender == Gender.MALE, relation in (RelationType.UNCLE))
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (keponakan)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram keponakan (QS. An-Nisa:23)");
+        executionLog.add("Mahram terdeteksi: Keponakan perempuan");
+end
+
+// ============================================================================
+// MAHRAM PERSAUSUAN (SEPERSUSUAN)
+// ============================================================================
+
+rule "Ibu Susuan Mahram"
+    salience 90
+    agenda-group "mahram-susuan"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, isMilkMother == true)
+        $man: FamilyMember(gender == Gender.MALE, isMilkChild == true)
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (ibu susuan)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram persusuan (ibu susuan)");
+        executionLog.add("Mahram terdeteksi: Ibu susuan");
+end
+
+rule "Saudara Susuan Mahram"
+    salience 90
+    agenda-group "mahram-susuan"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, isMilkSibling == true)
+        $man: FamilyMember(gender == Gender.MALE, isMilkSibling == true)
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (saudara susuan)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram saudara susuan");
+        executionLog.add("Mahram terdeteksi: Saudara susuan");
+end
+
+rule "Anak Susuan Mahram"
+    salience 90
+    agenda-group "mahram-susuan"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, isMilkChild == true)
+        $man: FamilyMember(gender == Gender.MALE, isMilkFather == true)
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (anak susuan)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram anak susuan");
+        executionLog.add("Mahram terdeteksi: Anak susuan");
+end
+
+// ============================================================================
+// MAHRAM PERKAWINAN (MUshaharah)
+// ============================================================================
+
+rule "Ibu Mertua Mahram"
+    salience 85
+    agenda-group "mahram-perkawinan"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, isMotherInLaw == true)
+        $man: FamilyMember(gender == Gender.MALE, isSonInLaw == true)
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (ibu mertua)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram ibu mertua (QS. An-Nisa:23)");
+        executionLog.add("Mahram terdeteksi: Ibu mertua");
+end
+
+rule "Anak Tiri Perempuan Mahram"
+    salience 85
+    agenda-group "mahram-perkawinan"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, isStepDaughter == true)
+        $man: FamilyMember(gender == Gender.MALE, isStepFather == true)
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (anak tiri)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram anak tiri (QS. An-Nisa:23)");
+        executionLog.add("Mahram terdeteksi: Anak tiri perempuan");
+end
+
+rule "Menantu Perempuan Mahram"
+    salience 85
+    agenda-group "mahram-perkawinan"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, isDaughterInLaw == true)
+        $man: FamilyMember(gender == Gender.MALE, isFatherInLaw == true)
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (menantu)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram menantu (QS. An-Nisa:23)");
+        executionLog.add("Mahram terdeteksi: Menantu perempuan");
+end
+
+rule "Ibu Tiri Mahram (Setelah Hubungan dengan Ayah)"
+    salience 80
+    agenda-group "mahram-perkawinan"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, isStepMother == true, marriageToFatherConsumated == true)
+        $man: FamilyMember(gender == Gender.MALE, isStepSon == true)
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (ibu tiri)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram ibu tiri (setelah hubungan dengan ayah)");
+        executionLog.add("Mahram terdeteksi: Ibu tiri");
+end
+
+// ============================================================================
+// KASUS-KASUS KHUSUS DAN PENGEcUALIAN
+// ============================================================================
+
+rule "Mahram Saudara Susuan Kompleks"
+    salience 75
+    agenda-group "special-cases"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, milkRelationsCount >= 5) // 5 kali persusuan atau lebih
+        $man: FamilyMember(gender == Gender.MALE, sharedMilkMother == true)
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (saudara susuan penuh)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram persusuan penuh (minimal 5 kali susuan)");
+        executionLog.add("Mahram terdeteksi: Saudara susuan penuh");
+end
+
+rule "Mahram Ibu dan Anak dalam Satu Keluarga"
+    salience 70
+    agenda-group "special-cases"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, relation == RelationType.MOTHER)
+        $man: FamilyMember(gender == Gender.MALE, relation == RelationType.SON)
+        eval($woman.familyId == $man.familyId)
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (anak kandung)");
+        forbiddenMarriages.add("$man.name TIDAK BOLEH menikahi $woman.name - HARAM MUTLAK (ibu kandung)");
+        validationErrors.add("PELANGGARAN BERAT: Hubungan ibu-anak kandung terdeteksi!");
+        executionLog.add("Peringatan: Hubungan ibu-anak kandung terdeteksi");
+end
+
+rule "Mahram Ayah dan Anak Perempuan"
+    salience 70
+    agenda-group "special-cases"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, relation == RelationType.DAUGHTER)
+        $man: FamilyMember(gender == Gender.MALE, relation == RelationType.FATHER)
+        eval($woman.familyId == $man.familyId)
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (ayah kandung)");
+        forbiddenMarriages.add("$man.name TIDAK BOLEH menikahi $woman.name - HARAM MUTLAK (anak kandung)");
+        validationErrors.add("PELANGGARAN BERAT: Hubungan ayah-anak kandung terdeteksi!");
+        executionLog.add("Peringatan: Hubungan ayah-anak kandung terdeteksi");
+end
+
+// ============================================================================
+// VALIDASI DAN PENCEGAHAN
+// ============================================================================
+
+rule "Validasi Tidak Ada Pelanggaran Mahram"
+    salience 60
+    agenda-group "validation"
+    when
+        not validationErrors.isEmpty()
+    then
+        executionLog.add("Peringatan: Terdapat pelanggaran hubungan mahram yang terdeteksi");
+        // Bisa ditambahkan notifikasi atau alert ke user
+end
+
+rule "Deteksi Hubungan Berbahaya"
+    salience 55
+    agenda-group "validation"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, age < 18)
+        $man: FamilyMember(gender == Gender.MALE, isMahram == false, age > $woman.age + 10)
+    then
+        validationErrors.add("Peringatan: Hubungan non-mahram dengan perbedaan usia signifikan terdeteksi");
+        executionLog.add("Peringatan: Hubungan non-mahram dengan perbedaan usia");
+end
+
+rule "Rekomendasi Pendampingan"
+    salience 50
+    agenda-group "recommendations"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, isMahram == false)
+        $man: FamilyMember(gender == Gender.MALE, isMahram == false)
+        eval($woman.age >= 18 && $man.age >= 18)
+    then
+        executionLog.add("Rekomendasi: Perlu pendampingan mahram untuk interaksi antara $man.name dan $woman.name");
+        // Bisa memberikan rekomendasi spesifik
+end
+
+// ============================================================================
+// ATURAN BERDASARKAN MADZHAB
+// ============================================================================
+
+rule "Madzhab Hanafi - Saudara Susuan Parsial"
+    salience 40
+    agenda-group "school-specific"
+    activation-group "hanafi-mahram"
+    when
+        calculationMethod == "Hanafi"
+        $woman: FamilyMember(gender == Gender.FEMALE, milkRelationsCount >= 1)
+        $man: FamilyMember(gender == Gender.MALE, sharedMilkMother == true)
+    then
+        // Madzhab Hanafi mensyaratkan minimal 3 kali susuan
+        if ($woman.milkRelationsCount >= 3) {
+            mahramRelationships.add("$man.name adalah mahram bagi $woman.name (saudara susuan - Hanafi)");
+            forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram persusuan (Madzhab Hanafi)");
+        }
+        executionLog.add("Aturan Mahram Hanafi diterapkan");
+end
+
+rule "Madzhab Syafii - Saudara Susuan"
+    salience 40
+    agenda-group "school-specific"
+    activation-group "syafii-mahram"
+    when
+        calculationMethod == "Syafii"
+        $woman: FamilyMember(gender == Gender.FEMALE, milkRelationsCount >= 1)
+        $man: FamilyMember(gender == Gender.MALE, sharedMilkMother == true)
+    then
+        // Madzhab Syafii mensyaratkan minimal 5 kali susuan
+        if ($woman.milkRelationsCount >= 5) {
+            mahramRelationships.add("$man.name adalah mahram bagi $woman.name (saudara susuan - Syafii)");
+            forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram persusuan (Madzhab Syafii)");
+        }
+        executionLog.add("Aturan Mahram Syafii diterapkan");
+end
+
+// ============================================================================
+// LAPORAN DAN OUTPUT
+// ============================================================================
+
+rule "Generate Mahram Report"
+    salience 10
+    agenda-group "reporting"
+    when
+        $deceased: FamilyMember(relation == RelationType.DECEASED)
+    then
+        executionLog.add("Laporan Mahram telah diselesaikan");
+        executionLog.add("Total hubungan mahram terdeteksi: " + mahramRelationships.size());
+        executionLog.add("Total pernikahan terlarang terdeteksi: " + forbiddenMarriages.size());
+        
+        if (validationErrors.isEmpty()) {
+            executionLog.add("Tidak ada pelanggaran mahram yang terdeteksi");
+        } else {
+            executionLog.add("Peringatan: " + validationErrors.size() + " pelanggaran terdeteksi");
+        }
+end
+
+rule "Final Validation Check"
+    salience 5
+    agenda-group "completion"
+    when
+        $deceased: FamilyMember(relation == RelationType.DECEASED)
+    then
+        executionLog.add("Validasi hubungan mahram selesai");
+        // Bisa menambahkan notifikasi atau update UI di sini
+end
+
+
+
+
+
+// ============================================================================
+// HUBUNGAN KEPONAKAN (NEPHEW/NIECE) YANG LEBIH KOMPLEKS
+// ============================================================================
+
+rule "Keponakan Laki-laki dari Saudara Laki-laki Mahram"
+    salience 88
+    agenda-group "mahram-nasab"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, relation == RelationType.AUNT)
+        $man: FamilyMember(gender == Gender.MALE, relation == RelationType.NEPHEW, paternal == true)
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (keponakan dari saudara laki-laki)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram bibi dari pihak ayah");
+        executionLog.add("Mahram terdeteksi: Keponakan laki-laki dari saudara laki-laki");
+end
+
+rule "Keponakan Perempuan dari Saudara Perempuan Mahram"
+    salience 88
+    agenda-group "mahram-nasab"
+    when
+        $man: FamilyMember(gender == Gender.MALE, relation == RelationType.UNCLE, maternal == true)
+        $woman: FamilyMember(gender == Gender.FEMALE, relation == RelationType.NIECE, maternal == true)
+    then
+        mahramRelationships.add("$man.name adalah mahram bagi $woman.name (paman dari ibu)");
+        forbiddenMarriages.add("$man.name tidak boleh menikahi $woman.name - Mahram keponakan dari saudara perempuan");
+        executionLog.add("Mahram terdeteksi: Paman dari pihak ibu dengan keponakan");
+end
+
+rule "Anak dari Saudara Kandung Mahram"
+    salience 87
+    agenda-group "mahram-nasab"
+    when
+        $person1: FamilyMember(relation in (RelationType.UNCLE, RelationType.AUNT))
+        $person2: FamilyMember(relation in (RelationType.NEPHEW, RelationType.NIECE))
+        eval($person1.isSiblingOf($person2.parent))
+    then
+        mahramRelationships.add("$person1.name adalah mahram bagi $person2.name (paman/bibi dengan keponakan)");
+        forbiddenMarriages.add("$person1.name tidak boleh menikahi $person2.name - Mahram paman/bibi dengan keponakan");
+        executionLog.add("Mahram terdeteksi: Hubungan paman/bibi dengan keponakan");
+end
+
+// ============================================================================
+// POLIGAMI (AYAH MEMPUNYAI LEBIH DARI SATU ISTRI)
+// ============================================================================
+
+rule "Anak-anak dari Ibu yang Berbeda dalam Poligami"
+    salience 85
+    agenda-group "polygamy-cases"
+    when
+        $father: FamilyMember(relation == RelationType.FATHER, wivesCount > 1)
+        $child1: FamilyMember(relation in (RelationType.SON, RelationType.DAUGHTER))
+        $child2: FamilyMember(relation in (RelationType.SON, RelationType.DAUGHTER))
+        eval($child1.motherId != $child2.motherId && $child1.fatherId == $child2.fatherId)
+    then
+        mahramRelationships.add("$child1.name adalah mahram bagi $child2.name (saudara seayah)");
+        forbiddenMarriages.add("$child1.name tidak boleh menikahi $child2.name - Mahram saudara seayah");
+        executionLog.add("Mahram terdeteksi: Saudara seayah dari ibu yang berbeda");
+end
+
+rule "Istu-Istri dalam Poligami Saling Mahram"
+    salience 84
+    agenda-group "polygamy-cases"
+    when
+        $wife1: FamilyMember(relation == RelationType.SPOUSE, gender == Gender.FEMALE)
+        $wife2: FamilyMember(relation == RelationType.SPOUSE, gender == Gender.FEMALE)
+        eval($wife1.husbandId == $wife2.husbandId && $wife1.id != $wife2.id)
+    then
+        mahramRelationships.add("$wife1.name adalah mahram bagi $wife2.name (rekan istri dalam poligami)");
+        forbiddenMarriages.add("$wife1.name tidak boleh menikahi $wife2.name - Mahram sesama istri dari suami yang sama");
+        executionLog.add("Mahram terdeteksi: Sesama istri dalam poligami");
+end
+
+rule "Anak dengan Ibu Tiri (Istri Lain Ayah)"
+    salience 83
+    agenda-group "polygamy-cases"
+    when
+        $child: FamilyMember(relation in (RelationType.SON, RelationType.DAUGHTER))
+        $stepMother: FamilyMember(relation == RelationType.SPOUSE, gender == Gender.FEMALE)
+        eval($stepMother.husbandId == $child.fatherId && $stepMother.id != $child.motherId)
+    then
+        mahramRelationships.add("$child.name adalah mahram bagi $stepMother.name (anak dengan ibu tiri)");
+        forbiddenMarriages.add("$child.name tidak boleh menikahi $stepMother.name - Mahram anak dengan ibu tiri");
+        executionLog.add("Mahram terdeteksi: Anak dengan ibu tiri dari poligami");
+end
+
+// ============================================================================
+## PERCERAIAN (DIVORCE) DAN MANTAN PASANGAN
+// ============================================================================
+
+rule "Mantan Istri dengan Anak Kandung Tetap Mahram"
+    salience 82
+    agenda-group "divorce-cases"
+    when
+        $exWife: FamilyMember(gender == Gender.FEMALE, isDivorced == true, hasChildren == true)
+        $child: FamilyMember(relation in (RelationType.SON, RelationType.DAUGHTER))
+        eval($child.motherId == $exWife.id)
+    then
+        mahramRelationships.add("$child.name adalah mahram bagi $exWife.name (anak kandung dengan mantan istri)");
+        forbiddenMarriages.add("$child.name tidak boleh menikahi $exWife.name - Mahram anak kandung dengan ibu kandung (meski sudah cerai)");
+        executionLog.add("Mahram terdeteksi: Anak dengan ibu kandung setelah perceraian");
+end
+
+rule "Mantan Suami dengan Anak Perempuan Tetap Mahram"
+    salience 82
+    agenda-group "divorce-cases"
+    when
+        $exHusband: FamilyMember(gender == Gender.MALE, isDivorced == true)
+        $daughter: FamilyMember(relation == RelationType.DAUGHTER, gender == Gender.FEMALE)
+        eval($daughter.fatherId == $exHusband.id)
+    then
+        mahramRelationships.add("$exHusband.name adalah mahram bagi $daughter.name (ayah kandung dengan anak perempuan)");
+        forbiddenMarriages.add("$exHusband.name tidak boleh menikahi $daughter.name - Mahram ayah kandung dengan anak perempuan (meski sudah cerai dengan ibu)");
+        executionLog.add("Mahram terdeteksi: Ayah dengan anak perempuan setelah perceraian");
+end
+
+rule "Mantan Ipu (Istri Ayah) Setelah Perceraian"
+    salience 81
+    agenda-group "divorce-cases"
+    when
+        $exStepMother: FamilyMember(gender == Gender.FEMALE, isDivorced == true, wasMarriedToFather == true)
+        $son: FamilyMember(relation == RelationType.SON, gender == Gender.MALE)
+        eval($son.fatherId == $exStepMother.exHusbandId && $exStepMother.marriageConsumated == true)
+    then
+        mahramRelationships.add("$son.name adalah mahram bagi $exStepMother.name (anak dengan mantan istri ayah)");
+        forbiddenMarriages.add("$son.name tidak boleh menikahi $exStepMother.name - Mahram dengan mantan istri ayah (setelah hubungan suami-istri)");
+        executionLog.add("Mahram terdeteksi: Anak dengan mantan istri ayah setelah perceraian");
+end
+
+rule "Mantan Menantu Setelah Perceraian"
+    salience 80
+    agenda-group "divorce-cases"
+    when
+        $exDaughterInLaw: FamilyMember(gender == Gender.FEMALE, isDivorced == true, wasDaughterInLaw == true)
+        $fatherInLaw: FamilyMember(gender == Gender.MALE, relation == RelationType.FATHER)
+        eval($exDaughterInLaw.exHusbandId == $fatherInLaw.sonId)
+    then
+        // Dalam Islam, mantan menantu tetap haram dinikahi jika sudah terjadi hubungan dengan anak
+        if ($exDaughterInLaw.marriageConsumated == true) {
+            mahramRelationships.add("$fatherInLaw.name adalah mahram bagi $exDaughterInLaw.name (mertua dengan mantan menantu)");
+            forbiddenMarriages.add("$fatherInLaw.name tidak boleh menikahi $exDaughterInLaw.name - Mahram mantan menantu (setelah hubungan dengan anak)");
+            executionLog.add("Mahram terdeteksi: Mertua dengan mantan menantu setelah perceraian");
+        }
+end
+
+// ============================================================================
+## KASUS KHUSUS PERCERAIAN DENGAN TALAK
+// ============================================================================
+
+rule "Mantan Istri Setelah Talak 3"
+    salience 79
+    agenda-group "divorce-cases"
+    when
+        $exWife: FamilyMember(gender == Gender.FEMALE, divorceType == "talak_3")
+        $exHusband: FamilyMember(gender == Gender.MALE, isDivorced == true)
+        eval($exWife.exHusbandId == $exHusband.id)
+    then
+        // Talak 3 mengharamkan mantan suami-istri hingga wanita menikah dengan orang lain
+        forbiddenMarriages.add("$exHusband.name TIDAK BOLEH menikahi $exWife.name - Haram karena talak 3");
+        validationErrors.add("PELANGGARAN: Hubungan setelah talak 3 terdeteksi antara $exHusband.name dan $exWife.name");
+        executionLog.add("Peringatan kritis: Hubungan setelah talak 3 terdeteksi");
+end
+
+rule "Mantan Pasangan Setelah Nikah Mut'ah"
+    salience 78
+    agenda-group "special-cases"
+    when
+        $exWife: FamilyMember(gender == Gender.FEMALE, marriageType == "mutah")
+        $exHusband: FamilyMember(gender == Gender.MALE, isDivorced == true)
+        eval($exWife.exHusbandId == $exHusband.id)
+    then
+        // Dalam beberapa madzhab, mantan pasangan mut'ah memiliki aturan khusus
+        if (calculationMethod == "Syiah") {
+            mahramRelationships.add("$exHusband.name adalah mahram bagi $exWife.name (mantan pasangan mut'ah)");
+            forbiddenMarriages.add("$exHusband.name tidak boleh menikahi $exWife.name - Mahram mantan pasangan mut'ah");
+        }
+        executionLog.add("Mahram terdeteksi: Mantan pasangan mut'ah");
+end
+
+// ============================================================================
+## HUBUNGAN KELUARGA BESAR YANG KOMPLEKS
+// ============================================================================
+
+rule "Sepupu dari Ibu yang Berbeda"
+    salience 77
+    agenda-group "extended-family"
+    when
+        $cousin1: FamilyMember(relation == RelationType.COUSIN)
+        $cousin2: FamilyMember(relation == RelationType.COUSIN)
+        eval($cousin1.parents != $cousin2.parents && $cousin1.grandParents == $cousin2.grandParents)
+    then
+        // Sepupu diperbolehkan menikah dalam Islam
+        executionLog.add("Hubungan sepupu terdeteksi - diperbolehkan menikah dalam Islam");
+end
+
+rule "Keponakan dari Saudara yang Berbeda Ibu"
+    salience 76
+    agenda-group "extended-family"
+    when
+        $uncle: FamilyMember(relation == RelationType.UNCLE)
+        $niece: FamilyMember(relation == RelationType.NIECE)
+        eval($uncle.isPaternalUncleOf($niece) && $uncle.motherId != $niece.grandMotherId)
+    then
+        mahramRelationships.add("$uncle.name adalah mahram bagi $niece.name (paman dengan keponakan)");
+        forbiddenMarriages.add("$uncle.name tidak boleh menikahi $niece.name - Mahram paman dengan keponakan");
+        executionLog.add("Mahram terdeteksi: Paman dengan keponakan dari saudara yang berbeda ibu");
+end
+
+// ============================================================================
+## ATURAN KHUSUS UNTUK ANAK ANGKAT
+// ============================================================================
+
+rule "Anak Angkat dan Orang Tua Angkat"
+    salience 75
+    agenda-group "adoption-cases"
+    when
+        $adoptedChild: FamilyMember(isAdopted == true)
+        $adoptiveParent: FamilyMember(isAdoptiveParent == true)
+        eval($adoptedChild.adoptiveParentId == $adoptiveParent.id)
+    then
+        // Dalam Islam, anak angkat tidak menciptakan hubungan mahram
+        if ($adoptedChild.gender == Gender.FEMALE && $adoptiveParent.gender == Gender.MALE) {
+            executionLog.add("Peringatan: $adoptiveParent.name dan $adoptedChild.name bukan mahram meskipun hubungan orang tua angkat-anak angkat");
+            validationErrors.add("PERHATIAN: $adoptiveParent.name dan $adoptedChild.name BUKAN mahram - perlu menjaga hijab");
+        }
+end
+
+rule "Anak Angkat dengan Anak Kandung"
+    salience 74
+    agenda-group "adoption-cases"
+    when
+        $adoptedChild: FamilyMember(isAdopted == true)
+        $biologicalChild: FamilyMember(relation in (RelationType.SON, RelationType.DAUGHTER), isAdopted == false)
+        eval($adoptedChild.adoptiveParentId == $biologicalChild.fatherId || $adoptedChild.adoptiveParentId == $biologicalChild.motherId)
+    then
+        // Anak angkat dan anak kandung bukan mahram
+        if ($adoptedChild.gender != $biologicalChild.gender) {
+            executionLog.add("Peringatan: $adoptedChild.name dan $biologicalChild.name bukan mahram meskipun tinggal serumah");
+            validationErrors.add("PERHATIAN: $adoptedChild.name dan $biologicalChild.name BUKAN mahram - perlu menjaga hijab");
+        }
+end
+
+// ============================================================================
+## VALIDASI TAMBAHAN UNTUK KASUS KOMPLEKS
+// ============================================================================
+
+rule "Validasi Hubungan Setelah Perceraian Berganda"
+    salience 60
+    agenda-group "validation"
+    when
+        $woman: FamilyMember(gender == Gender.FEMALE, divorceCount > 1)
+        $man: FamilyMember(gender == Gender.MALE, relation == RelationType.EX_HUSBAND)
+        eval($woman.exHusbands.contains($man.id))
+    then
+        executionLog.add("Validasi: Mantan pasangan dengan multiple perceraian terdeteksi");
+        // Tambahkan validasi khusus untuk kasus ini
+end
+
+rule "Deteksi Konflik Hubungan dalam Keluarga Besar"
+    salience 55
+    agenda-group "validation"
+    when
+        $person: FamilyMember()
+        $conflictingRelations: List(size > 3) from collect(FamilyMember(relation in (RelationType.EX_HUSBAND, RelationType.EX_WIFE, RelationType.STEP_PARENT), isMahram == false))
+    then
+        validationErrors.add("Kompleksitas hubungan tinggi terdeteksi untuk $person.name - disarankan konsultasi dengan ulama");
+        executionLog.add("Peringatan: Kompleksitas hubungan keluarga tinggi terdeteksi");
+end
+
+// ============================================================================
+## ATURAN BERDASARKAN MADZHAB UNTUK KASUS KOMPLEKS
+// ============================================================================
+
+rule "Madzhab Maliki - Mantan Istri Ayah"
+    salience 40
+    agenda-group "school-specific"
+    activation-group "maliki-divorce"
+    when
+        calculationMethod == "Maliki"
+        $exWife: FamilyMember(gender == Gender.FEMALE, wasMarriedToFather == true, isDivorced == true)
+        $son: FamilyMember(relation == RelationType.SON, gender == Gender.MALE)
+        eval($son.fatherId == $exWife.exHusbandId)
+    then
+        // Madzhab Maliki memiliki aturan khusus untuk mantan istri ayah
+        mahramRelationships.add("$son.name adalah mahram bagi $exWife.name (mantan istri ayah - Maliki)");
+        forbiddenMarriages.add("$son.name tidak boleh menikahi $exWife.name - Mahram mantan istri ayah (Madzhab Maliki)");
+        executionLog.add("Aturan Maliki diterapkan: Mantan istri ayah");
+end
+
+rule "Madzhab Hanbali - Hubungan Susuan Kompleks"
+    salience 40
+    agenda-group "school-specific"
+    activation-group "hanbali-milk"
+    when
+        calculationMethod == "Hanbali"
+        $person1: FamilyMember(milkRelationsCount >= 1)
+        $person2: FamilyMember(sharedMilkMother == true)
+        eval($person1.milkMotherId == $person2.milkMotherId)
+    then
+        // Madzhab Hanbali memiliki aturan khusus untuk hubungan susuan
+        if ($person1.gender != $person2.gender) {
+            mahramRelationships.add("$person1.name adalah mahram bagi $person2.name (saudara susuan - Hanbali)");
+            forbiddenMarriages.add("$person1.name tidak boleh menikahi $person2.name - Mahram saudara susuan (Madzhab Hanbali)");
+        }
+        executionLog.add("Aturan Hanbali diterapkan: Hubungan susuan");
+end

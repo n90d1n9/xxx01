@@ -1,0 +1,712 @@
+{
+    "title": "hello world",
+
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "about": "About Apps",
+    "@about": {
+        "description": "About Apps"
+    },
+
+    "please_fill_field": "Please fill column",
+    "@please_fill_field": {},
+    "data_empty": "Data empty",
+    "@data_empty": {},
+
+    "share": "Share",
+    "search": "Search",
+    "add": "Add",
+    "cancel": "Cancel",
+    "delete": "Delete",
+
+    "remove": "Remove",
+    
+    "email": "Email",
+    "users": "Users",
+    "user_password": "User Password",
+    "password": "Password",
+    "remember_me": "Remember Me",
+
+    "dont_have_account":"Don't have account? ",
+    "sign_in": "Sign In",
+    "sign_up": "Sign Up",
+    "sign_out": "Sign Out",
+    "forgot_password": "Forgot Password?",
+    "want_sign_out": "Are you sure you want to logout?",
+    "loginEmpty": "Email can't be empty",
+    "loginValidEmail": "Please enter a valid email address",
+    "loginTryEmail": "Email provided isn't valid.Try another email address",
+    "passwordConfirm": "Confirm password can't be empty",
+    "passwordMatch": "Password doesn't match",
+    "passwordEmpty": "Password can't be empty",
+    "passwordLength": "Password must be at-least 6 characters long",
+
+    "errorUsername": "Username and password doesn't match",
+    "errorUnauthorized": "Unauthorized",
+    "errorNetwork": "Something went wrong, please check your network and try again",
+
+    "@inbox":{
+        "try":"Try changing your search or filters"
+    },
+    
+    "@product":{
+        "name": "Product Name", 
+        "description": "Description", 
+        "tenant": "Tenant", 
+        "displayName": "Display Name", 
+        "code": "Barcode/QRCode Code", 
+        "codeType": "Code Type", 
+        "sku": "Sku", 
+        "brand": "Brand", 
+        "category": "Category", 
+        "unit": "Unit", 
+        "hasSize": "Has Size", 
+        "hasImage": "Has Image", 
+        "state": "State", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@productImage":{
+        "product": "Product", 
+        "gallery": "Gallery", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@productConfig":{
+        "product": "Product", 
+        "isAdvanced": "Is Advanced", 
+        "returnable": "Returnable", 
+        "taxable": "Taxable", 
+        "allowCustomPrice": "Allow Custom Price", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@productPrice":{
+        "product": "Product", 
+        "tenant": "Tenant", 
+        "salesPrice": "Sales Price", 
+        "basePrice": "Base Price", 
+        "minimumPrice": "Minimum Price", 
+        "maximumPrice": "Maximum Price", 
+        "isActive": "Is Active", 
+        "activeAt": "Active At", 
+        "deactivatedAt": "Deactivated At", 
+        "type": "Type", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@productCategory":{
+        "name": "Name", 
+        "description": "Description", 
+        "parent": "Parent", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@productSize":{
+        "valueInt": "Value Int", 
+        "valueString": "Value String", 
+        "width": "Width", 
+        "length": "Length", 
+        "height": "Height", 
+        "weight": "Weight", 
+        "unit": "Unit", 
+        "product": "Product", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@unitCustom":{
+        "type": "Type", 
+        "name": "Name", 
+        "description": "Description", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@brand":{
+        "name": "Name", 
+        "description": "Description", 
+        "image": "Image", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@inventory":{
+        "product": "Product", 
+        "remark": "Remark", 
+        "minStock": "Min Stock", 
+        "maxStock": "Max Stock", 
+        "productExpired": "Product Expired", 
+        "stockAvailable": "Stock Available", 
+        "status": "Status", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@productHistory":{
+        "oldValue": "Old Value", 
+        "newValue": "New Value", 
+        "entity": "Entity", 
+        "message": "Message", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@settings":{
+        "print": "Print", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@whislist":{
+        "name": "Name", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@whislistItem":{
+        "whislist": "Whislist", 
+        "product": "Product", 
+        "status": "Status", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@cart":{
+        "isChecked": "Is Checked", 
+        "isRemoved": "Is Removed", 
+        "totalItem": "Total Item", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@cartItem":{
+        "cart": "Cart", 
+        "product": "Product", 
+        "isChecked": "Is Checked", 
+        "quantity": "Quantity", 
+        "isRemoved": "Is Removed", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@salesOrder":{
+        "tenant": "Tenant", 
+        "customer": "Customer", 
+        "total": "Total", 
+        "note": "Note", 
+        "isSaved": "Is Saved", 
+        "savedName": "Saved Name", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@orderLine":{
+        "order": "Order", 
+        "product": "Product", 
+        "quantity": "Quantity", 
+        "amount": "Amount", 
+        "isCanceled": "Is Canceled", 
+        "isReturn": "Is Return", 
+        "hasPromotion": "Has Promotion", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@payment":{
+        "method": "Method", 
+        "amount": "Amount", 
+        "invoice": "Invoice", 
+        "status": "Status", 
+        "staff": "Staff", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@paymentEDC":{
+        "edcDevice": "Edc Device", 
+        "payment": "Payment", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@accountReceivable":{
+        "payment": "Payment", 
+        "maxDatePayment": "Max Date Payment", 
+        "dueDatePayment": "Due Date Payment", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@invoice":{
+        "order": "Order", 
+        "type": "Type", 
+        "status": "Status", 
+        "dueDate": "Due Date", 
+        "customer": "Customer", 
+        "total": "Total", 
+        "description": "Description", 
+        "isSplitBill": "Is Split Bill", 
+        "proccessBy": "Proccess By", 
+        "paymentAttempts": "Payment Attempts", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@currency":{
+        "symbol": "Symbol", 
+        "code": "Code", 
+        "countryCode": "Country Code", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@currencyExchange":{
+        "validAt": "Valid At", 
+        "validThru": "Valid Thru", 
+        "kursExchange": "Kurs Exchange", 
+        "fromCurrency": "From Currency", 
+        "toCurrency": "To Currency", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@currencyHistory":{
+        "payload": "Payload", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@returnInvoice":{
+        "invoice": "Invoice", 
+        "returnDate": "Return Date", 
+        "items": "Items", 
+        "totalPrice": "Total Price", 
+        "compensation": "Compensation", 
+        "refundValue": "Refund Value", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@returnItem":{
+        "product": "Product", 
+        "quantity": "Quantity", 
+        "amount": "Amount", 
+        "Compensation": "Compensation", 
+        "notes": "Notes", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@cashier":{
+        "staff": "Staff", 
+        "code": "Code", 
+        "location": "Location", 
+        "tenant": "Tenant", 
+        "isActive": "Is Active", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@cashierOperation":{
+        "counter": "Counter", 
+        "cashier": "Cashier", 
+        "startOps": "Start Ops", 
+        "endOps": "End Ops", 
+        "shifts": "Shifts", 
+        "tenant": "Tenant", 
+        "borrowCashTo": "Borrow Cash To", 
+        "startAmount": "Start Amount", 
+        "endAmount": "End Amount", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@cashierCounter":{
+        "counterNo": "Counter No", 
+        "location": "Location", 
+        "tenant": "Tenant", 
+        "assets": "Assets", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@cashierAsset":{
+        "asset": "Asset", 
+        "name": "Name", 
+        "tenant": "Tenant", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@borrowCash":{
+        "isPaid": "Is Paid", 
+        "borrowCash": "Borrow Cash", 
+        "borrowTo": "Borrow To", 
+        "notes": "Notes", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@asset":{
+        "name": "Name", 
+        "assetNumber": "Asset Number", 
+        "description": "Description", 
+        "type": "Type", 
+        "category": "Category", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@device":{
+        "name": "Name", 
+        "brand": "Brand", 
+        "serialNo": "Serial No", 
+        "images": "Images", 
+        "asset": "Asset", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@assetCategory":{
+        "name": "Name", 
+        "description": "Description", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@image":{
+        "title": "Title", 
+        "description": "Description", 
+        "height": "Height", 
+        "width": "Width", 
+        "taken": "Taken", 
+        "uploaded": "Uploaded", 
+        "type": "Type", 
+        "storageType": "Storage Type", 
+        "path": "Path", 
+        "ownerId": "Owner Id", 
+        "referenceId": "Reference Id", 
+        "urlThumbnail": "Url Thumbnail", 
+        "urlMedium": "Url Medium", 
+        "urlHD": "Url HD", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@gallery":{
+        "name": "Name", 
+        "description": "Description", 
+        "images": "Images", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@galleryItem":{
+        "image": "Image", 
+        "gallery": "Gallery", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@imageDatabase":{
+        "image": "Image", 
+        "imageBlob": "Image Blob", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@imageConfig":{
+        "config": "Config", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@configuration":{
+        "imageFormat": "Image Format", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@imageTag":{
+        "name": "Name", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@album":{
+        "title": "Title", 
+        "description": "Description", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@albumImage":{
+        "album": "Album", 
+        "image": "Image", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@user":{
+        "username": "Username", 
+        "email": "Email", 
+        "password": "Password", 
+        "phone": "Phone", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@person":{
+        "user": "User", 
+        "firstName": "First Name", 
+        "lastName": "Last Name", 
+        "title": "Title", 
+        "nickname": "Nickname", 
+        "gender": "Gender", 
+        "birthDate": "Birth Date", 
+        "hasOtherField": "Has Other Field", 
+        "address": "Address", 
+        "contact": "Contact", 
+        "socialMedia": "Social Media", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@contact":{
+        "countryCode": "Country Code", 
+        "phoneType": "Phone Type", 
+        "areaCode": "Area Code", 
+        "number": "Number", 
+        "askForName": "Ask For Name", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@socialMedia":{
+        "user": "User", 
+        "accountId": "Account Id", 
+        "url": "Url", 
+        "type": "Type", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@address":{
+        "name": "Name", 
+        "buildingNumber": "Building No", 
+        "street1": "Street Address 1", 
+        "street2": "Street Address 2", 
+        "desa": "Desa", 
+        "kecamatan": "Kecamatan", 
+        "city": "City", 
+        "stateProvince": "Province", 
+        "postalCode": "Pos Code", 
+        "state": "State", 
+        "hasOtherAddress": "Has Other Address", 
+        "type": "Type", 
+        "geo": "Geo", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@geo":{
+        "latitude": "Latitude", 
+        "longitude": "Longitude", 
+        "altitude": "Altitude", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@countryState":{
+        "name": "Name", 
+        "nameEnglish": "Name English", 
+        "code": "Code", 
+        "countryPhoneCode": "Country Phone Code", 
+        "otherLanguage": "Other Language", 
+        "flagImage": "Flag Image", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@region":{
+        "name": "Name", 
+        "nameEnglish": "Name English", 
+        "code": "Code", 
+        "type": "Type", 
+        "parent": "Parent", 
+        "postalCode": "Postal Code", 
+        "description": "Description", 
+        "type": "Type", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@tenant":{
+        "subscription": "Subscription", 
+        "description": "Description", 
+        "user": "User", 
+        "role": "Role", 
+        "isActive": "Is Active", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@customer":{
+        "user": "User", 
+        "name": "Name", 
+        "description": "Description", 
+        "tenant": "Tenant", 
+        "isActive": "Is Active", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@supplier":{
+        "user": "User", 
+        "description": "Description", 
+        "contact": "Contact", 
+        "address": "Address", 
+        "isActive": "Is Active", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@staff":{
+        "user": "User", 
+        "company": "Company", 
+        "name": "Name", 
+        "description": "Description", 
+        "tenant": "Tenant", 
+        "refCode": "Ref Code", 
+        "role": "Role", 
+        "isActive": "Is Active", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@company":{
+        "tenant": "Tenant", 
+        "name": "Company Name", 
+        "description": "Short Description", 
+        "flag": "Flag", 
+        "industry": "Industry", 
+        "rangeEmployee": "Range Employee", 
+        "content": "Content", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@branch":{
+        "company": "Company", 
+        "name": "Name", 
+        "description": "Description", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@branchAssignment":{
+        "company": "Company", 
+        "branch": "Branch", 
+        "staff": "Staff", 
+        "activeFrom": "Active From", 
+        "activeTo": "Active To", 
+        "isActive": "Is Active", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@industry":{
+        "name": "Name", 
+        "description": "Description", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@subscription":{
+        "package": "Package", 
+        "invoice": "Invoice", 
+        "purchaseFromDate": "Purchase From Date", 
+        "purchaseThruDate": "Purchase Thru Date", 
+        "customer": "Customer", 
+        "canceledAt": "Canceled At", 
+        "endedAt": "Ended At", 
+        "defaultPaymentMethod": "Default Payment Method", 
+        "metadata": "Metadata", 
+        "status": "Status", 
+        "referenceId": "Reference Id", 
+        "role": "Role", 
+        "description": "Description", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@syirkahSubscription":{
+        "syirkah": "Syirkah", 
+        "subscription": "Subscription", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@subscriptionPackage":{
+        "category": "Category", 
+        "price": "Price", 
+        "isActive": "Is Active", 
+        "discount": "Discount", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@productSubsConfig":{
+        "product": "Product", 
+        "fromDate": "From Date", 
+        "thruDate": "Thru Date", 
+        "purchaseFromDate": "Purchase From Date", 
+        "purchaseThruDate": "Purchase Thru Date", 
+        "maxLifeTime": "Max Life Time", 
+        "maxLifeTimeUomId": "Max Life Time Uom Id", 
+        "availableTime": "Available Time", 
+        "availableTimeUomId": "Available Time Uom Id", 
+        "useCountLimit": "Use Count Limit", 
+        "useTime": "Use Time", 
+        "useTimeUomId": "Use Time Uom Id", 
+        "useRoleTypeId": "Use Role Type Id", 
+        "automaticExtend": "Automatic Extend", 
+        "canclAutmExtTime": "Cancl Autm Ext Time", 
+        "canclAutmExtTimeUomId": "Cancl Autm Ext Time Uom Id", 
+        "gracePeriodOnExpiry": "Grace Period On Expiry", 
+        "gracePeriodOnExpiryUomId": "Grace Period On Expiry Uom Id", 
+        "expirationCompletionDate": "Expiration Completion Date", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@businessField":{
+        "name": "Name", 
+        "description": "Description", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@productFeature":{
+        "name": "Name", 
+        "description": "Description", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    },
+    "@productCategory":{
+        "name": "", 
+        "description": "", 
+        "parent": "Parent", 
+        "id": "Id", 
+        "createAt": "Create At", 
+        "updateAt": "Update At"  
+    }
+}
